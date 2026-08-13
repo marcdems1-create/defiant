@@ -1,6 +1,6 @@
 import type { SupportedChainId } from '@/lib/wagmi';
 
-export type ProtocolId = 'aave-v3' | 'lido' | 'yearn-v3';
+export type ProtocolId = 'aave-v3' | 'lido' | 'yearn-v3' | 'curve';
 
 export interface Opportunity {
   id: string;
@@ -19,6 +19,18 @@ export interface Opportunity {
   depositTarget: `0x${string}`;
   /** ERC-4626-style share token holding the position, if one exists (aToken, vault shares). */
   positionToken?: `0x${string}`;
+  /**
+   * Decimals of `positionToken`, when they differ from `asset.decimals`.
+   * Aave's aTokens and Yearn's vault shares mirror the underlying asset's
+   * decimals, so this is unset for them. Curve LP shares don't — a
+   * crvUSD/USDC pool's LP token is 18 decimals regardless of USDC's 6 —
+   * so the withdraw tab (which enters an amount of `positionToken`, not
+   * `asset`) needs its own decimals to parse/format correctly. Falls back
+   * to `asset.decimals` when unset.
+   */
+  positionDecimals?: number;
+  /** Display label for `positionToken` on the withdraw tab. Falls back to `asset.symbol` when unset. */
+  positionSymbol?: string;
   /**
    * 'instant' = withdraw and receive funds in the same transaction.
    * 'delayed' = withdrawal goes through a queue (Lido: typically 1-5 days).

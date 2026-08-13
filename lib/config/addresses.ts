@@ -59,3 +59,34 @@ export const LIDO = {
     withdrawalQueue: '0x1583C7b3f4C3B008720E6BcE5726336b0aB25fdd' as `0x${string}`,
   },
 } as const;
+
+/**
+ * Curve's crvUSD/USDC "factory plain pool" on Ethereum mainnet — the pool
+ * contract IS the LP token (no separate ERC-20), a standard Curve
+ * StableSwap-NG factory pool with coins[0] = USDC, coins[1] = crvUSD.
+ *
+ * Verified 2026-08-13 against independent third-party sources (this
+ * sandbox's network policy blocks reaching Curve's own
+ * resources.curve.finance/api.curve.finance directly, so cross-referencing
+ * substitutes for a single official-docs fetch here — re-verify against
+ * Curve's own docs before a mainnet deploy, per repo convention):
+ *   - rotki/rotki (`CRVUSD_PEG_KEEPERS_AND_POOLS` in
+ *     rotkehlchen/chain/ethereum/modules/curve/crvusd/constants.py) maps
+ *     PegKeeper 0x9201da0D97CaAAff53f01B2fB56767C7072dE340 to this pool,
+ *     labeled "USDC/crvUSD".
+ *   - messari/subgraphs (multiple subgraphs' prices/config/mainnet.ts) labels
+ *     this exact address "Factory Plain Pool: crvUSD/USDC".
+ *   - The pool's own Sourcify-verified ABI (KeystoneHQ/Smart-Contract-
+ *     Metadata-Registry) confirms a 2-coin StableSwap interface exposing
+ *     add_liquidity(uint256[2],uint256), remove_liquidity_one_coin,
+ *     calc_token_amount, and calc_withdraw_one_coin — exactly what
+ *     lib/protocols/curve.ts and lib/abi/curvePool.ts assume.
+ * No official Curve testnet deployment of this pool exists, so this is
+ * mainnet-only — same posture as Lido having no L2 deployment above.
+ */
+export const CURVE: Partial<Record<number, { pool: `0x${string}`; usdc: `0x${string}` }>> = {
+  [mainnet.id]: {
+    pool: '0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E',
+    usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  },
+};

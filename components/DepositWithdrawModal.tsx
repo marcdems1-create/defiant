@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import { parseUnits, formatUnits } from 'viem';
-import { useAccount, useBalance, useChainId, useSwitchChain, useWriteContract } from 'wagmi';
+import { useAccount, useBalance, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
 import type { Opportunity } from '@/lib/protocols/types';
 import { erc20Abi } from '@/lib/abi/erc20';
 import { aavePoolAbi } from '@/lib/abi/aavePool';
 import { erc4626Abi } from '@/lib/abi/erc4626';
+import { curvePoolAbi } from '@/lib/abi/curvePool';
 import { stEthAbi, lidoWithdrawalQueueAbi } from '@/lib/abi/lido';
 import { LIDO } from '@/lib/config/addresses';
 import { getWagmiConfig } from '@/lib/wagmi';
@@ -42,9 +43,20 @@ export function DepositWithdrawModal({
 
   const wrongNetwork = currentChainId !== opportunity.chainId;
   const isNativeDeposit = opportunity.protocol === 'lido';
+  const isCurve = opportunity.protocol === 'curve';
   // Lido withdrawal fee is charged at claim time (funds aren't in the
   // wallet yet at request time) — see LidoWithdrawalRequests.
   const feeAppliesHere = feesEnabled() && !(opportunity.protocol === 'lido' && tab === 'withdraw');
+
+  // Curve LP shares aren't 1:1 with the underlying asset the way Aave's
+  // aTokens or Yearn's vault shares are — different decimals AND a virtual
+  // price that isn't 1. The withdraw tab enters an amount of positionToken
+  // (LP shares), not asset (USDC), so it needs its own decimals/symbol.
+  // Unset for every other protocol, where position and asset match.
+  const positionDecimals = opportunity.positionDecimals ?? opportunity.asset.decimals;
+  const positionSymbol = opportunity.positionSymbol ?? opportunity.asset.symbol;
+  const amountDecimals = tab === 'withdraw' ? positionDecimals : opportunity.asset.decimals;
+  const amountSymbol = tab === 'withdraw' ? positionSymbol : opportunity.asset.symbol;
 
   const nativeBalance = useBalance({
     address,
@@ -75,24 +87,61 @@ export function DepositWithdrawModal({
   const amountBig = useMemo(() => {
     if (!amount) return 0n;
     try {
-      return parseUnits(amount, opportunity.asset.decimals);
+      return parseUnits(amount, amountDecimals);
     } catch {
       return 0n;
     }
-  }, [amount, opportunity.asset.decimals]);
+  }, [amount, amountDecimals]);
+
+  // Curve-only: preview the actual USDC amount a withdrawal will produce, so
+  // (a) the fee below is based on real USDC out rather than the LP-share
+  // amount typed into the withdraw tab (a different unit entirely), and (b)
+  // remove_liquidity_one_coin's tx (below) can carry a real min-out instead
+  // of 0 — unlike Aave/Yearn's fixed-rate mechanics, this behaves like a
+  // swap and a 0 min-out is a real sandwich-attack surface.
+  const curveWithdrawPreview = useReadContract({
+    address: opportunity.depositTarget,
+    abi: curvePoolAbi,
+    functionName: 'calc_withdraw_one_coin',
+    args: [amountBig, 0n],
+    chainId: opportunity.chainId,
+    query: { enabled: isCurve && tab === 'withdraw' && amountBig > 0n },
+  });
+  const CURVE_SLIPPAGE_BPS = 100n; // 1% tolerance on Curve's own previewed amounts
+  const curveMinOut = (preview: bigint | undefined) =>
+    preview ? (preview * (10_000n - CURVE_SLIPPAGE_BPS)) / 10_000n : 0n;
 
   const feeBps = tab === 'deposit' ? DEPOSIT_FEE_BPS : WITHDRAW_FEE_BPS;
-  const feeAmount = feeAppliesHere ? computeFee(amountBig, feeBps) : 0n;
+  // For a Curve withdrawal, amountBig is LP shares (18 decimals, not 1:1
+  // with USDC) — the fee must be computed on the previewed USDC output
+  // instead, or it comes out wildly wrong (off by orders of magnitude).
+  // Aave/Yearn keep using amountBig directly: their share/aToken amounts
+  // are a close enough proxy for the underlying that this is fine there.
+  const feeBasisAmount =
+    isCurve && tab === 'withdraw' ? ((curveWithdrawPreview.data as bigint | undefined) ?? 0n) : amountBig;
+  const feeAmount = feeAppliesHere ? computeFee(feeBasisAmount, feeBps) : 0n;
   // Deposit: fee comes out of what you send in, so less reaches the protocol.
   // Withdraw: the protocol pays out the full gross amount first, then the
   // fee is taken from what lands in your wallet — see handleWithdraw.
-  const netAmount = amountBig - feeAmount;
+  const netAmount = feeBasisAmount - feeAmount;
+
+  // Preview add_liquidity's LP output for exactly `netAmount` — the amount
+  // that actually reaches the pool after any deposit fee — so the min-out
+  // below matches what's really being deposited, not the pre-fee amount.
+  const curveDepositPreview = useReadContract({
+    address: opportunity.depositTarget,
+    abi: curvePoolAbi,
+    functionName: 'calc_token_amount',
+    args: [[netAmount, 0n], true],
+    chainId: opportunity.chainId,
+    query: { enabled: isCurve && tab === 'deposit' && netAmount > 0n },
+  });
 
   const maxAmount = tab === 'deposit' ? walletBalance : positionBalanceValue;
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
   function setMax() {
-    setAmount(formatUnits(maxAmount, opportunity.asset.decimals));
+    setAmount(formatUnits(maxAmount, amountDecimals));
   }
 
   async function refreshBalances() {
@@ -142,10 +191,10 @@ export function DepositWithdrawModal({
         return;
       }
 
-      // Aave + Yearn: ERC-20 approve for the exact net deposit amount, then
-      // act. Deliberately not an unbounded approval — scoped to this deposit
-      // only, and scoped to the post-fee amount since that's all that
-      // actually reaches the protocol.
+      // Aave, Yearn, and Curve: ERC-20 approve for the exact net deposit
+      // amount, then act. Deliberately not an unbounded approval — scoped
+      // to this deposit only, and scoped to the post-fee amount since
+      // that's all that actually reaches the protocol.
       if (allowanceValue < netAmount) {
         setStep('approving');
         const approveHash = await writeContractAsync({
@@ -166,6 +215,16 @@ export function DepositWithdrawModal({
           abi: aavePoolAbi,
           functionName: 'supply',
           args: [opportunity.asset.address, netAmount, address, 0],
+          chainId: opportunity.chainId,
+        });
+        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+      } else if (opportunity.protocol === 'curve') {
+        const minMintAmount = curveMinOut(curveDepositPreview.data as bigint | undefined);
+        const hash = await writeContractAsync({
+          address: opportunity.depositTarget,
+          abi: curvePoolAbi,
+          functionName: 'add_liquidity',
+          args: [[netAmount, 0n], minMintAmount],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -208,6 +267,17 @@ export function DepositWithdrawModal({
           abi: erc4626Abi,
           functionName: 'redeem',
           args: [amountBig, address, address],
+          chainId: opportunity.chainId,
+        });
+        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+      } else if (opportunity.protocol === 'curve') {
+        setStep('acting');
+        const minReceived = curveMinOut(curveWithdrawPreview.data as bigint | undefined);
+        const hash = await writeContractAsync({
+          address: opportunity.depositTarget,
+          abi: curvePoolAbi,
+          functionName: 'remove_liquidity_one_coin',
+          args: [amountBig, 0n, minReceived],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -328,8 +398,8 @@ export function DepositWithdrawModal({
             <div className="flex justify-between text-xs text-ink/50 mb-1">
               <span>Amount</span>
               <span>
-                {tab === 'deposit' ? 'Wallet' : 'Deposited'}: {formatUnits(maxAmount, opportunity.asset.decimals)}{' '}
-                {opportunity.asset.symbol}
+                {tab === 'deposit' ? 'Wallet' : 'Deposited'}: {formatUnits(maxAmount, amountDecimals)}{' '}
+                {amountSymbol}
               </span>
             </div>
             <div className="flex gap-2 mb-4">

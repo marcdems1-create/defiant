@@ -9,6 +9,7 @@ const PROTOCOL_BADGE: Record<Opportunity['protocol'], string> = {
   'aave-v3': 'bg-blue-500/10 text-blue-400 border-blue-500/30',
   lido: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
   'yearn-v3': 'bg-accent/10 text-accent border-accent/30',
+  curve: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
 };
 
 export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {

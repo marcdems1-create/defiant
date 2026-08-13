@@ -1,7 +1,7 @@
 # Defiant
 
 A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
-across Aave v3, Lido, and Yearn v3, and deposit or withdraw with transactions you sign
+across Aave v3, Lido, Yearn v3, and Curve, and deposit or withdraw with transactions you sign
 yourself. Defiant never takes custody of user funds — there is no pooled contract, no admin
 key, no path for the app itself to move anyone's money.
 
@@ -48,12 +48,17 @@ every market this reaches; it does not eliminate it in any of them.
 | Aave v3 | Ethereum, Base, Arbitrum | USDC | `Pool.supply()` | `Pool.withdraw()` — instant |
 | Lido | Ethereum only (no L2 deployment) | ETH → stETH | `stETH.submit()` | Request queue, **1-5 days** to finalize, then `claimWithdrawal()` |
 | Yearn v3 | Ethereum, Base, Arbitrum | USDC vaults | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
+| Curve | Ethereum only (no testnet deployment) | USDC → crvUSD/USDC LP | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
 
 Contract addresses live in `lib/config/addresses.ts`, pulled from
 [bgd-labs/aave-address-book](https://github.com/bgd-labs/aave-address-book) (Aave's own
 canonical registry) and [lidofinance/docs](https://github.com/lidofinance/docs) on
-2026-08-13. **Re-verify against those sources before any mainnet deploy** — don't assume
-addresses stay correct indefinitely.
+2026-08-13. The Curve pool address was verified the same day, but indirectly — this
+sandbox's network policy blocks Curve's own docs/API domains, so it's cross-referenced
+against multiple independent third-party sources instead (see the `CURVE` comment in
+`lib/config/addresses.ts` for exactly which ones and why that's an acceptable substitute).
+**Re-verify against those sources before any mainnet deploy** — don't assume addresses stay
+correct indefinitely.
 
 ## Fees
 
@@ -178,10 +183,22 @@ npm run dev
   rate). A real "savings"-adjacent product needs this before it's honest to a non-technical
   user — see the North Star framing from a sibling project's CLAUDE.md: never let a number
   imply safety it hasn't earned.
-- **No slippage/price-impact handling anywhere** — deposits and withdrawals are 1:1 at the
-  protocol's own exchange rate; there's no DEX routing, so this isn't applicable to the three
-  integrated protocols as built, but matters immediately if a DEX-based instant-Lido-exit path
-  is ever added.
+- **No slippage/price-impact handling for Aave, Lido, or Yearn** — deposits and withdrawals
+  are 1:1 at the protocol's own exchange rate, so this isn't applicable to those three as
+  built. **Curve is the exception**: `add_liquidity`/`remove_liquidity_one_coin` behave like a
+  swap, so `DepositWithdrawModal` previews the expected output via `calc_token_amount`/
+  `calc_withdraw_one_coin` and submits a 1%-tolerance min-out rather than 0 — the first place
+  in this app that does real slippage protection. Same thing would be needed if a DEX-based
+  instant-Lido-exit path is ever added.
+- **Curve's shown APY is base trading-fee yield only, not gauge-inclusive.** Earning this
+  pool's separate CRV emissions requires staking the LP token in its gauge, which this app
+  doesn't do — so the CRV-reward APR Curve's API also reports is deliberately left out rather
+  than shown as if a plain depositor here would earn it. See `lib/protocols/curve.ts`.
+- **Curve's API response shape is unverified against the live endpoint** — same constraint as
+  Yearn's above: this sandbox's network policy blocks reaching `api.curve.finance` while
+  building, so `lib/protocols/curve.ts` parses defensively (skips the pool rather than
+  guessing a wrong APY) but the field names should be smoke-tested against the real endpoint
+  the first time this runs.
 - **Fee amount is a hardcoded constant, not configurable per-session or A/B tested** —
   `DEPOSIT_FEE_BPS`/`WITHDRAW_FEE_BPS` in `lib/config/fees.ts`. Changing the fee is a one-line
   edit and a redeploy, nothing more sophisticated exists yet.
@@ -211,9 +228,9 @@ npm run dev
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
 | `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
 | `lib/db.ts` | Server-only lazy Postgres pool. Never import from a client component. |
-| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue) |
-| `lib/protocols/{aave,lido,yearn}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
-| `lib/protocols/aggregate.ts` | Combines all three into one sorted list |
+| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve StableSwap-NG pool) |
+| `lib/protocols/{aave,lido,yearn,curve}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
+| `lib/protocols/aggregate.ts` | Combines all four into one sorted list |
 | `lib/preferences.ts` | Questionnaire answer storage, the filter/sort function (never scoring/recommendation), and the shared `CONSENT_MESSAGE` string |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |

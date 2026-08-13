@@ -94,34 +94,49 @@ Rules:
   module scope, `npm run build` will fail on `/opportunities` (or wherever imports it) with
   the exact error above. Re-apply the lazy-singleton pattern rather than special-casing routes.
 
-## Current state (2026-08-13, initial build + fees/questionnaire + data collection same day)
+## Current state (2026-08-13, initial build + fees/questionnaire + data collection + Curve same day)
 
 Scaffolded end-to-end: wallet connect (RainbowKit/wagmi), live opportunity aggregation across
-Aave v3 + Lido + Yearn v3 (Ethereum/Base/Arbitrum where each protocol is deployed), a
-portfolio dashboard reading live on-chain balances, a full deposit/withdraw transaction flow
-per protocol (including Lido's async request-then-claim withdrawal queue), a deposit/
-withdrawal fee (0.25%/0.25% default, see README "Fees") taken as a separate transfer never
-skimmed inside a protocol call, an investment-style questionnaire that filters/sorts
-`/opportunities` (never scores or recommends — see README "Investment-style filter"), and —
-new this session — an opt-in, signature-verified save of the questionnaire answers linked to
-the connected wallet address (README "Data collection"). This is the app's first server-side
-data store of any kind; everything before it was stateless (on-chain reads / protocol public
-APIs only). `npm run typecheck` and `npm run build` both pass clean, including with a treasury
-address and the new Postgres/signature code paths exercised at build time. Nothing has been
-run against a live testnet yet — this was built, typechecked, and build-verified but not
-transaction-tested (no browser, no real wallet, no RPC, no live Postgres instance in this
-environment). **Before trusting any of the transaction flows with real value, run each
-deposit/withdraw path end-to-end on the default testnet config first. Before enabling the
-data-collection opt-in for real users, get the privacy/compliance review — see below.**
+Aave v3 + Lido + Yearn v3 + Curve (Ethereum/Base/Arbitrum where each protocol is deployed —
+Curve is Ethereum-only, no testnet), a portfolio dashboard reading live on-chain balances, a
+full deposit/withdraw transaction flow per protocol (including Lido's async request-then-claim
+withdrawal queue and Curve's preview-based slippage protection on `add_liquidity`/
+`remove_liquidity_one_coin` — the only place in the app that does real min-out slippage
+handling, since Curve's pool behaves like a swap unlike Aave/Lido/Yearn's fixed-rate
+mechanics), a deposit/withdrawal fee (0.25%/0.25% default, see README "Fees") taken as a
+separate transfer never skimmed inside a protocol call, an investment-style questionnaire that
+filters/sorts `/opportunities` (never scores or recommends — see README "Investment-style
+filter"), and an opt-in, signature-verified save of the questionnaire answers linked to the
+connected wallet address (README "Data collection"). The Postgres data-collection path is the
+app's only server-side data store; everything else, Curve included, is stateless (on-chain
+reads / protocol public APIs only). `npm run typecheck` and `npm run build` both pass clean,
+including with a treasury address and the Postgres/signature code paths exercised at build
+time. Nothing has been run against a live testnet yet — this was built, typechecked, and
+build-verified but not transaction-tested (no browser, no real wallet, no RPC, no live
+Postgres instance in this environment) — and Curve specifically can't be testnet-verified at
+all, since it has no testnet deployment; its first real test will necessarily be against
+mainnet with real funds, so treat it as the least-proven integration in the app until that
+happens. **Before trusting any of the transaction flows with real value, run each
+deposit/withdraw path end-to-end on the default testnet config first (Curve excepted, per
+above — review its code path with extra care instead). Before enabling the data-collection
+opt-in for real users, get the privacy/compliance review — see below.**
 
 Known gaps, detailed in `README.md`'s "Known simplifications" section:
 - Yearn's yDaemon API response shape (`apr.forwardAPR.netAPR` etc.) is unverified against the
   live endpoint — this sandbox's network policy blocked reaching `ydaemon.yearn.fi` while
   building. Smoke-test on first real run.
+- Curve's `api.curve.finance` response shape is likewise unverified against the live endpoint
+  for the same reason (this sandbox blocks that domain too) — `lib/protocols/curve.ts` parses
+  defensively and skips rather than guesses, but smoke-test the field names on first real run.
+  Its pool address was verified indirectly, by cross-referencing multiple independent
+  third-party sources rather than Curve's own (unreachable) docs — see the `CURVE` comment in
+  `lib/config/addresses.ts`. Re-verify against Curve's own docs before trusting it further.
 - Lido withdrawal-queue allowance isn't read live (always submits approve) — harmless, just
   an extra signature on repeat withdrawals.
-- USDC-only for Aave/Yearn. No risk scoring, no TVL display, no slippage handling (not
-  applicable yet — nothing here routes through a DEX).
+- USDC-only for Aave/Yearn/Curve. No risk scoring, no TVL display. Curve's shown APY is base
+  trading-fee yield only — it deliberately excludes gauge CRV rewards, since earning those
+  requires staking the LP token and this app doesn't build that flow (showing the CRV-inclusive
+  number would overstate what a depositor here actually earns).
 - **Fees default to off** — `NEXT_PUBLIC_TREASURY_ADDRESS` is unset, so `feesEnabled()` is
   `false` and no fee UI/transfer appears anywhere until it's configured with a real address.
 - **The two-step fee flow has no partial-failure recovery** (fee transfer succeeds, main
@@ -136,10 +151,14 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
 
 ## What to build next (not started, in rough priority order)
 
-1. Run the full deposit → withdraw cycle on testnet for all three protocols, fix whatever
-   breaks. This has never been transaction-tested against a live RPC.
+1. Run the full deposit → withdraw cycle on testnet for Aave, Lido, and Yearn, fix whatever
+   breaks. This has never been transaction-tested against a live RPC. Curve has no testnet
+   deployment to test against — its first real test is necessarily on mainnet with real funds,
+   so give its deposit/add_liquidity/remove_liquidity_one_coin code path (and the min-out
+   slippage math around it) extra scrutiny before that first mainnet run.
 2. Smoke-test the Yearn API integration specifically — verify `apr.forwardAPR.netAPR` is the
-   right field before trusting displayed Yearn APYs.
+   right field before trusting displayed Yearn APYs. Same for Curve's `api.curve.finance`
+   response shape assumed in `lib/protocols/curve.ts`.
 3. Once a treasury address exists, smoke-test the fee flow specifically — both success and
    partial-failure paths (reject the second signature after the first succeeds) — before
    trusting it with real money.
