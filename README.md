@@ -7,9 +7,9 @@ key, no path for the app itself to move anyone's money.
 
 > **Naming note:** this is deliberately *not* marketed as a "savings app" anywhere in the
 > product. DeFi yield carries smart-contract, market, and liquidity risk and is not deposit-
-> insured (no CDIC coverage) the way a bank savings account is. Calling it a savings product
-> would misrepresent that risk to a Canadian consumer audience — see the regulatory section
-> below.
+> insured the way a bank savings account is (no FDIC/CDIC/FSCS-equivalent coverage anywhere).
+> Calling it a savings product would misrepresent that risk to users — see the regulatory
+> section below.
 
 ## Why non-custodial
 
@@ -21,15 +21,16 @@ own transactions (non-custodial). This build is non-custodial by construction:
 - Every deposit/withdraw/approve is a transaction the connected wallet signs directly.
 - There is no admin-controlled pool, vault, or multisig the app operates.
 
-This matters specifically for a Canadian-facing product: a custodial model that pools and
-deploys client funds plausibly triggers FINTRAC money-services-business registration and/or
-provincial securities/derivatives regulation (the CSA has taken the position that certain
-crypto-asset trading platforms and staking/yield products fall under securities law — see
-[CSA Staff Notice 21-333](https://www.securities-administrators.ca/) and its successors).
-A non-custodial interface that never intermediates funds is a fundamentally different, much
-lighter regulatory posture. **This is not legal advice** — get a real compliance review
-before any public launch, marketing push, or Canadian-specific claims ("built for Canadians",
-etc.). The architecture choice reduces regulatory surface area; it does not eliminate it.
+This matters globally, not in any one jurisdiction: a custodial model that pools and deploys
+client funds plausibly triggers money-transmitter/money-services-business licensing and/or
+securities or derivatives regulation almost everywhere it might operate — state-by-state
+money transmitter licensing and state/SEC securities law in the US, MiCA CASP authorization
+in the EU, FCA registration in the UK, FINTRAC/CSA rules in Canada, and analogous regimes
+elsewhere. A non-custodial interface that never intermediates funds is a fundamentally
+different, much lighter regulatory posture in all of them. **This is not legal advice** — get
+a real compliance review, per-jurisdiction, before any public launch, marketing push, or
+jurisdiction-specific claims. The architecture choice reduces regulatory surface area across
+every market this reaches; it does not eliminate it in any of them.
 
 ## Stack
 

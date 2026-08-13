@@ -4,12 +4,13 @@
 
 ## What this is
 
-**Defiant is a non-custodial DeFi yield interface for a Canadian audience.** Connect your
+**Defiant is a non-custodial DeFi yield interface for a global audience.** Connect your
 own wallet, compare live on-chain yield across Aave v3, Lido, and Yearn v3, deposit or
 withdraw with transactions you sign yourself. The app never holds funds — no pooled
 contract, no admin key, no custody. See `README.md` for the full rationale and regulatory
-framing; the short version: custody is what turns this into a heavily-regulated Canadian
-financial product, so custody is the thing this build refuses to add.
+framing; the short version: custody is what turns this into a heavily-regulated financial
+product in nearly every jurisdiction, so custody is the thing this build refuses to add.
+Not scoped to any one country — don't add region-specific framing without a reason.
 
 **Not called a "savings app" anywhere in the product.** DeFi yield is not deposit-insured
 and carries real smart-contract/market/liquidity risk. Calling it "savings" would misstate
@@ -96,8 +97,9 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
 2. Smoke-test the Yearn API integration specifically — verify `apr.forwardAPR.netAPR` is the
    right field before trusting displayed Yearn APYs.
 3. Real compliance review before any mainnet/public launch — see README's regulatory section.
-   Do not add Canadian-specific marketing copy, "safe", "guaranteed", or FDIC/CDIC-adjacent
-   language anywhere without that review happening first.
+   Do not add jurisdiction-specific marketing copy, "safe", "guaranteed", or any
+   deposit-insurance-adjacent language (FDIC, CDIC, FSCS, etc.) anywhere without that review
+   happening first.
 4. Risk context per opportunity (protocol TVL, audit status, Aave utilization rate) — an APY
    number with zero risk context is a half-honest product.
 
