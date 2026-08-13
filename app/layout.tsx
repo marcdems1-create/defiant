@@ -15,7 +15,7 @@ const Providers = dynamic(() => import('./providers').then((m) => m.Providers), 
 export const metadata: Metadata = {
   title: 'Defiant — non-custodial DeFi yield',
   description:
-    'Connect your own wallet, compare on-chain yield across Aave, Lido and Yearn, deposit and withdraw with your own keys. Defiant never holds your funds.',
+    'Connect your own wallet, compare the best on-chain yield across DeFi, deposit and withdraw with your own keys. Defiant never holds your funds.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
