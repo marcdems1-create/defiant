@@ -55,6 +55,48 @@ canonical registry) and [lidofinance/docs](https://github.com/lidofinance/docs) 
 2026-08-13. **Re-verify against those sources before any mainnet deploy** — don't assume
 addresses stay correct indefinitely.
 
+## Fees
+
+A flat basis-point fee on deposit and withdrawal — 0.25% each way by default
+(`lib/config/fees.ts`). Mechanically it is a **separate wallet-signed transfer to a treasury
+address**, never a cut taken inside the deposit/withdraw call itself:
+
+- **Deposit**: the fee is sent to the treasury first, then the *remaining* amount is what
+  actually gets approved and deposited into the protocol.
+- **Withdraw (Aave/Yearn)**: the full gross amount is withdrawn from the protocol into the
+  wallet first, then the fee is sent to the treasury out of what just landed.
+- **Withdraw (Lido)**: fee is charged at *claim* time, not request time — the requested ETH
+  isn't in the wallet yet when a withdrawal is only requested, so charging a fee then would
+  come out of unrelated funds. `LidoWithdrawalRequests.tsx` takes the fee right after
+  `claimWithdrawal()` lands ETH in the wallet.
+
+This keeps the non-custodial claim intact — the fee transaction is a plain transfer the user
+signs, not something a contract deducts from funds passing through it. The cost is UX: an
+extra signature per deposit/withdrawal when fees are enabled.
+
+**Fees are off by default.** `getTreasuryAddress()` in `lib/config/fees.ts` returns
+`undefined` — and every fee code path no-ops — until `NEXT_PUBLIC_TREASURY_ADDRESS` is set to
+a real address. There is no fallback address; an unset or malformed value disables fees
+entirely rather than sending anywhere unintended.
+
+## Investment-style filter (not advice)
+
+`/opportunities` shows a short questionnaire on first visit (`InvestmentStyleQuestionnaire`,
+answers cached in `localStorage`, never sent anywhere). It asks about liquidity need, comfort
+with newer protocols, and whether yield or risk matters more — and uses the answers only to
+**filter and sort** the existing opportunity list (`lib/preferences.ts`'s
+`applyPreferences()`). It never computes a suitability score, never recommends a specific
+product or allocation, and every screen it touches carries a "not financial advice" line and
+a one-click "show everything" escape hatch.
+
+**This distinction is load-bearing, not cosmetic.** Risk-profiling-plus-recommendation is the
+exact pattern that requires robo-advisers (Betterment, Wealthfront) to register as investment
+advisers in the US, and the analogous suitability-assessment regimes elsewhere (MiFID II in
+the EU, etc.). A preference filter that only reorders/hides existing self-serve options is a
+meaningfully different, much lighter regulatory posture — but only as long as it stays a
+filter. Do not evolve this into scored recommendations or allocation percentages without the
+same compliance review called out above.
+
 ## Safety defaults
 
 - `NEXT_PUBLIC_NETWORK_MODE=testnet` by default (`.env.example`). The app runs against
@@ -72,6 +114,7 @@ addresses stay correct indefinitely.
 npm install
 cp .env.example .env.local
 # Fill in NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID at minimum (free at https://cloud.reown.com)
+# NEXT_PUBLIC_TREASURY_ADDRESS is optional — fees stay disabled until it's set (see "Fees")
 npm run dev
 ```
 
@@ -99,6 +142,15 @@ npm run dev
   protocol's own exchange rate; there's no DEX routing, so this isn't applicable to the three
   integrated protocols as built, but matters immediately if a DEX-based instant-Lido-exit path
   is ever added.
+- **Fee amount is a hardcoded constant, not configurable per-session or A/B tested** —
+  `DEPOSIT_FEE_BPS`/`WITHDRAW_FEE_BPS` in `lib/config/fees.ts`. Changing the fee is a one-line
+  edit and a redeploy, nothing more sophisticated exists yet.
+- **The two-step fee flow has no partial-failure recovery.** Untested against a live testnet:
+  two separate signed transactions per action (deposit: fee transfer then supply/deposit;
+  Aave/Yearn withdraw: withdraw then fee transfer) means two places a user can reject or a
+  wallet can error mid-flow. If one leg succeeds and the other then fails, the UI currently
+  just surfaces the error — there's no automatic refund/retry/resume orchestration. Worth
+  hardening before real money is at stake.
 
 ## File map
 
@@ -106,12 +158,16 @@ npm run dev
 |---|---|
 | `lib/wagmi.ts` | Chain list + wallet connector config, testnet/mainnet switch |
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
+| `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
 | `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue) |
-| `lib/protocols/{aave,lido,yearn}.ts` | Per-protocol opportunity fetchers (APY + deposit target) |
+| `lib/protocols/{aave,lido,yearn}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
 | `lib/protocols/aggregate.ts` | Combines all three into one sorted list |
+| `lib/preferences.ts` | Questionnaire answer storage + the filter/sort function — never a scoring or recommendation function |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |
-| `components/DepositWithdrawModal.tsx` | The actual transaction flow — approve/deposit/withdraw per protocol |
-| `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim |
+| `lib/hooks/useSendFee.ts` | Sends the fee transfer (native or ERC-20) to the treasury address, no-ops if unconfigured |
+| `components/DepositWithdrawModal.tsx` | The actual transaction flow — fee transfer + approve/deposit/withdraw per protocol |
+| `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim + fee-on-claim |
+| `components/InvestmentStyleQuestionnaire.tsx` | The preference questionnaire — filter/sort only, see "Investment-style filter" above |
 | `app/page.tsx` | Portfolio dashboard (connect-wallet hero when disconnected) |
-| `app/opportunities/page.tsx` | Full opportunity comparison list |
+| `app/opportunities/page.tsx` | Full opportunity comparison list, questionnaire-gated on first visit |

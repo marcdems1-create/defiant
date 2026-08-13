@@ -39,6 +39,18 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    [bgd-labs/aave-address-book](https://github.com/bgd-labs/aave-address-book) or
    [lidofinance/docs](https://github.com/lidofinance/docs) — don't paste an address from
    memory or an unverified search result into financial code.
+6. **Fees are a separate wallet-signed transfer, never a cut taken inside a deposit/withdraw
+   call.** No fee-router contract, no skimming inside `supply()`/`deposit()`/`submit()`. This
+   is what keeps non-negotiable #1 true even with a fee model layered on top — see README
+   "Fees" for the full two-step mechanism. `lib/config/fees.ts`'s `getTreasuryAddress()` must
+   keep returning `undefined` (disabling every fee code path) on anything other than a valid,
+   non-zero configured address — never add a hardcoded fallback treasury.
+7. **The investment-style questionnaire filters and sorts existing opportunities — it never
+   scores suitability or recommends a specific product or allocation.** That line is what
+   keeps it out of investment-adviser-registration territory (see README "Investment-style
+   filter"). If a future request pushes toward "recommend the best option for me" or a
+   computed risk score, flag the regulatory shift explicitly before building it — don't just
+   extend `applyPreferences()` past a filter/sort function.
 
 ## ⛔ RainbowKit/wagmi config must stay lazy — do not regress
 
@@ -69,12 +81,15 @@ Rules:
   module scope, `npm run build` will fail on `/opportunities` (or wherever imports it) with
   the exact error above. Re-apply the lazy-singleton pattern rather than special-casing routes.
 
-## Current state (2026-08-13, initial build)
+## Current state (2026-08-13, initial build + fees/questionnaire same day)
 
 Scaffolded end-to-end: wallet connect (RainbowKit/wagmi), live opportunity aggregation across
 Aave v3 + Lido + Yearn v3 (Ethereum/Base/Arbitrum where each protocol is deployed), a
-portfolio dashboard reading live on-chain balances, and a full deposit/withdraw transaction
-flow per protocol (including Lido's async request-then-claim withdrawal queue).
+portfolio dashboard reading live on-chain balances, a full deposit/withdraw transaction flow
+per protocol (including Lido's async request-then-claim withdrawal queue), a deposit/
+withdrawal fee (0.25%/0.25% default, see README "Fees") taken as a separate transfer never
+skimmed inside a protocol call, and an investment-style questionnaire that filters/sorts
+`/opportunities` (never scores or recommends — see README "Investment-style filter").
 `npm run typecheck` and `npm run build` both pass clean. Nothing has been run against a live
 testnet yet — this was built, typechecked, and build-verified but not transaction-tested (no
 browser, no real wallet, no RPC in this environment). **Before trusting any of the
@@ -89,6 +104,11 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
   an extra signature on repeat withdrawals.
 - USDC-only for Aave/Yearn. No risk scoring, no TVL display, no slippage handling (not
   applicable yet — nothing here routes through a DEX).
+- **Fees default to off** — `NEXT_PUBLIC_TREASURY_ADDRESS` is unset, so `feesEnabled()` is
+  `false` and no fee UI/transfer appears anywhere until it's configured with a real address.
+- **The two-step fee flow has no partial-failure recovery** (fee transfer succeeds, main
+  action then fails, or vice versa) — surfaces the error, no auto-refund/resume. Untested
+  against a live RPC, same as everything else here.
 
 ## What to build next (not started, in rough priority order)
 
@@ -96,11 +116,16 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
    breaks. This has never been transaction-tested against a live RPC.
 2. Smoke-test the Yearn API integration specifically — verify `apr.forwardAPR.netAPR` is the
    right field before trusting displayed Yearn APYs.
-3. Real compliance review before any mainnet/public launch — see README's regulatory section.
+3. Once a treasury address exists, smoke-test the fee flow specifically — both success and
+   partial-failure paths (reject the second signature after the first succeeds) — before
+   trusting it with real money.
+4. Real compliance review before any mainnet/public launch — see README's regulatory section.
    Do not add jurisdiction-specific marketing copy, "safe", "guaranteed", or any
    deposit-insurance-adjacent language (FDIC, CDIC, FSCS, etc.) anywhere without that review
-   happening first.
-4. Risk context per opportunity (protocol TVL, audit status, Aave utilization rate) — an APY
+   happening first. This now also covers the fee model (money-transmitter-adjacent in some
+   readings once real fees flow) and the questionnaire (stays fine as long as it's filter-only
+   per non-negotiable #7).
+5. Risk context per opportunity (protocol TVL, audit status, Aave utilization rate) — an APY
    number with zero risk context is a half-honest product.
 
 ## Rules Claude must follow every session

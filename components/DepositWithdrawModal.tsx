@@ -11,12 +11,14 @@ import { erc4626Abi } from '@/lib/abi/erc4626';
 import { stEthAbi, lidoWithdrawalQueueAbi } from '@/lib/abi/lido';
 import { LIDO } from '@/lib/config/addresses';
 import { getWagmiConfig } from '@/lib/wagmi';
+import { computeFee, DEPOSIT_FEE_BPS, feesEnabled, WITHDRAW_FEE_BPS } from '@/lib/config/fees';
+import { useSendFee } from '@/lib/hooks/useSendFee';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
 import { chainName, formatApy } from '@/lib/format';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 
 type Tab = 'deposit' | 'withdraw';
-type Step = 'idle' | 'approving' | 'acting' | 'done' | 'error';
+type Step = 'idle' | 'sendingFee' | 'approving' | 'acting' | 'done' | 'error';
 
 const NULL_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
 
@@ -31,6 +33,7 @@ export function DepositWithdrawModal({
   const currentChainId = useChainId();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const { sendFee } = useSendFee();
 
   const [tab, setTab] = useState<Tab>('deposit');
   const [amount, setAmount] = useState('');
@@ -39,6 +42,9 @@ export function DepositWithdrawModal({
 
   const wrongNetwork = currentChainId !== opportunity.chainId;
   const isNativeDeposit = opportunity.protocol === 'lido';
+  // Lido withdrawal fee is charged at claim time (funds aren't in the
+  // wallet yet at request time) — see LidoWithdrawalRequests.
+  const feeAppliesHere = feesEnabled() && !(opportunity.protocol === 'lido' && tab === 'withdraw');
 
   const nativeBalance = useBalance({
     address,
@@ -75,6 +81,13 @@ export function DepositWithdrawModal({
     }
   }, [amount, opportunity.asset.decimals]);
 
+  const feeBps = tab === 'deposit' ? DEPOSIT_FEE_BPS : WITHDRAW_FEE_BPS;
+  const feeAmount = feeAppliesHere ? computeFee(amountBig, feeBps) : 0n;
+  // Deposit: fee comes out of what you send in, so less reaches the protocol.
+  // Withdraw: the protocol pays out the full gross amount first, then the
+  // fee is taken from what lands in your wallet — see handleWithdraw.
+  const netAmount = amountBig - feeAmount;
+
   const maxAmount = tab === 'deposit' ? walletBalance : positionBalanceValue;
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
@@ -103,6 +116,16 @@ export function DepositWithdrawModal({
     if (!address || amountBig === 0n) return;
     setErrorMsg(null);
     try {
+      if (feeAmount > 0n) {
+        setStep('sendingFee');
+        await sendFee({
+          isNative: isNativeDeposit,
+          tokenAddress: isNativeDeposit ? undefined : opportunity.asset.address,
+          amount: feeAmount,
+          chainId: opportunity.chainId,
+        });
+      }
+
       if (opportunity.protocol === 'lido') {
         setStep('acting');
         const hash = await writeContractAsync({
@@ -110,7 +133,7 @@ export function DepositWithdrawModal({
           abi: stEthAbi,
           functionName: 'submit',
           args: [NULL_ADDRESS],
-          value: amountBig,
+          value: netAmount,
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -119,15 +142,17 @@ export function DepositWithdrawModal({
         return;
       }
 
-      // Aave + Yearn: ERC-20 approve for the exact deposit amount, then act.
-      // Deliberately not an unbounded approval — scoped to this deposit only.
-      if (allowanceValue < amountBig) {
+      // Aave + Yearn: ERC-20 approve for the exact net deposit amount, then
+      // act. Deliberately not an unbounded approval — scoped to this deposit
+      // only, and scoped to the post-fee amount since that's all that
+      // actually reaches the protocol.
+      if (allowanceValue < netAmount) {
         setStep('approving');
         const approveHash = await writeContractAsync({
           address: opportunity.asset.address,
           abi: erc20Abi,
           functionName: 'approve',
-          args: [spender, amountBig],
+          args: [spender, netAmount],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
@@ -140,7 +165,7 @@ export function DepositWithdrawModal({
           address: opportunity.depositTarget,
           abi: aavePoolAbi,
           functionName: 'supply',
-          args: [opportunity.asset.address, amountBig, address, 0],
+          args: [opportunity.asset.address, netAmount, address, 0],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -149,7 +174,7 @@ export function DepositWithdrawModal({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'deposit',
-          args: [amountBig, address],
+          args: [netAmount, address],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -220,7 +245,23 @@ export function DepositWithdrawModal({
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        setStep('done');
+        await refreshBalances();
+        return;
       }
+
+      // Funds are now in the wallet (Aave/Yearn only — Lido returns above).
+      // Fee comes out of what just landed, as its own transfer.
+      if (feeAmount > 0n) {
+        setStep('sendingFee');
+        await sendFee({
+          isNative: false,
+          tokenAddress: opportunity.asset.address,
+          amount: feeAmount,
+          chainId: opportunity.chainId,
+        });
+      }
+
       setStep('done');
       await refreshBalances();
     } catch (e) {
@@ -229,7 +270,7 @@ export function DepositWithdrawModal({
     }
   }
 
-  const busy = step === 'approving' || step === 'acting';
+  const busy = step === 'sendingFee' || step === 'approving' || step === 'acting';
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4">
@@ -308,6 +349,29 @@ export function DepositWithdrawModal({
               </button>
             </div>
 
+            {feeAppliesHere && amountBig > 0n && (
+              <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3 flex flex-col gap-1">
+                <div className="flex justify-between">
+                  <span>Fee ({(feeBps / 100).toFixed(2)}%)</span>
+                  <span>
+                    {formatUnits(feeAmount, opportunity.asset.decimals)} {opportunity.asset.symbol}
+                  </span>
+                </div>
+                <div className="flex justify-between text-ink/70">
+                  <span>{tab === 'deposit' ? "You'll deposit" : "You'll receive"}</span>
+                  <span>
+                    {formatUnits(netAmount, opportunity.asset.decimals)} {opportunity.asset.symbol}
+                  </span>
+                </div>
+              </div>
+            )}
+            {opportunity.protocol === 'lido' && tab === 'withdraw' && feesEnabled() && (
+              <div className="text-xs text-ink/50 mb-3">
+                Withdrawal fee ({(WITHDRAW_FEE_BPS / 100).toFixed(2)}%) is taken when you claim
+                below, not now.
+              </div>
+            )}
+
             {insufficientBalance && (
               <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
             )}
@@ -327,15 +391,17 @@ export function DepositWithdrawModal({
             >
               {!address
                 ? 'Connect wallet'
-                : step === 'approving'
-                  ? 'Approving…'
-                  : step === 'acting'
-                    ? 'Confirming…'
-                    : tab === 'deposit'
-                      ? `Deposit ${opportunity.asset.symbol}`
-                      : opportunity.protocol === 'lido'
-                        ? 'Request withdrawal'
-                        : `Withdraw ${opportunity.asset.symbol}`}
+                : step === 'sendingFee'
+                  ? 'Sending fee…'
+                  : step === 'approving'
+                    ? 'Approving…'
+                    : step === 'acting'
+                      ? 'Confirming…'
+                      : tab === 'deposit'
+                        ? `Deposit ${opportunity.asset.symbol}`
+                        : opportunity.protocol === 'lido'
+                          ? 'Request withdrawal'
+                          : `Withdraw ${opportunity.asset.symbol}`}
             </button>
 
             {opportunity.protocol === 'lido' && tab === 'withdraw' && (
