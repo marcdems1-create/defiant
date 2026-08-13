@@ -82,12 +82,13 @@ entirely rather than sending anywhere unintended.
 ## Investment-style filter (not advice)
 
 `/opportunities` shows a short questionnaire on first visit (`InvestmentStyleQuestionnaire`,
-answers cached in `localStorage`, never sent anywhere). It asks about liquidity need, comfort
-with newer protocols, and whether yield or risk matters more — and uses the answers only to
-**filter and sort** the existing opportunity list (`lib/preferences.ts`'s
-`applyPreferences()`). It never computes a suitability score, never recommends a specific
-product or allocation, and every screen it touches carries a "not financial advice" line and
-a one-click "show everything" escape hatch.
+answers cached in `localStorage`). It asks about liquidity need, comfort with newer
+protocols, and whether yield or risk matters more — and uses the answers only to **filter and
+sort** the existing opportunity list (`lib/preferences.ts`'s `applyPreferences()`). It never
+computes a suitability score, never recommends a specific product or allocation, and every
+screen it touches carries a "not financial advice" line and a one-click "show everything"
+escape hatch. The filter/sort behavior is entirely local and works whether or not the user
+opts into the data-saving step below — see "Data collection" for what that step does.
 
 **This distinction is load-bearing, not cosmetic.** Risk-profiling-plus-recommendation is the
 exact pattern that requires robo-advisers (Betterment, Wealthfront) to register as investment
@@ -96,6 +97,43 @@ the EU, etc.). A preference filter that only reorders/hides existing self-serve 
 meaningfully different, much lighter regulatory posture — but only as long as it stays a
 filter. Do not evolve this into scored recommendations or allocation percentages without the
 same compliance review called out above.
+
+## Data collection
+
+The only place this app stores anything server-side, at all, is an explicit opt-in on the
+questionnaire: a checkbox, unchecked by default, that saves the three answers **linked to
+the connected wallet address** so they can be used to improve the product and — per how this
+was scoped — potentially to contact the user about relevant updates later. This is the app's
+first feature that touches personal data, and it's built with that treated as a real
+constraint, not an afterthought:
+
+- **Opt-in, not opt-out.** The checkbox defaults to unchecked. Declining doesn't degrade the
+  product — the local filter/sort works identically either way.
+- **Consent is cryptographically proven, not just claimed.** Checking the box and clicking
+  Apply prompts a free wallet signature (`useSignMessage`, no transaction, no gas) over a
+  fixed message (`CONSENT_MESSAGE` in `lib/preferences.ts`). `POST /api/preferences`
+  (`app/api/preferences/route.ts`) verifies that signature against the claimed wallet address
+  with viem's `verifyMessage()` before writing anything — without a valid signature, the
+  request is rejected with 401. This exists specifically so nobody can POST answers
+  attributed to a wallet address they don't control; a "consent" that isn't tied to a proof
+  of ownership isn't real consent.
+- **Minimal fields.** `wallet_address`, the three answers, and a `consented_at` timestamp —
+  see `migrations/001_questionnaire_responses.sql`. No email, no IP address, no device
+  fingerprint, nothing beyond what was explicitly asked for.
+- **No backend existed before this.** Everything else in the app is either a direct on-chain
+  read or a call to a protocol's own public API — see `lib/db.ts`'s comment for why the
+  Postgres pool is a lazy singleton (same reasoning as `lib/wagmi.ts`'s `getWagmiConfig()`,
+  just for a different crash mode: importing `pg` into a client bundle rather than an SSR
+  crash). `DATABASE_URL` is unset by default; the save path simply errors until it's
+  configured, everything else in the app is unaffected.
+
+**What's explicitly NOT built yet, and must exist before this goes anywhere near real users:**
+a privacy policy describing this collection, a data retention policy, and a self-service (or
+at minimum request-based) deletion mechanism — most privacy regimes that would plausibly
+apply once real wallet-linked data is being stored (GDPR, CCPA/CPRA, PIPEDA, and others)
+require some version of a right to erasure and a stated lawful basis/purpose for processing.
+**This is not legal advice** — get a real privacy/compliance review before enabling this in
+front of real users, same as the fee model and the custody architecture above.
 
 ## Safety defaults
 
@@ -115,6 +153,8 @@ npm install
 cp .env.example .env.local
 # Fill in NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID at minimum (free at https://cloud.reown.com)
 # NEXT_PUBLIC_TREASURY_ADDRESS is optional — fees stay disabled until it's set (see "Fees")
+# DATABASE_URL is optional — questionnaire opt-in save stays broken until it's set AND
+# migrations/001_questionnaire_responses.sql has been run against it (see "Data collection")
 npm run dev
 ```
 
@@ -151,6 +191,17 @@ npm run dev
   wallet can error mid-flow. If one leg succeeds and the other then fails, the UI currently
   just surfaces the error — there's no automatic refund/retry/resume orchestration. Worth
   hardening before real money is at stake.
+- **No privacy policy, retention policy, or deletion mechanism yet** for the opt-in
+  questionnaire data — see "Data collection." Needed before this runs in front of real users,
+  not before some later "polish" pass.
+- **No migration runner.** `migrations/001_questionnaire_responses.sql` is applied by hand
+  (psql, or your Postgres host's SQL console) — there's exactly one migration and no tracking
+  of which have run. Fine at this scale, revisit if the schema grows.
+- **The consent signature has no expiry or nonce.** `CONSENT_MESSAGE` is a fixed string, so a
+  captured signature could in principle be replayed to re-save the same preferences again —
+  low-severity since replaying it can't change what's stored to anything the original signer
+  didn't already agree to, but worth a nonce if this pattern gets reused for anything with
+  higher stakes than a preferences upsert.
 
 ## File map
 
@@ -159,15 +210,18 @@ npm run dev
 | `lib/wagmi.ts` | Chain list + wallet connector config, testnet/mainnet switch |
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
 | `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
+| `lib/db.ts` | Server-only lazy Postgres pool. Never import from a client component. |
 | `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue) |
 | `lib/protocols/{aave,lido,yearn}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
 | `lib/protocols/aggregate.ts` | Combines all three into one sorted list |
-| `lib/preferences.ts` | Questionnaire answer storage + the filter/sort function — never a scoring or recommendation function |
+| `lib/preferences.ts` | Questionnaire answer storage, the filter/sort function (never scoring/recommendation), and the shared `CONSENT_MESSAGE` string |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |
 | `lib/hooks/useSendFee.ts` | Sends the fee transfer (native or ERC-20) to the treasury address, no-ops if unconfigured |
 | `components/DepositWithdrawModal.tsx` | The actual transaction flow — fee transfer + approve/deposit/withdraw per protocol |
 | `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim + fee-on-claim |
-| `components/InvestmentStyleQuestionnaire.tsx` | The preference questionnaire — filter/sort only, see "Investment-style filter" above |
+| `components/InvestmentStyleQuestionnaire.tsx` | The preference questionnaire — filter/sort only (see "Investment-style filter") + the signature-gated opt-in save (see "Data collection") |
+| `app/api/preferences/route.ts` | The one write path to the database — validates + signature-verifies before any insert |
+| `migrations/001_questionnaire_responses.sql` | The only schema in this app. Applied by hand, no migration runner. |
 | `app/page.tsx` | Portfolio dashboard (connect-wallet hero when disconnected) |
 | `app/opportunities/page.tsx` | Full opportunity comparison list, questionnaire-gated on first visit |

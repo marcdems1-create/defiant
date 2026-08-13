@@ -51,6 +51,19 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    filter"). If a future request pushes toward "recommend the best option for me" or a
    computed risk score, flag the regulatory shift explicitly before building it — don't just
    extend `applyPreferences()` past a filter/sort function.
+8. **Nothing gets written to the database without an unchecked-by-default consent checkbox
+   AND a valid wallet signature proving ownership of the address the data is attributed to.**
+   `app/api/preferences/route.ts` rejects with 401 on a missing/invalid signature — that check
+   is not optional scaffolding, it's the difference between real consent and a claim anyone
+   could fabricate for anyone else's public address. If a future feature adds another
+   server-side write path, it needs the same two properties (opt-in default state + proof of
+   identity) or an explicit flagged exception, not a silent precedent-break.
+9. **This app collects zero personal data outside the single opt-in questionnaire save path.**
+   Don't add analytics, telemetry, tracking pixels, or any other data collection without
+   surfacing it the same way this one was surfaced — as a decision with real privacy-law
+   weight, not a routine addition. See README "Data collection" for what's actually stored
+   (three answers + wallet address + timestamp, nothing else) and what's still missing before
+   this can face real users (privacy policy, retention policy, deletion mechanism).
 
 ## ⛔ RainbowKit/wagmi config must stay lazy — do not regress
 
@@ -81,20 +94,25 @@ Rules:
   module scope, `npm run build` will fail on `/opportunities` (or wherever imports it) with
   the exact error above. Re-apply the lazy-singleton pattern rather than special-casing routes.
 
-## Current state (2026-08-13, initial build + fees/questionnaire same day)
+## Current state (2026-08-13, initial build + fees/questionnaire + data collection same day)
 
 Scaffolded end-to-end: wallet connect (RainbowKit/wagmi), live opportunity aggregation across
 Aave v3 + Lido + Yearn v3 (Ethereum/Base/Arbitrum where each protocol is deployed), a
 portfolio dashboard reading live on-chain balances, a full deposit/withdraw transaction flow
 per protocol (including Lido's async request-then-claim withdrawal queue), a deposit/
 withdrawal fee (0.25%/0.25% default, see README "Fees") taken as a separate transfer never
-skimmed inside a protocol call, and an investment-style questionnaire that filters/sorts
-`/opportunities` (never scores or recommends — see README "Investment-style filter").
-`npm run typecheck` and `npm run build` both pass clean. Nothing has been run against a live
-testnet yet — this was built, typechecked, and build-verified but not transaction-tested (no
-browser, no real wallet, no RPC in this environment). **Before trusting any of the
-transaction flows with real value, run each deposit/withdraw path end-to-end on the default
-testnet config first.**
+skimmed inside a protocol call, an investment-style questionnaire that filters/sorts
+`/opportunities` (never scores or recommends — see README "Investment-style filter"), and —
+new this session — an opt-in, signature-verified save of the questionnaire answers linked to
+the connected wallet address (README "Data collection"). This is the app's first server-side
+data store of any kind; everything before it was stateless (on-chain reads / protocol public
+APIs only). `npm run typecheck` and `npm run build` both pass clean, including with a treasury
+address and the new Postgres/signature code paths exercised at build time. Nothing has been
+run against a live testnet yet — this was built, typechecked, and build-verified but not
+transaction-tested (no browser, no real wallet, no RPC, no live Postgres instance in this
+environment). **Before trusting any of the transaction flows with real value, run each
+deposit/withdraw path end-to-end on the default testnet config first. Before enabling the
+data-collection opt-in for real users, get the privacy/compliance review — see below.**
 
 Known gaps, detailed in `README.md`'s "Known simplifications" section:
 - Yearn's yDaemon API response shape (`apr.forwardAPR.netAPR` etc.) is unverified against the
@@ -109,6 +127,12 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
 - **The two-step fee flow has no partial-failure recovery** (fee transfer succeeds, main
   action then fails, or vice versa) — surfaces the error, no auto-refund/resume. Untested
   against a live RPC, same as everything else here.
+- **Data collection defaults to off too** — `DATABASE_URL` is unset, so the opt-in save path
+  errors (caught, surfaced as a small non-blocking message) until it's configured and
+  `migrations/001_questionnaire_responses.sql` has been run against it.
+- **No privacy policy, retention policy, or deletion mechanism** for the saved questionnaire
+  data yet — see non-negotiable #9 and README "Data collection." This is the actual blocker
+  before turning the opt-in on for real users, not a nice-to-have.
 
 ## What to build next (not started, in rough priority order)
 
@@ -123,8 +147,10 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
    Do not add jurisdiction-specific marketing copy, "safe", "guaranteed", or any
    deposit-insurance-adjacent language (FDIC, CDIC, FSCS, etc.) anywhere without that review
    happening first. This now also covers the fee model (money-transmitter-adjacent in some
-   readings once real fees flow) and the questionnaire (stays fine as long as it's filter-only
-   per non-negotiable #7).
+   readings once real fees flow), the questionnaire (stays fine as long as it's filter-only
+   per non-negotiable #7), and — the highest-priority piece of this review now — the
+   wallet-linked data collection (non-negotiable #9): needs a privacy policy, a stated
+   retention period, and a deletion mechanism before it's turned on for anyone real.
 5. Risk context per opportunity (protocol TVL, audit status, Aave utilization rate) — an APY
    number with zero risk context is a half-honest product.
 

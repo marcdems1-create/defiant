@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useAccount, useSignMessage } from 'wagmi';
 import type { InvestmentPreferences } from '@/lib/preferences';
+import { CONSENT_MESSAGE } from '@/lib/preferences';
 
 type Draft = Partial<InvestmentPreferences>;
+type SaveStatus = 'idle' | 'signing' | 'saving' | 'saved' | 'error';
 
 const QUESTIONS: {
   key: keyof InvestmentPreferences;
@@ -43,7 +46,11 @@ export function InvestmentStyleQuestionnaire({
   onComplete: (prefs: InvestmentPreferences) => void;
   onSkip: () => void;
 }) {
+  const { address } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const [draft, setDraft] = useState<Draft>({});
+  const [consent, setConsent] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
 
   const allAnswered = QUESTIONS.every((q) => draft[q.key] !== undefined);
 
@@ -51,9 +58,31 @@ export function InvestmentStyleQuestionnaire({
     setDraft((d) => ({ ...d, [key]: value }));
   }
 
-  function submit() {
+  async function submit() {
     if (!allAnswered) return;
-    onComplete(draft as InvestmentPreferences);
+    const prefs = draft as InvestmentPreferences;
+
+    // Local filter/sort applies regardless of consent — that part of the
+    // questionnaire never touches the network.
+    onComplete(prefs);
+
+    if (!consent || !address) return;
+
+    setSaveStatus('signing');
+    try {
+      const signature = await signMessageAsync({ message: CONSENT_MESSAGE });
+      setSaveStatus('saving');
+      const res = await fetch('/api/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: address, signature, ...prefs }),
+      });
+      setSaveStatus(res.ok ? 'saved' : 'error');
+    } catch {
+      // Signature rejected, or the request failed — the local filter is
+      // already applied above, so this only affects whether it's saved.
+      setSaveStatus('error');
+    }
   }
 
   return (
@@ -90,10 +119,47 @@ export function InvestmentStyleQuestionnaire({
         ))}
       </div>
 
-      <div className="flex gap-3 mt-6">
+      <div className="mt-6 border-t border-border pt-4">
+        {address ? (
+          <label className="flex items-start gap-2 text-xs text-ink/60 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              Save my answers, linked to my connected wallet address, so Defiant can improve
+              my experience and may contact me about relevant updates. Requires signing a
+              free message with my wallet — no transaction, no gas. I can withdraw consent by
+              not checking this box on future visits.
+            </span>
+          </label>
+        ) : (
+          <div className="text-xs text-ink/40">
+            Connect your wallet to optionally save your answers for future updates. Your
+            local filter still works either way.
+          </div>
+        )}
+
+        {saveStatus === 'signing' && (
+          <div className="text-xs text-ink/50 mt-2">Waiting for signature…</div>
+        )}
+        {saveStatus === 'saving' && <div className="text-xs text-ink/50 mt-2">Saving…</div>}
+        {saveStatus === 'saved' && (
+          <div className="text-xs text-accent mt-2">Saved. Filter applied below.</div>
+        )}
+        {saveStatus === 'error' && (
+          <div className="text-xs text-danger mt-2">
+            Couldn&apos;t save your answers, but the filter below is still applied.
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-3 mt-4">
         <button
           onClick={submit}
-          disabled={!allAnswered}
+          disabled={!allAnswered || saveStatus === 'signing' || saveStatus === 'saving'}
           className="px-4 py-2 rounded-md bg-accent text-paper text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
         >
           Apply

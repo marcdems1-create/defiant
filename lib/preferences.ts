@@ -9,6 +9,17 @@ export interface InvestmentPreferences {
 const STORAGE_KEY = 'defiant:preferences:v1';
 const SKIPPED_KEY = 'defiant:preferences:skipped:v1';
 
+/**
+ * Fixed message the wallet signs to prove it owns the address a saved
+ * questionnaire response is attributed to. Must stay byte-identical between
+ * client (components/InvestmentStyleQuestionnaire.tsx) and server
+ * (app/api/preferences/route.ts) — changing this string invalidates the
+ * signature check on both sides simultaneously, which is fine, just change
+ * both at once.
+ */
+export const CONSENT_MESSAGE =
+  'I agree to save my Defiant investment-style preferences, linked to this wallet address, so Defiant may use them to improve my experience and may contact me about relevant updates.';
+
 export function wasSkipped(): boolean {
   if (typeof window === 'undefined') return false;
   return window.localStorage.getItem(SKIPPED_KEY) === '1';
