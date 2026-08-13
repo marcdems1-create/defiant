@@ -60,33 +60,94 @@ export const LIDO = {
   },
 } as const;
 
+export interface CurvePoolConfig {
+  id: string;
+  label: string;
+  /** The swap contract — always the add_liquidity/remove_liquidity_one_coin target and the USDC approve spender. */
+  pool: `0x${string}`;
+  /** The LP/balance token. Equal to `pool` for modern factory pools (pool IS the ERC-20); a separate contract for 3pool. */
+  lpToken: `0x${string}`;
+  usdc: `0x${string}`;
+  /** USDC's position in this pool's `coins` array — needed for the `i` argument everywhere and to place the deposit amount correctly. */
+  usdcIndex: number;
+  /** Length of this pool's `coins` array — selects which add_liquidity/calc_token_amount ABI variant applies. */
+  numCoins: 2 | 3;
+}
+
 /**
- * Curve's crvUSD/USDC "factory plain pool" on Ethereum mainnet — the pool
- * contract IS the LP token (no separate ERC-20), a standard Curve
- * StableSwap-NG factory pool with coins[0] = USDC, coins[1] = crvUSD.
+ * Curve's most liquid USDC-containing stable pools on Ethereum mainnet — the
+ * only two candidates that are both (a) liquid enough to be worth listing
+ * and (b) actually hold USDC as one of their coins, which single-sided
+ * add_liquidity requires (a pool like crvUSD/USDT doesn't qualify: there's
+ * no USDC in it to deposit). Confirmed as Curve's two largest USDC-adjacent
+ * stable pools via a live web search (2026-08-13): "The largest Basepool on
+ * Curve is the DAI/USDC/USDT pool (3pool)... the flagship... one of the most
+ * liquid and widely referenced pools in all of DeFi" and "USDC/crvUSD [was]
+ * the biggest TVL gainer" among crvUSD pools (Curve's own "Best Yields & Key
+ * Metrics" weekly posts). No official Curve testnet deployment of either
+ * pool exists, so both are mainnet-only — same posture as Lido having no L2
+ * deployment above.
  *
- * Verified 2026-08-13 against independent third-party sources (this
- * sandbox's network policy blocks reaching Curve's own
- * resources.curve.finance/api.curve.finance directly, so cross-referencing
- * substitutes for a single official-docs fetch here — re-verify against
- * Curve's own docs before a mainnet deploy, per repo convention):
- *   - rotki/rotki (`CRVUSD_PEG_KEEPERS_AND_POOLS` in
- *     rotkehlchen/chain/ethereum/modules/curve/crvusd/constants.py) maps
- *     PegKeeper 0x9201da0D97CaAAff53f01B2fB56767C7072dE340 to this pool,
- *     labeled "USDC/crvUSD".
- *   - messari/subgraphs (multiple subgraphs' prices/config/mainnet.ts) labels
- *     this exact address "Factory Plain Pool: crvUSD/USDC".
- *   - The pool's own Sourcify-verified ABI (KeystoneHQ/Smart-Contract-
- *     Metadata-Registry) confirms a 2-coin StableSwap interface exposing
- *     add_liquidity(uint256[2],uint256), remove_liquidity_one_coin,
- *     calc_token_amount, and calc_withdraw_one_coin — exactly what
- *     lib/protocols/curve.ts and lib/abi/curvePool.ts assume.
- * No official Curve testnet deployment of this pool exists, so this is
- * mainnet-only — same posture as Lido having no L2 deployment above.
+ * This sandbox's network policy blocks Curve's own resources.curve.finance/
+ * api.curve.finance directly, so every address below is cross-referenced
+ * against independent third-party sources instead of a single official-docs
+ * fetch — re-verify against Curve's own docs before a mainnet deploy, per
+ * repo convention.
  */
-export const CURVE: Partial<Record<number, { pool: `0x${string}`; usdc: `0x${string}` }>> = {
-  [mainnet.id]: {
-    pool: '0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E',
-    usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-  },
+export const CURVE: Partial<Record<number, CurvePoolConfig[]>> = {
+  [mainnet.id]: [
+    {
+      // Factory plain pool, coins[0] = USDC, coins[1] = crvUSD. The pool
+      // contract IS the LP token (no separate ERC-20) — standard for
+      // Curve's newer StableSwap-NG factory pools.
+      //   - rotki/rotki (`CRVUSD_PEG_KEEPERS_AND_POOLS` in
+      //     rotkehlchen/chain/ethereum/modules/curve/crvusd/constants.py)
+      //     maps PegKeeper 0x9201da0D97CaAAff53f01B2fB56767C7072dE340 to
+      //     this pool, labeled "USDC/crvUSD".
+      //   - messari/subgraphs (multiple subgraphs' prices/config/mainnet.ts)
+      //     labels this exact address "Factory Plain Pool: crvUSD/USDC".
+      //   - The pool's own Sourcify-verified ABI (KeystoneHQ/Smart-Contract-
+      //     Metadata-Registry) confirms a 2-coin StableSwap interface
+      //     exposing add_liquidity(uint256[2],uint256),
+      //     remove_liquidity_one_coin, calc_token_amount, and
+      //     calc_withdraw_one_coin — exactly what lib/protocols/curve.ts
+      //     and lib/abi/curvePool.ts assume.
+      id: 'crvusd-usdc',
+      label: 'crvUSD/USDC',
+      pool: '0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E',
+      lpToken: '0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E',
+      usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      usdcIndex: 0,
+      numCoins: 2,
+    },
+    {
+      // 3pool — Curve's original, most iconic stable pool. Unlike the
+      // factory pool above, the swap contract and the LP token (3Crv) are
+      // TWO SEPARATE contracts — an old-style Curve pool predating the
+      // pool-is-its-own-ERC20 factory pattern. coins[0] = DAI, coins[1] =
+      // USDC, coins[2] = USDT.
+      //   - curvefi/curve-contract's own README
+      //     (contracts/pools/3pool/README.md, official Curve repo) lists
+      //     `StableSwap3Pool`: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7
+      //     and `CurveContractV2` (the LP token, 3Crv):
+      //     0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490.
+      //   - Independently corroborated by curvefi/metaregistry
+      //     (`get_pool_name("0xbEbc...")` → `'3pool'`), curvefi/curve-dao-
+      //     contracts, and multiple unrelated production repos (Cyfrin's
+      //     advanced-defi-2024 course constants, OriginProtocol/
+      //     origin-dollar, stakewithus/defi-by-example) all agreeing on
+      //     both addresses and the DAI/USDC/USDT coin order.
+      //   - Function signatures (uint256[3] add_liquidity/calc_token_amount,
+      //     int128 i on calc_withdraw_one_coin/remove_liquidity_one_coin)
+      //     confirmed against a full ABI embedded in OriginProtocol/
+      //     origin-dollar's brownie/world.py.
+      id: '3pool',
+      label: '3pool (DAI/USDC/USDT)',
+      pool: '0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7',
+      lpToken: '0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490',
+      usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      usdcIndex: 1,
+      numCoins: 3,
+    },
+  ],
 };

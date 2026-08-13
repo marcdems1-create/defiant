@@ -8,7 +8,7 @@ import type { Opportunity } from '@/lib/protocols/types';
 import { erc20Abi } from '@/lib/abi/erc20';
 import { aavePoolAbi } from '@/lib/abi/aavePool';
 import { erc4626Abi } from '@/lib/abi/erc4626';
-import { curvePoolAbi } from '@/lib/abi/curvePool';
+import { curvePoolAbi2Coin, curvePoolAbi3Coin } from '@/lib/abi/curvePool';
 import { stEthAbi, lidoWithdrawalQueueAbi } from '@/lib/abi/lido';
 import { LIDO } from '@/lib/config/addresses';
 import { getWagmiConfig } from '@/lib/wagmi';
@@ -93,17 +93,39 @@ export function DepositWithdrawModal({
     }
   }, [amount, amountDecimals]);
 
+  // Curve-only pool shape (see CurvePoolConfig in lib/config/addresses.ts).
+  // `numCoins` picks which add_liquidity/calc_token_amount ABI variant
+  // applies (their amounts array is sized to the pool's coin count);
+  // `coinIndex` is USDC's position in that array and doubles as `i` for
+  // remove_liquidity_one_coin/calc_withdraw_one_coin, which take a plain
+  // index regardless of pool size.
+  const curveNumCoins = opportunity.curve?.numCoins ?? 2;
+  const curveCoinIndexNum = opportunity.curve?.coinIndex ?? 0;
+  const curveCoinIndex = BigInt(curveCoinIndexNum);
+  function curveAmounts2(amount: bigint): [bigint, bigint] {
+    const arr: [bigint, bigint] = [0n, 0n];
+    arr[curveCoinIndexNum] = amount;
+    return arr;
+  }
+  function curveAmounts3(amount: bigint): [bigint, bigint, bigint] {
+    const arr: [bigint, bigint, bigint] = [0n, 0n, 0n];
+    arr[curveCoinIndexNum] = amount;
+    return arr;
+  }
+
   // Curve-only: preview the actual USDC amount a withdrawal will produce, so
   // (a) the fee below is based on real USDC out rather than the LP-share
   // amount typed into the withdraw tab (a different unit entirely), and (b)
   // remove_liquidity_one_coin's tx (below) can carry a real min-out instead
   // of 0 — unlike Aave/Yearn's fixed-rate mechanics, this behaves like a
   // swap and a 0 min-out is a real sandwich-attack surface.
+  // remove_liquidity_one_coin/calc_withdraw_one_coin are byte-identical
+  // between the 2-coin and 3-coin ABI variants, so either works here.
   const curveWithdrawPreview = useReadContract({
     address: opportunity.depositTarget,
-    abi: curvePoolAbi,
+    abi: curvePoolAbi2Coin,
     functionName: 'calc_withdraw_one_coin',
-    args: [amountBig, 0n],
+    args: [amountBig, curveCoinIndex],
     chainId: opportunity.chainId,
     query: { enabled: isCurve && tab === 'withdraw' && amountBig > 0n },
   });
@@ -128,14 +150,27 @@ export function DepositWithdrawModal({
   // Preview add_liquidity's LP output for exactly `netAmount` — the amount
   // that actually reaches the pool after any deposit fee — so the min-out
   // below matches what's really being deposited, not the pre-fee amount.
-  const curveDepositPreview = useReadContract({
+  // Both hooks always run (Rules of Hooks) but only the one matching this
+  // pool's coin count is `enabled`, so only it issues an actual RPC read.
+  const curveDepositPreview2 = useReadContract({
     address: opportunity.depositTarget,
-    abi: curvePoolAbi,
+    abi: curvePoolAbi2Coin,
     functionName: 'calc_token_amount',
-    args: [[netAmount, 0n], true],
+    args: [curveAmounts2(netAmount), true],
     chainId: opportunity.chainId,
-    query: { enabled: isCurve && tab === 'deposit' && netAmount > 0n },
+    query: { enabled: isCurve && curveNumCoins === 2 && tab === 'deposit' && netAmount > 0n },
   });
+  const curveDepositPreview3 = useReadContract({
+    address: opportunity.depositTarget,
+    abi: curvePoolAbi3Coin,
+    functionName: 'calc_token_amount',
+    args: [curveAmounts3(netAmount), true],
+    chainId: opportunity.chainId,
+    query: { enabled: isCurve && curveNumCoins === 3 && tab === 'deposit' && netAmount > 0n },
+  });
+  const curveDepositPreviewData = (curveNumCoins === 3 ? curveDepositPreview3.data : curveDepositPreview2.data) as
+    | bigint
+    | undefined;
 
   const maxAmount = tab === 'deposit' ? walletBalance : positionBalanceValue;
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
@@ -219,15 +254,26 @@ export function DepositWithdrawModal({
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'curve') {
-        const minMintAmount = curveMinOut(curveDepositPreview.data as bigint | undefined);
-        const hash = await writeContractAsync({
-          address: opportunity.depositTarget,
-          abi: curvePoolAbi,
-          functionName: 'add_liquidity',
-          args: [[netAmount, 0n], minMintAmount],
-          chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        const minMintAmount = curveMinOut(curveDepositPreviewData);
+        if (curveNumCoins === 3) {
+          const hash = await writeContractAsync({
+            address: opportunity.depositTarget,
+            abi: curvePoolAbi3Coin,
+            functionName: 'add_liquidity',
+            args: [curveAmounts3(netAmount), minMintAmount],
+            chainId: opportunity.chainId,
+          });
+          await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        } else {
+          const hash = await writeContractAsync({
+            address: opportunity.depositTarget,
+            abi: curvePoolAbi2Coin,
+            functionName: 'add_liquidity',
+            args: [curveAmounts2(netAmount), minMintAmount],
+            chainId: opportunity.chainId,
+          });
+          await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        }
       } else {
         const hash = await writeContractAsync({
           address: opportunity.depositTarget,
@@ -275,9 +321,9 @@ export function DepositWithdrawModal({
         const minReceived = curveMinOut(curveWithdrawPreview.data as bigint | undefined);
         const hash = await writeContractAsync({
           address: opportunity.depositTarget,
-          abi: curvePoolAbi,
+          abi: curvePoolAbi2Coin,
           functionName: 'remove_liquidity_one_coin',
-          args: [amountBig, 0n, minReceived],
+          args: [amountBig, curveCoinIndex, minReceived],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });

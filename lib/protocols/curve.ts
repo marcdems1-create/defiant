@@ -1,6 +1,6 @@
 import { mainnet } from 'wagmi/chains';
 import type { Opportunity } from './types';
-import { CURVE } from '@/lib/config/addresses';
+import { CURVE, type CurvePoolConfig } from '@/lib/config/addresses';
 import type { SupportedChainId } from '@/lib/wagmi';
 
 const CURVE_API_BASE = 'https://api.curve.finance/v1';
@@ -39,51 +39,55 @@ function extractBaseApy(p: CurvePoolRaw): number | null {
   return null;
 }
 
-/** Curve doesn't deploy this pool to any testnet — see the CURVE comment in lib/config/addresses.ts. */
-export async function fetchCurveOpportunities(chainId: SupportedChainId): Promise<Opportunity[]> {
-  const cfg = CURVE[chainId];
-  const apiSlug = CURVE_API_CHAIN_SLUG[chainId];
-  if (!cfg || !apiSlug) return [];
+function buildOpportunity(chainId: SupportedChainId, cfg: CurvePoolConfig, apy: number): Opportunity {
+  return {
+    id: `curve-${chainId}-${cfg.id}`,
+    protocol: 'curve',
+    protocolLabel: 'Curve',
+    chainId,
+    asset: {
+      address: cfg.usdc,
+      symbol: 'USDC',
+      decimals: 6,
+    },
+    apy,
+    description: `Provide USDC to Curve's ${cfg.label} stable pool and earn trading fees from swaps between its coins. This is the base LP yield only — it excludes this pool's separate CRV gauge rewards, which require staking the LP token and aren't covered by this app. Withdraw anytime back to USDC, subject to pool liquidity and price impact.`,
+    depositTarget: cfg.pool,
+    positionToken: cfg.lpToken,
+    positionDecimals: 18,
+    positionSymbol: `${cfg.label} LP`,
+    curve: { numCoins: cfg.numCoins, coinIndex: cfg.usdcIndex },
+    liquidity: 'instant',
+    riskTier: 'established',
+  };
+}
 
-  let pools: CurvePoolRaw[];
+/** Curve doesn't deploy either configured pool to any testnet — see the CURVE comment in lib/config/addresses.ts. */
+export async function fetchCurveOpportunities(chainId: SupportedChainId): Promise<Opportunity[]> {
+  const pools = CURVE[chainId];
+  const apiSlug = CURVE_API_CHAIN_SLUG[chainId];
+  if (!pools || pools.length === 0 || !apiSlug) return [];
+
+  let rawPools: CurvePoolRaw[];
   try {
     const res = await fetch(`${CURVE_API_BASE}/getPools/all/${apiSlug}`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return [];
     const json = await res.json();
-    pools = json?.data?.poolData;
-    if (!Array.isArray(pools)) return [];
+    rawPools = json?.data?.poolData;
+    if (!Array.isArray(rawPools)) return [];
   } catch {
     return [];
   }
 
-  const pool = pools.find((p) => p.address?.toLowerCase() === cfg.pool.toLowerCase());
-  if (!pool) return [];
-
-  const apy = extractBaseApy(pool);
-  if (apy === null) return [];
-
-  return [
-    {
-      id: `curve-${chainId}-crvusd-usdc`,
-      protocol: 'curve',
-      protocolLabel: 'Curve',
-      chainId,
-      asset: {
-        address: cfg.usdc,
-        symbol: 'USDC',
-        decimals: 6,
-      },
-      apy,
-      description:
-        "Provide USDC to Curve's crvUSD/USDC stable pool and earn trading fees from swaps between the two. This is the base LP yield only — it excludes this pool's separate CRV gauge rewards, which require staking the LP token and aren't covered by this app. Withdraw anytime back to USDC, subject to pool liquidity and price impact.",
-      depositTarget: cfg.pool,
-      positionToken: cfg.pool,
-      positionDecimals: 18,
-      positionSymbol: 'crvUSD/USDC LP',
-      liquidity: 'instant',
-      riskTier: 'established',
-    },
-  ];
+  const opportunities: Opportunity[] = [];
+  for (const cfg of pools) {
+    const raw = rawPools.find((p) => p.address?.toLowerCase() === cfg.pool.toLowerCase());
+    if (!raw) continue;
+    const apy = extractBaseApy(raw);
+    if (apy === null) continue;
+    opportunities.push(buildOpportunity(chainId, cfg, apy));
+  }
+  return opportunities;
 }

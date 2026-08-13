@@ -32,6 +32,14 @@ export interface Opportunity {
   /** Display label for `positionToken` on the withdraw tab. Falls back to `asset.symbol` when unset. */
   positionSymbol?: string;
   /**
+   * Curve-only pool shape needed to call add_liquidity/calc_token_amount
+   * (which take a `uint256[numCoins]` amounts array) and remove_liquidity_
+   * one_coin/calc_withdraw_one_coin (which take `coinIndex` as `i`) — see
+   * `CurvePoolConfig` in lib/config/addresses.ts, which every Curve
+   * Opportunity's numbers are copied from.
+   */
+  curve?: { numCoins: 2 | 3; coinIndex: number };
+  /**
    * 'instant' = withdraw and receive funds in the same transaction.
    * 'delayed' = withdrawal goes through a queue (Lido: typically 1-5 days).
    * Used by the questionnaire filter — never by anything claiming to be

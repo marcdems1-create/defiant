@@ -98,7 +98,8 @@ Rules:
 
 Scaffolded end-to-end: wallet connect (RainbowKit/wagmi), live opportunity aggregation across
 Aave v3 + Lido + Yearn v3 + Curve (Ethereum/Base/Arbitrum where each protocol is deployed —
-Curve is Ethereum-only, no testnet), a portfolio dashboard reading live on-chain balances, a
+Curve is Ethereum-only, no testnet, and covers two pools — crvUSD/USDC and 3pool, its two most
+liquid USDC-containing stable pools, see README "Protocols integrated" — not just one), a
 full deposit/withdraw transaction flow per protocol (including Lido's async request-then-claim
 withdrawal queue and Curve's preview-based slippage protection on `add_liquidity`/
 `remove_liquidity_one_coin` — the only place in the app that does real min-out slippage
@@ -128,9 +129,16 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
 - Curve's `api.curve.finance` response shape is likewise unverified against the live endpoint
   for the same reason (this sandbox blocks that domain too) — `lib/protocols/curve.ts` parses
   defensively and skips rather than guesses, but smoke-test the field names on first real run.
-  Its pool address was verified indirectly, by cross-referencing multiple independent
+  Both pool addresses were verified indirectly, by cross-referencing multiple independent
   third-party sources rather than Curve's own (unreachable) docs — see the `CURVE` comment in
   `lib/config/addresses.ts`. Re-verify against Curve's own docs before trusting it further.
+- 3pool (one of the two Curve pools) predates Curve's factory-pool pattern: its LP token
+  (3Crv) is a separate contract from the swap pool, and its `add_liquidity`/`calc_token_amount`
+  take a 3-element amounts array instead of 2. `lib/abi/curvePool.ts` has distinct
+  `curvePoolAbi2Coin`/`curvePoolAbi3Coin` exports and `DepositWithdrawModal` branches on
+  `opportunity.curve.numCoins` for exactly this reason — if a future Curve pool is added, check
+  whether it's a factory pool (numCoins matches, pool IS the LP token) or an old-style pool
+  (separate LP token, verify the amounts-array size) before reusing either ABI blindly.
 - Lido withdrawal-queue allowance isn't read live (always submits approve) — harmless, just
   an extra signature on repeat withdrawals.
 - USDC-only for Aave/Yearn/Curve. No risk scoring, no TVL display. Curve's shown APY is base

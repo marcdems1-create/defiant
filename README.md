@@ -48,12 +48,30 @@ every market this reaches; it does not eliminate it in any of them.
 | Aave v3 | Ethereum, Base, Arbitrum | USDC | `Pool.supply()` | `Pool.withdraw()` — instant |
 | Lido | Ethereum only (no L2 deployment) | ETH → stETH | `stETH.submit()` | Request queue, **1-5 days** to finalize, then `claimWithdrawal()` |
 | Yearn v3 | Ethereum, Base, Arbitrum | USDC vaults | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
-| Curve | Ethereum only (no testnet deployment) | USDC → crvUSD/USDC LP | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
+| Curve | Ethereum only (no testnet deployment) | USDC → LP (2 pools, see below) | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
+
+Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
+`lib/protocols/curve.ts` turns each configured entry into its own opportunity:
+
+| Pool | Coins | Why it's here |
+|---|---|---|
+| crvUSD/USDC (factory plain pool) | USDC, crvUSD | Biggest TVL gainer among Curve's crvUSD pools (Curve's own "Best Yields & Key Metrics" weekly post, 2026-08-13) |
+| 3pool | DAI, USDC, USDT | Curve's flagship — "one of the most liquid and widely referenced pools in all of DeFi" |
+
+Both were picked specifically for liquidity, and both had to actually contain USDC to
+qualify — single-sided `add_liquidity` only works with a pool's own coins, so a highly liquid
+pool that doesn't hold USDC at all (crvUSD/USDT, for instance) isn't something this app can
+deposit into without a swap step it doesn't build. 3pool is architecturally different from
+every other Curve pool here: it predates Curve's factory-pool pattern, so its LP token (3Crv)
+is a **separate contract** from the swap pool, its `add_liquidity`/`calc_token_amount` take a
+3-element amounts array instead of 2, and `lib/abi/curvePool.ts` exports distinct
+`curvePoolAbi2Coin`/`curvePoolAbi3Coin` ABIs for exactly this reason — `CurvePoolConfig.
+numCoins` in `lib/config/addresses.ts` is what picks the right one at runtime.
 
 Contract addresses live in `lib/config/addresses.ts`, pulled from
 [bgd-labs/aave-address-book](https://github.com/bgd-labs/aave-address-book) (Aave's own
 canonical registry) and [lidofinance/docs](https://github.com/lidofinance/docs) on
-2026-08-13. The Curve pool address was verified the same day, but indirectly — this
+2026-08-13. Both Curve pool addresses were verified the same day, but indirectly — this
 sandbox's network policy blocks Curve's own docs/API domains, so it's cross-referenced
 against multiple independent third-party sources instead (see the `CURVE` comment in
 `lib/config/addresses.ts` for exactly which ones and why that's an acceptable substitute).
@@ -228,7 +246,7 @@ npm run dev
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
 | `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
 | `lib/db.ts` | Server-only lazy Postgres pool. Never import from a client component. |
-| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve StableSwap-NG pool) |
+| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants) |
 | `lib/protocols/{aave,lido,yearn,curve}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
 | `lib/protocols/aggregate.ts` | Combines all four into one sorted list |
 | `lib/preferences.ts` | Questionnaire answer storage, the filter/sort function (never scoring/recommendation), and the shared `CONSENT_MESSAGE` string |
