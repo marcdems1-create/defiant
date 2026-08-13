@@ -19,8 +19,8 @@ export default function DashboardPage() {
           Your own wallet. Your own keys. Real on-chain yield.
         </h1>
         <p className="text-ink/60 max-w-md text-sm leading-relaxed">
-          Defiant never holds your funds. Connect your wallet, compare live yield across Aave,
-          Lido, and Yearn, and deposit or withdraw with transactions you sign yourself.
+          Defiant never holds your funds. Connect your wallet, compare the best live yield
+          across DeFi, and deposit or withdraw with transactions you sign yourself.
         </p>
         <ConnectButtonClient />
         <Link href="/opportunities" className="text-sm text-accent hover:underline">
