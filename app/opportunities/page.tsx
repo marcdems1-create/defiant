@@ -60,8 +60,8 @@ export default function OpportunitiesPage() {
         )}
       </div>
       <p className="text-ink/50 text-sm mb-6">
-        Live on-chain yield across Aave v3, Lido, and Yearn v3. Higher yield usually means
-        more risk (smart contract, market, or liquidity risk). Nothing here is
+        Live on-chain yield across Aave v3, Lido, Yearn v3, and Curve. Higher yield usually
+        means more risk (smart contract, market, or liquidity risk). Nothing here is
         principal-protected.
       </p>
 
