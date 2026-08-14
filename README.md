@@ -1,7 +1,7 @@
 # Defiant
 
 A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
-across Aave v3, Lido, and Yearn v3, and deposit or withdraw with transactions you sign
+across Aave v3, Lido, Yearn v3, Curve, Frax, and Convex, and deposit or withdraw with transactions you sign
 yourself. Defiant never takes custody of user funds — there is no pooled contract, no admin
 key, no path for the app itself to move anyone's money.
 
@@ -48,12 +48,32 @@ every market this reaches; it does not eliminate it in any of them.
 | Aave v3 | Ethereum, Base, Arbitrum | USDC | `Pool.supply()` | `Pool.withdraw()` — instant |
 | Lido | Ethereum only (no L2 deployment) | ETH → stETH | `stETH.submit()` | Request queue, **1-5 days** to finalize, then `claimWithdrawal()` |
 | Yearn v3 | Ethereum, Base, Arbitrum | USDC vaults | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
+| Curve (scrvUSD) | Ethereum only | crvUSD | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, funds sit idle in the vault |
+| Frax (sfrxUSD) | Ethereum only | frxUSD | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant |
+| Convex (cvxCRV) | Ethereum only | CRV → cvxCRV | `CrvDepositor.deposit()` — converts + stakes, **irreversible** | `BaseRewardPool.withdraw()` — returns cvxCRV, not CRV |
+
+Curve/Frax/Convex are all higher-risk than Aave/Lido/Yearn — they're layered on other
+protocols and/or newer stable designs, and the app shows an explicit "Higher risk" badge on
+these opportunities rather than letting APY alone imply safety (see "Known simplifications"
+below — this is a coarse signal, not real risk scoring).
+
+**Fee-on-conversion:** opportunities whose deposit asset isn't USDC (Curve/Frax/Convex above)
+can optionally be funded by converting from USDC first, via 0x's Swap API
+(`lib/swap/zeroex.ts`). This stays non-custodial — the swap transaction is built by the app
+but always signed and sent by the connected wallet, never a backend signer — and takes a
+configurable fee (`NEXT_PUBLIC_SWAP_FEE_BPS`) paid to `NEXT_PUBLIC_SWAP_FEE_RECIPIENT`
+atomically inside that same transaction. See `.env.example`.
 
 Contract addresses live in `lib/config/addresses.ts`, pulled from
 [bgd-labs/aave-address-book](https://github.com/bgd-labs/aave-address-book) (Aave's own
 canonical registry) and [lidofinance/docs](https://github.com/lidofinance/docs) on
-2026-08-13. **Re-verify against those sources before any mainnet deploy** — don't assume
-addresses stay correct indefinitely.
+2026-08-13. Curve and Convex addresses were pulled directly from docs.curve.fi and
+docs.convexfinance.com on 2026-08-12. The Frax sfrxUSD address was re-verified 2026-08-13
+against two independent sources (Etherscan's own curated address tag + CoinGecko's
+contract lookup, both agreeing) after docs.frax.finance's specific frxUSD/sfrxUSD page
+proved unreachable directly — see the full note in `lib/config/addresses.ts`. **Re-verify
+against official sources before any mainnet deploy** — don't assume addresses stay correct
+indefinitely.
 
 ## Safety defaults
 
@@ -90,6 +110,26 @@ npm run dev
 - **USDC only** for Aave and Yearn — no other assets wired up yet. Extending to more assets
   means adding entries to `lib/config/addresses.ts` and generalizing the reserve/vault filter
   in `lib/protocols/aave.ts` / `yearn.ts` beyond a single hardcoded USDC address.
+- **Curve/Frax/Convex APY comes from DeFiLlama's public yields API**
+  (`lib/protocols/defillama.ts`), not each protocol's own API — same defensive
+  "skip rather than guess" parsing as Yearn, but this sandbox couldn't reach
+  `yields.llama.fi` to confirm the live field names either. Smoke-test before trusting
+  displayed APYs, same caveat as Yearn above.
+- **The 0x conversion flow (`lib/swap/zeroex.ts`) has never been transaction-tested.**
+  Response field names (`transaction.to/data/value`, `issues.allowance.spender`) are
+  best-guess against 0x's documented API shape, not a live-verified response — get a real
+  API key and smoke-test a quote before trusting this with funds.
+- ~~Convex's ABI (`lib/abi/convex.ts`) is unverified against a block explorer's ABI.~~
+  Verified 2026-08-13 against the actual open-source contract code
+  (github.com/convex-eth/platform) — every signature matches, and both contract
+  addresses carry confirming Etherscan address tags. See the comment in
+  `lib/abi/convex.ts`.
+- **Convex's Booster/LP-staking path (the "real" boosted CRV+CVX+bribes yield) is not
+  built** — only the simpler single-sided cvxCRV stake is wired up. See "What to build
+  next" in `CLAUDE.md` for the scoped-out multi-step, multi-token-reward version.
+- **veCRV/veFXS direct governance locking is deliberately not offered** — up to 4-year
+  non-transferable locks don't fit this app's instant deposit/withdraw assumptions.
+  Convex's cvxCRV already gives the liquid version of that yield without lock UI.
 - **No protocol risk scoring or TVL/liquidity display.** APY is shown with zero context on
   underlying risk (smart contract audit status, vault strategy composition, Aave utilization
   rate). A real "savings"-adjacent product needs this before it's honest to a non-technical
@@ -106,9 +146,11 @@ npm run dev
 |---|---|
 | `lib/wagmi.ts` | Chain list + wallet connector config, testnet/mainnet switch |
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
-| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue) |
-| `lib/protocols/{aave,lido,yearn}.ts` | Per-protocol opportunity fetchers (APY + deposit target) |
-| `lib/protocols/aggregate.ts` | Combines all three into one sorted list |
+| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Convex CRV Depositor + cvxCRV Rewards) |
+| `lib/protocols/{aave,lido,yearn,curve,frax,convex}.ts` | Per-protocol opportunity fetchers (APY + deposit target) |
+| `lib/protocols/defillama.ts` | Shared APY lookup for Curve/Frax/Convex against DeFiLlama's yields API |
+| `lib/protocols/aggregate.ts` | Combines all six into one sorted list |
+| `lib/swap/zeroex.ts` | Non-custodial fee-on-conversion via 0x's Swap API |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |
 | `components/DepositWithdrawModal.tsx` | The actual transaction flow — approve/deposit/withdraw per protocol |

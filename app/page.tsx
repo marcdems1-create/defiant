@@ -1,61 +1,139 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { base, arbitrum } from 'wagmi/chains';
 import { useAccount } from 'wagmi';
 import { useOpportunities } from '@/lib/hooks/useOpportunities';
 import { usePositions } from '@/lib/hooks/usePositions';
+import { OpportunityCard } from '@/components/OpportunityCard';
 import { PositionCard } from '@/components/PositionCard';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
+import { InstallAppBanner } from '@/components/InstallAppBanner';
 
-export default function DashboardPage() {
+type ChainFilter = 'all' | 'base' | 'arbitrum' | 'other';
+
+export default function CollectionPage() {
   const { isConnected } = useAccount();
-  const { data: opportunities } = useOpportunities();
-  const { positions, isLoading: positionsLoading } = usePositions(opportunities);
+  const { data, isLoading, isError } = useOpportunities();
+  const { positions, isLoading: positionsLoading } = usePositions(data);
+  const [chainFilter, setChainFilter] = useState<ChainFilter>('all');
 
-  if (!isConnected) {
-    return (
-      <div className="flex flex-col items-center text-center gap-6 py-20">
-        <h1 className="text-3xl font-medium max-w-lg">
-          Your own wallet. Your own keys. Real on-chain yield.
-        </h1>
-        <p className="text-ink/60 max-w-md text-sm leading-relaxed">
-          Defiant never holds your funds. Connect your wallet, compare live yield across Aave,
-          Lido, and Yearn, and deposit or withdraw with transactions you sign yourself.
-        </p>
-        <ConnectButtonClient />
-        <Link href="/opportunities" className="text-sm text-accent hover:underline">
-          Browse opportunities without connecting →
-        </Link>
-      </div>
-    );
-  }
+  const filtered = useMemo(() => {
+    const list = data ?? [];
+    if (chainFilter === 'base') return list.filter((o) => o.chainId === base.id);
+    if (chainFilter === 'arbitrum') return list.filter((o) => o.chainId === arbitrum.id);
+    if (chainFilter === 'other') {
+      return list.filter((o) => o.chainId !== base.id && o.chainId !== arbitrum.id);
+    }
+    // Prefer L2 cards first when showing everything — keep fees down.
+    return [...list].sort((a, b) => {
+      const aL2 = a.chainId === base.id || a.chainId === arbitrum.id ? 0 : 1;
+      const bL2 = b.chainId === base.id || b.chainId === arbitrum.id ? 0 : 1;
+      if (aL2 !== bL2) return aL2 - bL2;
+      return b.apy - a.apy;
+    });
+  }, [data, chainFilter]);
+
+  const filters: { id: ChainFilter; label: string }[] = [
+    { id: 'all', label: 'All cards' },
+    { id: 'base', label: 'Base' },
+    { id: 'arbitrum', label: 'Arbitrum' },
+    { id: 'other', label: 'Other' },
+  ];
 
   return (
-    <div>
-      <h1 className="text-2xl font-medium mb-1">Portfolio</h1>
-      <p className="text-ink/50 text-sm mb-6">
-        Live balances read directly from-chain. Nothing here is cached server-side.
-      </p>
+    <div className="flex flex-col gap-10">
+      <InstallAppBanner />
 
-      {positionsLoading && <div className="text-ink/50 text-sm">Loading positions…</div>}
+      <header className="flex flex-col gap-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
+            Card collection
+          </p>
+          <h1 className="text-3xl font-medium tracking-tight">Yield decks</h1>
+          <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
+            Live USDC yield on Base and Arbitrum — lower fees than mainnet. Each card shows risk,
+            how battle-tested the venue is, and fee vibe. Not financial advice; yields move and
+            protocols can fail.
+          </p>
+        </div>
 
-      {!positionsLoading && positions.length === 0 && (
-        <div className="border border-border rounded-lg p-6 text-center">
-          <div className="text-ink/70 text-sm mb-3">No open positions yet.</div>
-          <Link
-            href="/opportunities"
-            className="inline-block px-4 py-2 rounded-md bg-accent text-paper text-sm font-medium"
-          >
-            Browse opportunities
-          </Link>
+        <div className="flex flex-wrap gap-2">
+          {filters.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setChainFilter(f.id)}
+              className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                chainFilter === f.id
+                  ? 'bg-accent text-paper border-accent'
+                  : 'border-border text-ink/70 hover:border-ink/40'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {isConnected && (
+        <section>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-lg font-medium">Your cards</h2>
+            <span className="text-xs text-ink/45">
+              {positionsLoading ? 'Loading…' : `${positions.length} held`}
+            </span>
+          </div>
+          {!positionsLoading && positions.length === 0 && (
+            <div className="border border-dashed border-border rounded-2xl p-6 text-sm text-ink/55">
+              No positions yet — pick a card below and deposit from your wallet.
+            </div>
+          )}
+          <div className="flex flex-col gap-3">
+            {positions.map((p) => (
+              <PositionCard key={p.opportunity.id} position={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!isConnected && (
+        <div className="rounded-2xl border border-border bg-white/[0.02] p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+          <p className="text-sm text-ink/65 max-w-md">
+            Connect a wallet to deposit. Browse the collection freely either way — Defiant never
+            holds your keys or funds.
+          </p>
+          <ConnectButtonClient />
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        {positions.map((p) => (
-          <PositionCard key={p.opportunity.id} position={p} />
-        ))}
-      </div>
+      <section>
+        <div className="flex items-baseline justify-between mb-4">
+          <h2 className="text-lg font-medium">Collection</h2>
+          <Link href="/opportunities" className="text-xs text-accent hover:underline">
+            Full list →
+          </Link>
+        </div>
+
+        {isLoading && <div className="text-ink/50 text-sm">Loading live rates…</div>}
+        {isError && (
+          <div className="text-danger text-sm">
+            Couldn&apos;t load opportunities. Check your network and try again.
+          </div>
+        )}
+        {!isLoading && !isError && filtered.length === 0 && (
+          <div className="text-ink/50 text-sm">
+            No cards for this filter. Switch network mode to mainnet in `.env.local` to see Base /
+            Arbitrum yields.
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((opp) => (
+            <OpportunityCard key={opp.id} opportunity={opp} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

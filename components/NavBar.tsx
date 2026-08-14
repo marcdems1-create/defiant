@@ -11,10 +11,10 @@ export function NavBar() {
       </Link>
       <div className="flex items-center gap-6 text-sm">
         <Link href="/" className="text-ink/70 hover:text-ink transition-colors">
-          Portfolio
+          Collection
         </Link>
         <Link href="/opportunities" className="text-ink/70 hover:text-ink transition-colors">
-          Opportunities
+          All yields
         </Link>
         <ConnectButtonClient showBalance={false} chainStatus="icon" />
       </div>

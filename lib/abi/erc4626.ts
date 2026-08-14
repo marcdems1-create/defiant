@@ -30,6 +30,17 @@ export const erc4626Abi = [
   },
   {
     type: 'function',
+    name: 'withdraw',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'assets', type: 'uint256' },
+      { name: 'receiver', type: 'address' },
+      { name: 'owner', type: 'address' },
+    ],
+    outputs: [{ name: 'shares', type: 'uint256' }],
+  },
+  {
+    type: 'function',
     name: 'balanceOf',
     stateMutability: 'view',
     inputs: [{ name: 'account', type: 'address' }],

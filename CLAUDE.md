@@ -112,3 +112,69 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
 4. Default to testnet in any new config; require an explicit, visible signal before code
    assumes mainnet.
 5. `npm run typecheck` before considering a change done.
+
+## Session update (2026-08-12) — Curve/Frax/Convex + non-custodial fee-on-conversion
+
+Added three protocol adapters following the existing patterns exactly:
+- `lib/protocols/curve.ts` (scrvUSD) and `lib/protocols/frax.ts` (sfrxUSD) — both plain
+  ERC-4626 vaults, same `deposit()`/`redeem()` shape as `yearn.ts`. Mainnet only (neither
+  protocol deploys these to testnets).
+- `lib/protocols/convex.ts` (cvxCRV) — NOT ERC-4626. One-way "convert CRV to cvxCRV and
+  stake" via `CrvDepositor.deposit()`, unstake via `BaseRewardPool.withdraw()`, which
+  returns cvxCRV, not CRV. This is the "high-yield CVX/CRV" opportunity the user asked
+  for; the more complex Convex Booster/LP-staking path (multi-token CRV+CVX+bribe rewards,
+  requires pool-ID lookups) was deliberately scoped OUT — see "What to build next" below.
+
+Added `lib/swap/zeroex.ts`: a non-custodial fee-on-conversion mechanism using 0x's Swap
+API (AllowanceHolder flavor — plain approve + tx, no Permit2 signature). This is how the
+user's "convert and take a fee in the backend" request got implemented WITHOUT adding a
+backend or touching custody — the swap tx is built by the app but always signed and sent
+by the connected wallet. Fee goes to `NEXT_PUBLIC_SWAP_FEE_RECIPIENT` atomically inside the
+swap transaction via 0x's `swapFeeBps`/`swapFeeRecipient` params. Wired into
+`DepositWithdrawModal.tsx` as an opt-in checkbox ("convert from USDC first") on any
+opportunity with a `convertibleFrom` field set (Curve/Frax/Convex all set this to USDC).
+
+Added a `risk: 'lower' | 'higher'` field to `Opportunity` (types.ts) and a "Higher risk"
+badge in both the opportunity card and the deposit modal — a direct response to this
+file's own long-standing flag that "an APY number with zero risk context is a half-honest
+product." This is still a coarse two-tier signal, not real risk scoring.
+
+**Address verification status** (per Non-negotiable #5): CRV, cvxCRV, CRV Depositor,
+cvxCRV Rewards, and the scrvUSD vault were all confirmed against official sources fetched
+live this session (docs.convexfinance.com, docs.curve.fi) — see comments in
+`lib/config/addresses.ts` for exact citations. The sfrxUSD address was re-verified
+2026-08-13: docs.frax.finance's specific frxUSD/sfrxUSD address page remains unreachable
+from this environment, but two independent sources now agree — Etherscan's own curated
+address tag ("Frax Finance: sfrxUSD Token") and CoinGecko's contract lookup both confirm
+the same address. Also corrected: frxUSD/sfrxUSD is NOT a rename of FRAX/sFRAX (the
+original "North Star hard fork" framing was wrong) — both pairs coexist as separate live
+tokens. See the full note in `lib/config/addresses.ts`. Still worth confirming against
+docs.frax.finance directly if that page ever becomes reachable, but no longer "treat as
+unverified."
+
+**Nothing in this update has been transaction-tested** — same caveat as the original
+build. `npm run typecheck` and `npm run build` both pass clean as of this session; no
+browser, no real wallet, no RPC in this sandbox.
+
+## What to build next (updated, in rough priority order)
+
+1. Everything from the original list is still open (full testnet deposit/withdraw cycle
+   for the original three protocols has still never been run).
+2. Smoke-test the new Curve/Frax/Convex adapters against live contracts and the DeFiLlama
+   API field names, same as the still-open Yearn smoke test.
+3. Get a real 0x API key and smoke-test `lib/swap/zeroex.ts` against a real quote —
+   verify `transaction.to/data/value` and `issues.allowance.spender` are the right fields
+   before this ever touches a wallet with funds in it.
+4. ~~Confirm the sfrxUSD address against docs.frax.finance directly~~ — done 2026-08-13 via
+   Etherscan address tag + CoinGecko cross-check (docs.frax.finance's own page stayed
+   unreachable); see the verification-status note above. Still worth a direct
+   docs.frax.finance confirmation if that page ever loads.
+5. If the Convex Booster/LP-staking path (the actual "boosted" CRV+CVX+bribe yield the
+   user was originally asking about) gets prioritized: it needs (a) a pool-ID registry per
+   Curve LP pool, (b) a two-step deposit (mint/acquire Curve LP token, then
+   `Booster.deposit(pid, amount, stake=true)`), and (c) a rewards-array shape in
+   `usePositions` instead of the current single-balance-per-opportunity assumption, since
+   Booster positions can earn CRV + CVX + third-party bribe tokens simultaneously.
+6. Real compliance review before any mainnet/public launch — unchanged from the original
+   list, and now more relevant given the fee-on-conversion feature touches money movement
+   even though it stays non-custodial.

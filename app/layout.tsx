@@ -1,8 +1,9 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import dynamic from 'next/dynamic';
 import './globals.css';
 import { NavBar } from '@/components/NavBar';
 import { NetworkBanner } from '@/components/NetworkBanner';
+import { MobileTabBar } from '@/components/MobileTabBar';
 
 // wagmi/RainbowKit reach for browser-only APIs (indexedDB, WebSocket) at
 // module-eval time, which crashes Next's Node-side static page-data
@@ -15,17 +16,36 @@ const Providers = dynamic(() => import('./providers').then((m) => m.Providers), 
 export const metadata: Metadata = {
   title: 'Defiant — non-custodial DeFi yield',
   description:
-    'Connect your own wallet, compare on-chain yield across Aave, Lido and Yearn, deposit and withdraw with your own keys. Defiant never holds your funds.',
+    'Connect your own wallet, compare on-chain USDC yield on Base and Arbitrum, deposit and withdraw with your own keys. Defiant never holds your funds.',
+  applicationName: 'Defiant',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Defiant',
+  },
+  icons: {
+    icon: '/icons/icon.svg',
+    apple: '/icons/icon-192.png',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0b0e11',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-paper text-ink font-sans">
+      <body className="min-h-screen bg-paper text-ink font-sans pb-20 md:pb-0">
         <Providers>
           <NetworkBanner />
           <NavBar />
-          <main className="max-w-5xl mx-auto px-6 py-10">{children}</main>
+          <main className="max-w-6xl mx-auto px-6 py-10">{children}</main>
+          <MobileTabBar />
         </Providers>
       </body>
     </html>
