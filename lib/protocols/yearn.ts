@@ -71,9 +71,10 @@ export async function fetchYearnOpportunities(chainId: SupportedChainId): Promis
       },
       apy,
       description: `Deposit USDC into the Yearn v3 vault "${v.symbol ?? v.address}". Yearn auto-routes deposits across underlying strategies to optimize risk-adjusted yield; withdraw anytime via ERC-4626 redeem.`,
-      risk: 'lower',
       depositTarget: v.address as `0x${string}`,
       positionToken: v.address as `0x${string}`,
+      liquidity: 'instant',
+      riskTier: 'emerging',
     });
   }
 

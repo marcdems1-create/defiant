@@ -54,9 +54,10 @@ export async function fetchConvexOpportunities(chainId: SupportedChainId): Promi
       apy,
       description:
         'Convert CRV to cvxCRV and stake it in one transaction, earning a share of Convex\'s boosted Curve rewards (CRV, CVX, and crvUSD). This conversion is one-way — cvxCRV cannot be converted back to CRV, only traded or unstaked as cvxCRV.',
-      risk: 'higher',
       depositTarget: cfg.crvDepositor,
       positionToken: cfg.cvxCrvRewards,
+      liquidity: 'instant',
+      riskTier: 'emerging',
       convertibleFrom: usdc ? { address: usdc, symbol: 'USDC', decimals: 6 } : undefined,
     },
   ];

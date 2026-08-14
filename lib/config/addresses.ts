@@ -60,16 +60,100 @@ export const LIDO = {
   },
 } as const;
 
+export interface CurvePoolConfig {
+  id: string;
+  label: string;
+  /** The swap contract — always the add_liquidity/remove_liquidity_one_coin target and the USDC approve spender. */
+  pool: `0x${string}`;
+  /** The LP/balance token. Equal to `pool` for modern factory pools (pool IS the ERC-20); a separate contract for 3pool. */
+  lpToken: `0x${string}`;
+  usdc: `0x${string}`;
+  /** USDC's position in this pool's `coins` array — needed for the `i` argument everywhere and to place the deposit amount correctly. */
+  usdcIndex: number;
+  /** Length of this pool's `coins` array — selects which add_liquidity/calc_token_amount ABI variant applies. */
+  numCoins: 2 | 3;
+}
+
 /**
- * CRV, cvxCRV, and the Convex CRV Depositor / cvxCRV Rewards (staking) contracts.
- * Verified directly against official sources on 2026-08-12:
- *  - CRV token: cross-checked against multiple independent Etherscan listings
- *    (https://etherscan.io/token/0xd533a949740bb3306d119cc777fa900ba034cd52).
- *  - cvxCRV token, CRV Depositor, cvxCRV Rewards, Booster: pulled directly from
- *    Convex's own contract-address registry
- *    (https://docs.convexfinance.com/convexfinance/faq/contract-addresses), fetched live.
- * Convex/Curve do not deploy these to any testnet — this only ever resolves on mainnet.
- * Re-verify before any mainnet deploy, same as every other entry in this file.
+ * Curve's most liquid USDC-containing stable pools on Ethereum mainnet — the
+ * only two candidates that are both (a) liquid enough to be worth listing
+ * and (b) actually hold USDC as one of their coins, which single-sided
+ * add_liquidity requires (a pool like crvUSD/USDT doesn't qualify: there's
+ * no USDC in it to deposit). Confirmed as Curve's two largest USDC-adjacent
+ * stable pools via a live web search (2026-08-13): "The largest Basepool on
+ * Curve is the DAI/USDC/USDT pool (3pool)... the flagship... one of the most
+ * liquid and widely referenced pools in all of DeFi" and "USDC/crvUSD [was]
+ * the biggest TVL gainer" among crvUSD pools (Curve's own "Best Yields & Key
+ * Metrics" weekly posts). No official Curve testnet deployment of either
+ * pool exists, so both are mainnet-only — same posture as Lido having no L2
+ * deployment above.
+ *
+ * This sandbox's network policy blocks Curve's own resources.curve.finance/
+ * api.curve.finance directly, so every address below is cross-referenced
+ * against independent third-party sources instead of a single official-docs
+ * fetch — re-verify against Curve's own docs before a mainnet deploy, per
+ * repo convention.
+ */
+export const CURVE: Partial<Record<number, CurvePoolConfig[]>> = {
+  [mainnet.id]: [
+    {
+      // Factory plain pool, coins[0] = USDC, coins[1] = crvUSD. The pool
+      // contract IS the LP token (no separate ERC-20) — standard for
+      // Curve's newer StableSwap-NG factory pools.
+      //   - rotki/rotki (`CRVUSD_PEG_KEEPERS_AND_POOLS` in
+      //     rotkehlchen/chain/ethereum/modules/curve/crvusd/constants.py)
+      //     maps PegKeeper 0x9201da0D97CaAAff53f01B2fB56767C7072dE340 to
+      //     this pool, labeled "USDC/crvUSD".
+      //   - messari/subgraphs (multiple subgraphs' prices/config/mainnet.ts)
+      //     labels this exact address "Factory Plain Pool: crvUSD/USDC".
+      //   - The pool's own Sourcify-verified ABI (KeystoneHQ/Smart-Contract-
+      //     Metadata-Registry) confirms a 2-coin StableSwap interface
+      //     exposing add_liquidity(uint256[2],uint256),
+      //     remove_liquidity_one_coin, calc_token_amount, and
+      //     calc_withdraw_one_coin — exactly what lib/protocols/curve.ts
+      //     and lib/abi/curvePool.ts assume.
+      id: 'crvusd-usdc',
+      label: 'crvUSD/USDC',
+      pool: '0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E',
+      lpToken: '0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E',
+      usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      usdcIndex: 0,
+      numCoins: 2,
+    },
+    {
+      // 3pool — Curve's original, most iconic stable pool. Unlike the
+      // factory pool above, the swap contract and the LP token (3Crv) are
+      // TWO SEPARATE contracts — an old-style Curve pool predating the
+      // pool-is-its-own-ERC20 factory pattern. coins[0] = DAI, coins[1] =
+      // USDC, coins[2] = USDT.
+      //   - curvefi/curve-contract's own README
+      //     (contracts/pools/3pool/README.md, official Curve repo) lists
+      //     `StableSwap3Pool`: 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7
+      //     and `CurveContractV2` (the LP token, 3Crv):
+      //     0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490.
+      //   - Independently corroborated by curvefi/metaregistry
+      //     (`get_pool_name("0xbEbc...")` → `'3pool'`), curvefi/curve-dao-
+      //     contracts, and multiple unrelated production repos (Cyfrin's
+      //     advanced-defi-2024 course constants, OriginProtocol/
+      //     origin-dollar, stakewithus/defi-by-example) all agreeing on
+      //     both addresses and the DAI/USDC/USDT coin order.
+      //   - Function signatures (uint256[3] add_liquidity/calc_token_amount,
+      //     int128 i on calc_withdraw_one_coin/remove_liquidity_one_coin)
+      //     confirmed against a full ABI embedded in OriginProtocol/
+      //     origin-dollar's brownie/world.py.
+      id: '3pool',
+      label: '3pool (DAI/USDC/USDT)',
+      pool: '0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7',
+      lpToken: '0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490',
+      usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      usdcIndex: 1,
+      numCoins: 3,
+    },
+  ],
+};
+
+/**
+ * CRV, cvxCRV, Convex CRV Depositor / cvxCRV Rewards — docs.convexfinance.com (2026-08-12).
  */
 export const CONVEX = {
   [mainnet.id]: {
@@ -77,61 +161,18 @@ export const CONVEX = {
     cvxCrv: '0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7' as `0x${string}`,
     crvDepositor: '0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae' as `0x${string}`,
     cvxCrvRewards: '0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e' as `0x${string}`,
-    /** Main Booster contract — not used by the cvxCRV-only flow below, kept for the
-     * future full LP-staking integration (Convex Booster.deposit(pid, amount, stake)). */
     booster: '0xF403C135812408BFbE8713b5A23a04b3D48AAE31' as `0x${string}`,
   },
 } as const;
 
-/**
- * Curve's Savings crvUSD (scrvUSD) vault — an ERC-4626 vault built on an unmodified
- * Yearn V3 Vault instance. Address pulled directly from Curve's own technical docs
- * (https://docs.curve.fi/scrvusd/overview, fetched live 2026-08-12) and cross-checked
- * against an independent Etherscan listing. Mainnet only in this config; scrvUSD does
- * have cross-chain deployments (Base, Optimism, Fraxtal, etc.) not wired up here yet.
- */
-export const CURVE = {
-  [mainnet.id]: {
-    scrvUSD: '0x0655977FEb2f289A4aB78af67BAB0d17aAb84367' as `0x${string}`,
-  },
-} as const;
-
-/**
- * Frax's sfrxUSD — an ERC-4626 vault for the staked version of frxUSD, Frax's newer
- * fiat-redeemable, fully-collateralized stablecoin. CORRECTION (2026-08-13): frxUSD/
- * sfrxUSD is NOT a rename of the original FRAX/sFRAX line — both pairs coexist as
- * separate live tokens (FRAX 0x853d955acef822db058eb8505911ed77f175b99e, sFRAX
- * 0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32, distinct from frxUSD
- * 0xcacd6fd266af91b8aed52accc382b4e165586e29 and this sfrxUSD address). The earlier
- * "Feb-2026 North Star hard fork" framing was wrong and has been removed — no such
- * rename exists in any source checked.
- *
- * Address re-verified 2026-08-13 via two independent sources beyond the original
- * Etherscan-search check: Etherscan's own curated address tag reads "Frax Finance:
- * sfrxUSD Token" for this exact address, and CoinGecko's contract lookup
- * (api.coingecko.com/api/v3/coins/ethereum/contract/<address>) independently returns
- * "Frax Staked frxUSD" / symbol "sfrxusd" for the same address. docs.frax.finance's
- * specific frxUSD/sfrxUSD address-table page could not be loaded directly in this
- * environment (only their legacy sFRAX page resolved, correctly showing the different
- * sFRAX address above) — re-confirm against that page directly if it becomes reachable,
- * but two independent authoritative-adjacent sources agreeing removes this from "treat
- * as unverified." Note the code never hardcodes frxUSD's own address anywhere —
- * lib/protocols/frax.ts reads the vault's `asset()` on-chain instead, so correctness
- * here self-verifies against whatever this address actually deploys to.
- */
+/** Frax sfrxUSD — Etherscan tag + CoinGecko cross-check (2026-08-13). */
 export const FRAX = {
   [mainnet.id]: {
     sfrxUSD: '0xcf62f905562626cfcdd2261162a51fd02fc9c5b6' as `0x${string}`,
   },
 } as const;
 
-/**
- * Compound III (Comet) USDC markets on Base + Arbitrum.
- * Addresses from compound-finance/comet deployment roots (fetched 2026-08-13):
- *   Base:     deployments/base/usdc/roots.json → comet
- *   Arbitrum: deployments/arbitrum/usdc/roots.json → comet
- * Re-verify at https://docs.compound.finance before mainnet deploy.
- */
+/** Compound III Comet USDC — compound-finance/comet deployment roots (2026-08-13). */
 export const COMPOUND_V3 = {
   [base.id]: {
     comet: '0xb125E6687d4313864e53df431d5425969c15Eb2F' as `0x${string}`,
@@ -141,34 +182,25 @@ export const COMPOUND_V3 = {
   },
 } as const;
 
-/**
- * Morpho (MetaMorpho) USDC vaults on Base + Arbitrum — ERC-4626.
- * Gauntlet USDC Prime: pharos.watch + app.morpho.org (2026-08-13).
- * Steakhouse USDC (Prime Instant) Base: steakhouse.financial docs.
- * Steakhouse High Yield Instant: steakhouse.financial high-yield-instant docs.
- * Re-verify on app.morpho.org before mainnet deploy.
- */
+/** Morpho MetaMorpho USDC vaults — app.morpho.org / steakhouse.financial docs (2026-08-13). */
 export const MORPHO = {
   [base.id]: [
     {
       id: 'gauntlet-usdc-prime',
       label: 'Gauntlet USDC Prime',
       vault: '0xee8f4ec5672f09119b96ab6fb59c27e1b7e44b61' as `0x${string}`,
-      risk: 'medium' as const,
       poolMeta: 'Gauntlet USDC Prime',
     },
     {
       id: 'steakhouse-usdc',
       label: 'Steakhouse USDC',
       vault: '0xbeeF010f9cb27031ad51e3333f9aF9C6B1228183' as `0x${string}`,
-      risk: 'medium' as const,
       poolMeta: 'Steakhouse USDC',
     },
     {
       id: 'steakhouse-hy-usdc',
       label: 'Steakhouse High Yield USDC',
       vault: '0xbeeff7aE5E00Aae3Db302e4B0d8C883810a58100' as `0x${string}`,
-      risk: 'higher' as const,
       poolMeta: 'Steakhouse High Yield',
     },
   ],
@@ -177,23 +209,18 @@ export const MORPHO = {
       id: 'gauntlet-usdc-prime',
       label: 'Gauntlet USDC Prime',
       vault: '0x7c574174DA4b2be3f705c6244B4BfA0815a8B3Ed' as `0x${string}`,
-      risk: 'medium' as const,
       poolMeta: 'Gauntlet USDC Prime',
     },
     {
       id: 'steakhouse-hy-usdc',
       label: 'Steakhouse High Yield USDC',
       vault: '0xbeeff77CE5C059445714E6A3490E273fE7F2492F' as `0x${string}`,
-      risk: 'higher' as const,
       poolMeta: 'Steakhouse High Yield',
     },
   ],
 } as const;
 
-/**
- * Fluid (Instadapp) fUSDC lending vaults — ERC-4626.
- * Base: 0xf42f…9169 / Arbitrum: 0x1A99…6096 from yield.xyz Fluid docs (2026-08-13).
- */
+/** Fluid fUSDC — yield.xyz Fluid docs (2026-08-13). */
 export const FLUID = {
   [base.id]: {
     fUSDC: '0xf42f5795d9ac7e9d757db633d693cd548cfd9169' as `0x${string}`,
@@ -203,10 +230,7 @@ export const FLUID = {
   },
 } as const;
 
-/**
- * Moonwell mUSDC on Base only (Compound V2-style mToken).
- * From docs.moonwell.fi protocol contracts (2026-08-13).
- */
+/** Moonwell mUSDC — docs.moonwell.fi (2026-08-13). */
 export const MOONWELL = {
   [base.id]: {
     mUSDC: '0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22' as `0x${string}`,

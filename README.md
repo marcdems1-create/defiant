@@ -1,7 +1,7 @@
 # Defiant
 
 A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
-across Aave v3, Lido, Yearn v3, Curve, Frax, and Convex, and deposit or withdraw with transactions you sign
+across Aave v3, Lido, Yearn v3, and Curve, and deposit or withdraw with transactions you sign
 yourself. Defiant never takes custody of user funds — there is no pooled contract, no admin
 key, no path for the app itself to move anyone's money.
 
@@ -48,32 +48,115 @@ every market this reaches; it does not eliminate it in any of them.
 | Aave v3 | Ethereum, Base, Arbitrum | USDC | `Pool.supply()` | `Pool.withdraw()` — instant |
 | Lido | Ethereum only (no L2 deployment) | ETH → stETH | `stETH.submit()` | Request queue, **1-5 days** to finalize, then `claimWithdrawal()` |
 | Yearn v3 | Ethereum, Base, Arbitrum | USDC vaults | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
-| Curve (scrvUSD) | Ethereum only | crvUSD | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, funds sit idle in the vault |
-| Frax (sfrxUSD) | Ethereum only | frxUSD | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant |
-| Convex (cvxCRV) | Ethereum only | CRV → cvxCRV | `CrvDepositor.deposit()` — converts + stakes, **irreversible** | `BaseRewardPool.withdraw()` — returns cvxCRV, not CRV |
+| Curve | Ethereum only (no testnet deployment) | USDC → LP (2 pools, see below) | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
 
-Curve/Frax/Convex are all higher-risk than Aave/Lido/Yearn — they're layered on other
-protocols and/or newer stable designs, and the app shows an explicit "Higher risk" badge on
-these opportunities rather than letting APY alone imply safety (see "Known simplifications"
-below — this is a coarse signal, not real risk scoring).
+Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
+`lib/protocols/curve.ts` turns each configured entry into its own opportunity:
 
-**Fee-on-conversion:** opportunities whose deposit asset isn't USDC (Curve/Frax/Convex above)
-can optionally be funded by converting from USDC first, via 0x's Swap API
-(`lib/swap/zeroex.ts`). This stays non-custodial — the swap transaction is built by the app
-but always signed and sent by the connected wallet, never a backend signer — and takes a
-configurable fee (`NEXT_PUBLIC_SWAP_FEE_BPS`) paid to `NEXT_PUBLIC_SWAP_FEE_RECIPIENT`
-atomically inside that same transaction. See `.env.example`.
+| Pool | Coins | Why it's here |
+|---|---|---|
+| crvUSD/USDC (factory plain pool) | USDC, crvUSD | Biggest TVL gainer among Curve's crvUSD pools (Curve's own "Best Yields & Key Metrics" weekly post, 2026-08-13) |
+| 3pool | DAI, USDC, USDT | Curve's flagship — "one of the most liquid and widely referenced pools in all of DeFi" |
+
+Both were picked specifically for liquidity, and both had to actually contain USDC to
+qualify — single-sided `add_liquidity` only works with a pool's own coins, so a highly liquid
+pool that doesn't hold USDC at all (crvUSD/USDT, for instance) isn't something this app can
+deposit into without a swap step it doesn't build. 3pool is architecturally different from
+every other Curve pool here: it predates Curve's factory-pool pattern, so its LP token (3Crv)
+is a **separate contract** from the swap pool, its `add_liquidity`/`calc_token_amount` take a
+3-element amounts array instead of 2, and `lib/abi/curvePool.ts` exports distinct
+`curvePoolAbi2Coin`/`curvePoolAbi3Coin` ABIs for exactly this reason — `CurvePoolConfig.
+numCoins` in `lib/config/addresses.ts` is what picks the right one at runtime.
 
 Contract addresses live in `lib/config/addresses.ts`, pulled from
 [bgd-labs/aave-address-book](https://github.com/bgd-labs/aave-address-book) (Aave's own
 canonical registry) and [lidofinance/docs](https://github.com/lidofinance/docs) on
-2026-08-13. Curve and Convex addresses were pulled directly from docs.curve.fi and
-docs.convexfinance.com on 2026-08-12. The Frax sfrxUSD address was re-verified 2026-08-13
-against two independent sources (Etherscan's own curated address tag + CoinGecko's
-contract lookup, both agreeing) after docs.frax.finance's specific frxUSD/sfrxUSD page
-proved unreachable directly — see the full note in `lib/config/addresses.ts`. **Re-verify
-against official sources before any mainnet deploy** — don't assume addresses stay correct
-indefinitely.
+2026-08-13. Both Curve pool addresses were verified the same day, but indirectly — this
+sandbox's network policy blocks Curve's own docs/API domains, so it's cross-referenced
+against multiple independent third-party sources instead (see the `CURVE` comment in
+`lib/config/addresses.ts` for exactly which ones and why that's an acceptable substitute).
+**Re-verify against those sources before any mainnet deploy** — don't assume addresses stay
+correct indefinitely.
+
+## Fees
+
+A flat basis-point fee on deposit and withdrawal — 0.25% each way by default
+(`lib/config/fees.ts`). Mechanically it is a **separate wallet-signed transfer to a treasury
+address**, never a cut taken inside the deposit/withdraw call itself:
+
+- **Deposit**: the fee is sent to the treasury first, then the *remaining* amount is what
+  actually gets approved and deposited into the protocol.
+- **Withdraw (Aave/Yearn)**: the full gross amount is withdrawn from the protocol into the
+  wallet first, then the fee is sent to the treasury out of what just landed.
+- **Withdraw (Lido)**: fee is charged at *claim* time, not request time — the requested ETH
+  isn't in the wallet yet when a withdrawal is only requested, so charging a fee then would
+  come out of unrelated funds. `LidoWithdrawalRequests.tsx` takes the fee right after
+  `claimWithdrawal()` lands ETH in the wallet.
+
+This keeps the non-custodial claim intact — the fee transaction is a plain transfer the user
+signs, not something a contract deducts from funds passing through it. The cost is UX: an
+extra signature per deposit/withdrawal when fees are enabled.
+
+**Fees are off by default.** `getTreasuryAddress()` in `lib/config/fees.ts` returns
+`undefined` — and every fee code path no-ops — until `NEXT_PUBLIC_TREASURY_ADDRESS` is set to
+a real address. There is no fallback address; an unset or malformed value disables fees
+entirely rather than sending anywhere unintended.
+
+## Investment-style filter (not advice)
+
+`/opportunities` shows a short questionnaire on first visit (`InvestmentStyleQuestionnaire`,
+answers cached in `localStorage`). It asks about liquidity need, comfort with newer
+protocols, and whether yield or risk matters more — and uses the answers only to **filter and
+sort** the existing opportunity list (`lib/preferences.ts`'s `applyPreferences()`). It never
+computes a suitability score, never recommends a specific product or allocation, and every
+screen it touches carries a "not financial advice" line and a one-click "show everything"
+escape hatch. The filter/sort behavior is entirely local and works whether or not the user
+opts into the data-saving step below — see "Data collection" for what that step does.
+
+**This distinction is load-bearing, not cosmetic.** Risk-profiling-plus-recommendation is the
+exact pattern that requires robo-advisers (Betterment, Wealthfront) to register as investment
+advisers in the US, and the analogous suitability-assessment regimes elsewhere (MiFID II in
+the EU, etc.). A preference filter that only reorders/hides existing self-serve options is a
+meaningfully different, much lighter regulatory posture — but only as long as it stays a
+filter. Do not evolve this into scored recommendations or allocation percentages without the
+same compliance review called out above.
+
+## Data collection
+
+The only place this app stores anything server-side, at all, is an explicit opt-in on the
+questionnaire: a checkbox, unchecked by default, that saves the three answers **linked to
+the connected wallet address** so they can be used to improve the product and — per how this
+was scoped — potentially to contact the user about relevant updates later. This is the app's
+first feature that touches personal data, and it's built with that treated as a real
+constraint, not an afterthought:
+
+- **Opt-in, not opt-out.** The checkbox defaults to unchecked. Declining doesn't degrade the
+  product — the local filter/sort works identically either way.
+- **Consent is cryptographically proven, not just claimed.** Checking the box and clicking
+  Apply prompts a free wallet signature (`useSignMessage`, no transaction, no gas) over a
+  fixed message (`CONSENT_MESSAGE` in `lib/preferences.ts`). `POST /api/preferences`
+  (`app/api/preferences/route.ts`) verifies that signature against the claimed wallet address
+  with viem's `verifyMessage()` before writing anything — without a valid signature, the
+  request is rejected with 401. This exists specifically so nobody can POST answers
+  attributed to a wallet address they don't control; a "consent" that isn't tied to a proof
+  of ownership isn't real consent.
+- **Minimal fields.** `wallet_address`, the three answers, and a `consented_at` timestamp —
+  see `migrations/001_questionnaire_responses.sql`. No email, no IP address, no device
+  fingerprint, nothing beyond what was explicitly asked for.
+- **No backend existed before this.** Everything else in the app is either a direct on-chain
+  read or a call to a protocol's own public API — see `lib/db.ts`'s comment for why the
+  Postgres pool is a lazy singleton (same reasoning as `lib/wagmi.ts`'s `getWagmiConfig()`,
+  just for a different crash mode: importing `pg` into a client bundle rather than an SSR
+  crash). `DATABASE_URL` is unset by default; the save path simply errors until it's
+  configured, everything else in the app is unaffected.
+
+**What's explicitly NOT built yet, and must exist before this goes anywhere near real users:**
+a privacy policy describing this collection, a data retention policy, and a self-service (or
+at minimum request-based) deletion mechanism — most privacy regimes that would plausibly
+apply once real wallet-linked data is being stored (GDPR, CCPA/CPRA, PIPEDA, and others)
+require some version of a right to erasure and a stated lawful basis/purpose for processing.
+**This is not legal advice** — get a real privacy/compliance review before enabling this in
+front of real users, same as the fee model and the custody architecture above.
 
 ## Safety defaults
 
@@ -92,6 +175,9 @@ indefinitely.
 npm install
 cp .env.example .env.local
 # Fill in NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID at minimum (free at https://cloud.reown.com)
+# NEXT_PUBLIC_TREASURY_ADDRESS is optional — fees stay disabled until it's set (see "Fees")
+# DATABASE_URL is optional — questionnaire opt-in save stays broken until it's set AND
+# migrations/001_questionnaire_responses.sql has been run against it (see "Data collection")
 npm run dev
 ```
 
@@ -110,35 +196,47 @@ npm run dev
 - **USDC only** for Aave and Yearn — no other assets wired up yet. Extending to more assets
   means adding entries to `lib/config/addresses.ts` and generalizing the reserve/vault filter
   in `lib/protocols/aave.ts` / `yearn.ts` beyond a single hardcoded USDC address.
-- **Curve/Frax/Convex APY comes from DeFiLlama's public yields API**
-  (`lib/protocols/defillama.ts`), not each protocol's own API — same defensive
-  "skip rather than guess" parsing as Yearn, but this sandbox couldn't reach
-  `yields.llama.fi` to confirm the live field names either. Smoke-test before trusting
-  displayed APYs, same caveat as Yearn above.
-- **The 0x conversion flow (`lib/swap/zeroex.ts`) has never been transaction-tested.**
-  Response field names (`transaction.to/data/value`, `issues.allowance.spender`) are
-  best-guess against 0x's documented API shape, not a live-verified response — get a real
-  API key and smoke-test a quote before trusting this with funds.
-- ~~Convex's ABI (`lib/abi/convex.ts`) is unverified against a block explorer's ABI.~~
-  Verified 2026-08-13 against the actual open-source contract code
-  (github.com/convex-eth/platform) — every signature matches, and both contract
-  addresses carry confirming Etherscan address tags. See the comment in
-  `lib/abi/convex.ts`.
-- **Convex's Booster/LP-staking path (the "real" boosted CRV+CVX+bribes yield) is not
-  built** — only the simpler single-sided cvxCRV stake is wired up. See "What to build
-  next" in `CLAUDE.md` for the scoped-out multi-step, multi-token-reward version.
-- **veCRV/veFXS direct governance locking is deliberately not offered** — up to 4-year
-  non-transferable locks don't fit this app's instant deposit/withdraw assumptions.
-  Convex's cvxCRV already gives the liquid version of that yield without lock UI.
 - **No protocol risk scoring or TVL/liquidity display.** APY is shown with zero context on
   underlying risk (smart contract audit status, vault strategy composition, Aave utilization
   rate). A real "savings"-adjacent product needs this before it's honest to a non-technical
   user — see the North Star framing from a sibling project's CLAUDE.md: never let a number
   imply safety it hasn't earned.
-- **No slippage/price-impact handling anywhere** — deposits and withdrawals are 1:1 at the
-  protocol's own exchange rate; there's no DEX routing, so this isn't applicable to the three
-  integrated protocols as built, but matters immediately if a DEX-based instant-Lido-exit path
-  is ever added.
+- **No slippage/price-impact handling for Aave, Lido, or Yearn** — deposits and withdrawals
+  are 1:1 at the protocol's own exchange rate, so this isn't applicable to those three as
+  built. **Curve is the exception**: `add_liquidity`/`remove_liquidity_one_coin` behave like a
+  swap, so `DepositWithdrawModal` previews the expected output via `calc_token_amount`/
+  `calc_withdraw_one_coin` and submits a 1%-tolerance min-out rather than 0 — the first place
+  in this app that does real slippage protection. Same thing would be needed if a DEX-based
+  instant-Lido-exit path is ever added.
+- **Curve's shown APY is base trading-fee yield only, not gauge-inclusive.** Earning this
+  pool's separate CRV emissions requires staking the LP token in its gauge, which this app
+  doesn't do — so the CRV-reward APR Curve's API also reports is deliberately left out rather
+  than shown as if a plain depositor here would earn it. See `lib/protocols/curve.ts`.
+- **Curve's API response shape is unverified against the live endpoint** — same constraint as
+  Yearn's above: this sandbox's network policy blocks reaching `api.curve.finance` while
+  building, so `lib/protocols/curve.ts` parses defensively (skips the pool rather than
+  guessing a wrong APY) but the field names should be smoke-tested against the real endpoint
+  the first time this runs.
+- **Fee amount is a hardcoded constant, not configurable per-session or A/B tested** —
+  `DEPOSIT_FEE_BPS`/`WITHDRAW_FEE_BPS` in `lib/config/fees.ts`. Changing the fee is a one-line
+  edit and a redeploy, nothing more sophisticated exists yet.
+- **The two-step fee flow has no partial-failure recovery.** Untested against a live testnet:
+  two separate signed transactions per action (deposit: fee transfer then supply/deposit;
+  Aave/Yearn withdraw: withdraw then fee transfer) means two places a user can reject or a
+  wallet can error mid-flow. If one leg succeeds and the other then fails, the UI currently
+  just surfaces the error — there's no automatic refund/retry/resume orchestration. Worth
+  hardening before real money is at stake.
+- **No privacy policy, retention policy, or deletion mechanism yet** for the opt-in
+  questionnaire data — see "Data collection." Needed before this runs in front of real users,
+  not before some later "polish" pass.
+- **No migration runner.** `migrations/001_questionnaire_responses.sql` is applied by hand
+  (psql, or your Postgres host's SQL console) — there's exactly one migration and no tracking
+  of which have run. Fine at this scale, revisit if the schema grows.
+- **The consent signature has no expiry or nonce.** `CONSENT_MESSAGE` is a fixed string, so a
+  captured signature could in principle be replayed to re-save the same preferences again —
+  low-severity since replaying it can't change what's stored to anything the original signer
+  didn't already agree to, but worth a nonce if this pattern gets reused for anything with
+  higher stakes than a preferences upsert.
 
 ## File map
 
@@ -146,14 +244,19 @@ npm run dev
 |---|---|
 | `lib/wagmi.ts` | Chain list + wallet connector config, testnet/mainnet switch |
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
-| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Convex CRV Depositor + cvxCRV Rewards) |
-| `lib/protocols/{aave,lido,yearn,curve,frax,convex}.ts` | Per-protocol opportunity fetchers (APY + deposit target) |
-| `lib/protocols/defillama.ts` | Shared APY lookup for Curve/Frax/Convex against DeFiLlama's yields API |
-| `lib/protocols/aggregate.ts` | Combines all six into one sorted list |
-| `lib/swap/zeroex.ts` | Non-custodial fee-on-conversion via 0x's Swap API |
+| `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
+| `lib/db.ts` | Server-only lazy Postgres pool. Never import from a client component. |
+| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants) |
+| `lib/protocols/{aave,lido,yearn,curve}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
+| `lib/protocols/aggregate.ts` | Combines all four into one sorted list |
+| `lib/preferences.ts` | Questionnaire answer storage, the filter/sort function (never scoring/recommendation), and the shared `CONSENT_MESSAGE` string |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |
-| `components/DepositWithdrawModal.tsx` | The actual transaction flow — approve/deposit/withdraw per protocol |
-| `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim |
+| `lib/hooks/useSendFee.ts` | Sends the fee transfer (native or ERC-20) to the treasury address, no-ops if unconfigured |
+| `components/DepositWithdrawModal.tsx` | The actual transaction flow — fee transfer + approve/deposit/withdraw per protocol |
+| `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim + fee-on-claim |
+| `components/InvestmentStyleQuestionnaire.tsx` | The preference questionnaire — filter/sort only (see "Investment-style filter") + the signature-gated opt-in save (see "Data collection") |
+| `app/api/preferences/route.ts` | The one write path to the database — validates + signature-verifies before any insert |
+| `migrations/001_questionnaire_responses.sql` | The only schema in this app. Applied by hand, no migration runner. |
 | `app/page.tsx` | Portfolio dashboard (connect-wallet hero when disconnected) |
-| `app/opportunities/page.tsx` | Full opportunity comparison list |
+| `app/opportunities/page.tsx` | Full opportunity comparison list, questionnaire-gated on first visit |

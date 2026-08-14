@@ -29,9 +29,10 @@ export async function fetchLidoOpportunities(chainId: SupportedChainId): Promise
       apy,
       description:
         'Stake ETH with Lido and receive stETH, which accrues staking rewards daily via rebase. Withdrawals go through a request queue and typically take 1-5 days to become claimable — not instant.',
-      risk: 'lower',
       depositTarget: cfg.stETH,
       positionToken: cfg.stETH,
+      liquidity: 'delayed',
+      riskTier: 'established',
     },
   ];
 }

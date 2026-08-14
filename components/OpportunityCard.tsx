@@ -10,7 +10,7 @@ const PROTOCOL_TINT: Record<Opportunity['protocol'], string> = {
   'aave-v3': 'from-blue-500/20 via-blue-500/5 to-transparent',
   lido: 'from-purple-500/20 via-purple-500/5 to-transparent',
   'yearn-v3': 'from-emerald-500/20 via-emerald-500/5 to-transparent',
-  'curve-scrvusd': 'from-orange-500/20 via-orange-500/5 to-transparent',
+  curve: 'from-amber-500/20 via-amber-500/5 to-transparent',
   'frax-sfrxusd': 'from-teal-500/20 via-teal-500/5 to-transparent',
   'convex-cvxcrv': 'from-pink-500/20 via-pink-500/5 to-transparent',
   'compound-v3': 'from-sky-500/20 via-sky-500/5 to-transparent',

@@ -45,9 +45,12 @@ export async function fetchMoonwellOpportunities(
       apy,
       description:
         'Supply USDC to Moonwell on Base (mUSDC). Floating supply APY; withdraw underlying anytime. Base-native lending market.',
-      risk: 'medium',
       depositTarget: cfg.mUSDC,
       positionToken: cfg.mUSDC,
+      positionDecimals: 8,
+      positionSymbol: 'mUSDC',
+      liquidity: 'instant',
+      riskTier: 'emerging',
     },
   ];
 }

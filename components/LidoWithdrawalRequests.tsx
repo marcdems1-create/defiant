@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { lidoWithdrawalQueueAbi } from '@/lib/abi/lido';
 import { LIDO } from '@/lib/config/addresses';
 import { getWagmiConfig, type SupportedChainId } from '@/lib/wagmi';
+import { computeFee, feesEnabled, WITHDRAW_FEE_BPS } from '@/lib/config/fees';
+import { useSendFee } from '@/lib/hooks/useSendFee';
 import { formatTokenAmount } from '@/lib/format';
 
 /** Lido withdrawals are a request-then-claim queue, typically 1-5 days to finalize on mainnet. */
@@ -14,6 +16,7 @@ export function LidoWithdrawalRequests({ chainId }: { chainId: SupportedChainId 
   const cfg = (LIDO as Record<number, (typeof LIDO)[keyof typeof LIDO]>)[chainId];
   const [claimingId, setClaimingId] = useState<bigint | null>(null);
   const { writeContractAsync } = useWriteContract();
+  const { sendFee } = useSendFee();
 
   const requestIds = useReadContract({
     address: cfg?.withdrawalQueue,
@@ -48,7 +51,7 @@ export function LidoWithdrawalRequests({ chainId }: { chainId: SupportedChainId 
 
   if (!cfg || ids.length === 0) return null;
 
-  async function claim(requestId: bigint) {
+  async function claim(requestId: bigint, amountOfStETH: bigint) {
     if (!cfg) return;
     setClaimingId(requestId);
     try {
@@ -60,6 +63,14 @@ export function LidoWithdrawalRequests({ chainId }: { chainId: SupportedChainId 
         chainId,
       });
       await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId });
+
+      // Funds just landed in the wallet as native ETH — fee is taken now,
+      // as its own transfer, not skimmed from the claim itself.
+      const fee = feesEnabled() ? computeFee(amountOfStETH, WITHDRAW_FEE_BPS) : 0n;
+      if (fee > 0n) {
+        await sendFee({ isNative: true, amount: fee, chainId });
+      }
+
       await Promise.all([requestIds.refetch(), statuses.refetch()]);
     } finally {
       setClaimingId(null);
@@ -73,22 +84,31 @@ export function LidoWithdrawalRequests({ chainId }: { chainId: SupportedChainId 
         {ids.map((id, i) => {
           const row = rows[i];
           if (!row || row.isClaimed) return null;
+          const fee = feesEnabled() ? computeFee(row.amountOfStETH, WITHDRAW_FEE_BPS) : 0n;
           return (
             <div
               key={id.toString()}
-              className="flex items-center justify-between text-sm border border-border rounded px-3 py-2"
+              className="flex flex-col gap-1 text-sm border border-border rounded px-3 py-2"
             >
-              <span>{formatTokenAmount(row.amountOfStETH, 18)} ETH</span>
-              <span className="text-ink/50">
-                {row.isFinalized ? 'Ready to claim' : 'Waiting for finalization'}
-              </span>
-              <button
-                disabled={!row.isFinalized || claimingId === id}
-                onClick={() => claim(id)}
-                className="px-3 py-1 rounded bg-accent text-paper text-xs disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                {claimingId === id ? 'Claiming…' : 'Claim'}
-              </button>
+              <div className="flex items-center justify-between">
+                <span>{formatTokenAmount(row.amountOfStETH, 18)} ETH</span>
+                <span className="text-ink/50">
+                  {row.isFinalized ? 'Ready to claim' : 'Waiting for finalization'}
+                </span>
+                <button
+                  disabled={!row.isFinalized || claimingId === id}
+                  onClick={() => claim(id, row.amountOfStETH)}
+                  className="px-3 py-1 rounded bg-accent text-paper text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {claimingId === id ? 'Claiming…' : 'Claim'}
+                </button>
+              </div>
+              {fee > 0n && (
+                <div className="text-xs text-ink/40">
+                  Fee ({(WITHDRAW_FEE_BPS / 100).toFixed(2)}%) on claim: {formatTokenAmount(fee, 18)}{' '}
+                  ETH — you&apos;ll net {formatTokenAmount(row.amountOfStETH - fee, 18)} ETH
+                </div>
+              )}
             </div>
           );
         })}

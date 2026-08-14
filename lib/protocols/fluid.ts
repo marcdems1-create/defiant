@@ -34,9 +34,10 @@ export async function fetchFluidOpportunities(
       apy,
       description:
         'Deposit USDC into Fluid (Instadapp) fUSDC — unified liquidity layer earning lending yield. ERC-4626 redeem anytime subject to liquidity.',
-      risk: 'medium',
       depositTarget: cfg.fUSDC,
       positionToken: cfg.fUSDC,
+      liquidity: 'instant',
+      riskTier: 'emerging',
     },
   ];
 }

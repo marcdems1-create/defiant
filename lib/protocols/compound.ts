@@ -36,7 +36,6 @@ export async function fetchCompoundOpportunities(
       functionName: 'getSupplyRate',
       args: [utilization],
     });
-    // supplyRate is per-second, 1e18-scaled
     apy = (Number(supplyRate) / 1e18) * SECONDS_PER_YEAR;
     if (!(apy > 0)) apy = null;
   } catch {
@@ -61,9 +60,10 @@ export async function fetchCompoundOpportunities(
       apy,
       description:
         'Supply USDC to Compound III (Comet). Earn the floating supply APY; withdraw anytime. Battle-tested lending market on L2.',
-      risk: 'lower',
       depositTarget: cfg.comet,
       positionToken: cfg.comet,
+      liquidity: 'instant',
+      riskTier: 'established',
     },
   ];
 }

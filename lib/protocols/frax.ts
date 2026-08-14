@@ -63,9 +63,10 @@ export async function fetchFraxOpportunities(chainId: SupportedChainId): Promise
       apy,
       description:
         'Deposit frxUSD into sfrxUSD, an ERC-4626 vault that distributes Frax protocol revenue (RWA/AMO strategy yield) to stakers weekly. Withdraw anytime via redeem.',
-      risk: 'higher',
       depositTarget: cfg.sfrxUSD,
       positionToken: cfg.sfrxUSD,
+      liquidity: 'instant',
+      riskTier: 'emerging',
       convertibleFrom: usdc ? { address: usdc, symbol: 'USDC', decimals: 6 } : undefined,
     },
   ];

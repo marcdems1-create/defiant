@@ -45,9 +45,10 @@ export async function fetchAaveOpportunities(chainId: SupportedChainId): Promise
       },
       apy: liquidityRateToApy(usdcReserve.liquidityRate),
       description: `Supply USDC to Aave v3 on ${chain.name} and earn variable interest paid by borrowers. Withdraw anytime, subject to available pool liquidity.`,
-      risk: 'lower',
       depositTarget: cfg.pool,
       positionToken: usdcReserve.aTokenAddress,
+      liquidity: 'instant',
+      riskTier: 'established',
     },
   ];
 }

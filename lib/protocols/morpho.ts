@@ -1,4 +1,4 @@
-import type { Opportunity, RiskLevel } from './types';
+import type { Opportunity } from './types';
 import { MORPHO, AAVE_V3 } from '@/lib/config/addresses';
 import type { SupportedChainId } from '@/lib/wagmi';
 import { findDefiLlamaApyAnyProject } from './defillama';
@@ -9,10 +9,6 @@ function chainLabel(chainId: number): 'Base' | 'Arbitrum' | null {
   return null;
 }
 
-function toOpportunityRisk(r: 'medium' | 'higher'): RiskLevel {
-  return r;
-}
-
 export async function fetchMorphoOpportunities(
   chainId: SupportedChainId,
 ): Promise<Opportunity[]> {
@@ -20,7 +16,6 @@ export async function fetchMorphoOpportunities(
     id: string;
     label: string;
     vault: `0x${string}`;
-    risk: 'medium' | 'higher';
     poolMeta: string;
   }[]>)[chainId];
   const usdc = AAVE_V3[chainId]?.usdc;
@@ -63,9 +58,12 @@ export async function fetchMorphoOpportunities(
       asset: { address: usdc, symbol: 'USDC', decimals: 6 },
       apy,
       description: `${v.label} — curated Morpho Blue vault. Deposit USDC, earn borrower interest across allocated markets. ERC-4626 withdraw anytime (subject to market liquidity).`,
-      risk: toOpportunityRisk(v.risk),
       depositTarget: v.vault,
       positionToken: v.vault,
+      positionDecimals: 18,
+      positionSymbol: 'vault shares',
+      liquidity: 'instant',
+      riskTier: v.id.includes('hy') ? 'emerging' : 'established',
     });
   }
 
