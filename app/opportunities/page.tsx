@@ -1,9 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useOpportunities } from '@/lib/hooks/useOpportunities';
 import { OpportunityCard } from '@/components/OpportunityCard';
+import { OpportunityFilters } from '@/components/OpportunityFilters';
 import { InvestmentStyleQuestionnaire } from '@/components/InvestmentStyleQuestionnaire';
+import {
+  DEFAULT_OPPORTUNITY_FILTERS,
+  filterOpportunities,
+  type OpportunityFilterState,
+} from '@/lib/opportunityFilters';
 import {
   applyPreferences,
   clearPreferences,
@@ -19,6 +25,7 @@ export default function OpportunitiesPage() {
   const [prefs, setPrefsState] = useState<InvestmentPreferences | null>(null);
   const [showQuestionnaire, setShowQuestionnaire] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [filters, setFilters] = useState<OpportunityFilterState>(DEFAULT_OPPORTUNITY_FILTERS);
 
   useEffect(() => {
     const stored = getPreferences();
@@ -44,7 +51,15 @@ export default function OpportunitiesPage() {
     setShowQuestionnaire(true);
   }
 
-  const visible = hydrated ? applyPreferences(data ?? [], prefs) : (data ?? []);
+  const allCards = data ?? [];
+  const preferenceFiltered = hydrated ? applyPreferences(allCards, prefs) : allCards;
+  const visible = useMemo(
+    () => filterOpportunities(preferenceFiltered, filters),
+    [preferenceFiltered, filters],
+  );
+
+  const prefsReducedCount =
+    hydrated && prefs !== null && preferenceFiltered.length < allCards.length;
 
   return (
     <div>
@@ -55,7 +70,7 @@ export default function OpportunitiesPage() {
             onClick={handleReset}
             className="text-xs text-accent hover:underline whitespace-nowrap mt-2"
           >
-            {prefs ? 'Change preferences' : 'Set preferences'}
+            {prefs ? 'Change filters' : 'Set filters'}
           </button>
         )}
       </div>
@@ -68,11 +83,23 @@ export default function OpportunitiesPage() {
         <InvestmentStyleQuestionnaire onComplete={handleComplete} onSkip={handleSkip} />
       )}
 
-      {hydrated && !showQuestionnaire && prefs && visible.length < (data?.length ?? 0) && (
-        <div className="text-xs text-ink/40 mb-4">
-          Filtered to match your preferences ({visible.length} of {data?.length ?? 0} shown).{' '}
+      {hydrated && !showQuestionnaire && (
+        <OpportunityFilters
+          filters={filters}
+          onChange={setFilters}
+          opportunities={preferenceFiltered}
+          visibleCount={visible.length}
+          totalCount={preferenceFiltered.length}
+          className="mb-6"
+        />
+      )}
+
+      {hydrated && !showQuestionnaire && prefsReducedCount && (
+        <div className="text-xs text-ink/40 mb-4 -mt-2">
+          Browse filters narrowed the list ({preferenceFiltered.length} of {allCards.length}{' '}
+          eligible).{' '}
           <button onClick={handleReset} className="text-accent hover:underline">
-            Show everything
+            Reset filters
           </button>
         </div>
       )}
@@ -85,10 +112,22 @@ export default function OpportunitiesPage() {
       )}
       {!isLoading && !isError && hydrated && visible.length === 0 && (
         <div className="text-ink/50 text-sm">
-          No opportunities match your preferences right now.{' '}
-          <button onClick={handleReset} className="text-accent hover:underline">
-            Show everything
+          No opportunities match your filters right now.{' '}
+          <button
+            onClick={() => setFilters(DEFAULT_OPPORTUNITY_FILTERS)}
+            className="text-accent hover:underline"
+          >
+            Clear filters
           </button>
+          {prefs && (
+            <>
+              {' '}
+              or{' '}
+              <button onClick={handleReset} className="text-accent hover:underline">
+                reset filters
+              </button>
+            </>
+          )}
         </div>
       )}
 

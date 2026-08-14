@@ -2,45 +2,31 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { base, arbitrum } from 'wagmi/chains';
 import { useAccount } from 'wagmi';
 import { useOpportunities } from '@/lib/hooks/useOpportunities';
 import { usePositions } from '@/lib/hooks/usePositions';
+import {
+  DEFAULT_OPPORTUNITY_FILTERS,
+  filterOpportunities,
+  type OpportunityFilterState,
+} from '@/lib/opportunityFilters';
 import { OpportunityCard } from '@/components/OpportunityCard';
+import { OpportunityFilters } from '@/components/OpportunityFilters';
 import { PositionCard } from '@/components/PositionCard';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { InstallAppBanner } from '@/components/InstallAppBanner';
-
-type ChainFilter = 'all' | 'base' | 'arbitrum' | 'other';
 
 export default function CollectionPage() {
   const { isConnected } = useAccount();
   const { data, isLoading, isError } = useOpportunities();
   const { positions, isLoading: positionsLoading } = usePositions(data);
-  const [chainFilter, setChainFilter] = useState<ChainFilter>('all');
+  const [filters, setFilters] = useState<OpportunityFilterState>(DEFAULT_OPPORTUNITY_FILTERS);
 
-  const filtered = useMemo(() => {
-    const list = data ?? [];
-    if (chainFilter === 'base') return list.filter((o) => o.chainId === base.id);
-    if (chainFilter === 'arbitrum') return list.filter((o) => o.chainId === arbitrum.id);
-    if (chainFilter === 'other') {
-      return list.filter((o) => o.chainId !== base.id && o.chainId !== arbitrum.id);
-    }
-    // Prefer L2 cards first when showing everything — keep fees down.
-    return [...list].sort((a, b) => {
-      const aL2 = a.chainId === base.id || a.chainId === arbitrum.id ? 0 : 1;
-      const bL2 = b.chainId === base.id || b.chainId === arbitrum.id ? 0 : 1;
-      if (aL2 !== bL2) return aL2 - bL2;
-      return b.apy - a.apy;
-    });
-  }, [data, chainFilter]);
-
-  const filters: { id: ChainFilter; label: string }[] = [
-    { id: 'all', label: 'All cards' },
-    { id: 'base', label: 'Base' },
-    { id: 'arbitrum', label: 'Arbitrum' },
-    { id: 'other', label: 'Other' },
-  ];
+  const allCards = data ?? [];
+  const filtered = useMemo(
+    () => filterOpportunities(allCards, filters, { sortL2First: true }),
+    [allCards, filters],
+  );
 
   return (
     <div className="flex flex-col gap-10">
@@ -59,21 +45,13 @@ export default function CollectionPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {filters.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setChainFilter(f.id)}
-              className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                chainFilter === f.id
-                  ? 'bg-accent text-paper border-accent'
-                  : 'border-border text-ink/70 hover:border-ink/40'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        <OpportunityFilters
+          filters={filters}
+          onChange={setFilters}
+          opportunities={allCards}
+          visibleCount={filtered.length}
+          totalCount={allCards.length}
+        />
       </header>
 
       {isConnected && (
@@ -123,8 +101,8 @@ export default function CollectionPage() {
         )}
         {!isLoading && !isError && filtered.length === 0 && (
           <div className="text-ink/50 text-sm">
-            No cards for this filter. Switch network mode to mainnet in `.env.local` to see Base /
-            Arbitrum yields.
+            No cards match these filters. Try another chain or category, or switch network mode to
+            mainnet in `.env.local` to see Base / Arbitrum yields.
           </div>
         )}
 

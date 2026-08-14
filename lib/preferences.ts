@@ -18,7 +18,7 @@ const SKIPPED_KEY = 'defiant:preferences:skipped:v1';
  * both at once.
  */
 export const CONSENT_MESSAGE =
-  'I agree to save my Defiant investment-style preferences, linked to this wallet address, so Defiant may use them to improve my experience and may contact me about relevant updates.';
+  'I authorize Defiant to store these browse filter settings for the connected wallet address. Defiant may use them to improve the product and may send relevant updates.';
 
 export function wasSkipped(): boolean {
   if (typeof window === 'undefined') return false;

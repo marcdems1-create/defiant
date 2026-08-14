@@ -15,26 +15,26 @@ const QUESTIONS: {
 }[] = [
   {
     key: 'liquidityNeed',
-    question: 'How soon might you need this money back?',
+    question: 'Filter by withdrawal speed',
     options: [
-      { value: 'immediate', label: 'Could need it anytime', hint: 'Only show opportunities you can withdraw instantly.' },
-      { value: 'flexible', label: "Fine waiting a few days if needed", hint: 'Include options with a withdrawal queue, like Lido.' },
+      { value: 'immediate', label: 'Instant only', hint: 'Exclude opportunities with withdrawal queues.' },
+      { value: 'flexible', label: 'Include delayed withdrawal', hint: 'Show instant and queued options (e.g. Lido).' },
     ],
   },
   {
     key: 'riskComfort',
-    question: 'How do you feel about protocol maturity?',
+    question: 'Filter by protocol maturity',
     options: [
-      { value: 'established', label: 'Stick to the most established protocols', hint: 'Only long-track-record protocols (Aave, Lido).' },
-      { value: 'open', label: 'Open to newer, more complex protocols', hint: 'Include everything, including Yearn’s vault strategies.' },
+      { value: 'established', label: 'Established protocols only', hint: 'Aave, Lido, and similar long-track-record options.' },
+      { value: 'open', label: 'Include newer protocols', hint: 'Also show vault strategies and newer integrations.' },
     ],
   },
   {
     key: 'priority',
-    question: "What matters most when you're comparing options?",
+    question: 'Sort by',
     options: [
-      { value: 'yield', label: 'Highest yield first', hint: 'Sort by APY, highest first.' },
-      { value: 'risk', label: 'Lower risk first, yield second', hint: 'Sort established + instant-withdrawal options first.' },
+      { value: 'yield', label: 'APY (highest first)', hint: 'Rank by current yield.' },
+      { value: 'risk', label: 'Stability first', hint: 'Established + instant withdrawal first, then APY.' },
     ],
   },
 ];
@@ -87,12 +87,12 @@ export function InvestmentStyleQuestionnaire({
 
   return (
     <div className="border border-border rounded-lg p-6 mb-8">
-      <h2 className="text-lg font-medium mb-1">A few questions before you browse</h2>
+      <h2 className="text-lg font-medium mb-1">Browse filters</h2>
       <p className="text-xs text-ink/50 mb-5 leading-relaxed">
-        This only changes which opportunities are shown and in what order — it is not
-        financial advice, it does not assess your finances, and nothing here is a
-        recommendation. Every option carries real risk regardless of your answers. You can
-        change these anytime, or skip and see everything.
+        Adjust which opportunities appear and how they&apos;re ordered. Display filter
+        only — not financial advice, not a suitability check, and not a product
+        recommendation. All options carry smart-contract, market, and liquidity risk.
+        Skip to see the full list, or change filters anytime.
       </p>
 
       <div className="flex flex-col gap-5">
@@ -129,16 +129,16 @@ export function InvestmentStyleQuestionnaire({
               className="mt-0.5"
             />
             <span>
-              Save my answers, linked to my connected wallet address, so Defiant can improve
-              my experience and may contact me about relevant updates. Requires signing a
-              free message with my wallet — no transaction, no gas. I can withdraw consent by
-              not checking this box on future visits.
+              Save these filter settings to the connected wallet address so Defiant can
+              improve the product and may send relevant updates. Requires a free wallet
+              signature — no transaction, no gas. Leave unchecked to apply filters locally
+              only.
             </span>
           </label>
         ) : (
           <div className="text-xs text-ink/40">
-            Connect your wallet to optionally save your answers for future updates. Your
-            local filter still works either way.
+            Connect a wallet to optionally save filter settings. Filters apply locally either
+            way.
           </div>
         )}
 
@@ -151,7 +151,7 @@ export function InvestmentStyleQuestionnaire({
         )}
         {saveStatus === 'error' && (
           <div className="text-xs text-danger mt-2">
-            Couldn&apos;t save your answers, but the filter below is still applied.
+            Couldn&apos;t save filter settings, but the list below is still filtered.
           </div>
         )}
       </div>
@@ -162,10 +162,10 @@ export function InvestmentStyleQuestionnaire({
           disabled={!allAnswered || saveStatus === 'signing' || saveStatus === 'saving'}
           className="px-4 py-2 rounded-md bg-accent text-paper text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
         >
-          Apply
+          Apply filters
         </button>
         <button onClick={onSkip} className="px-4 py-2 rounded-md text-sm text-ink/60 hover:text-ink">
-          Skip — show everything
+          Show all — no filters
         </button>
       </div>
     </div>

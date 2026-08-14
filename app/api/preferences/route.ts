@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     );
   } catch (e) {
     console.error('[api/preferences] DB write failed', e);
-    return NextResponse.json({ error: 'Could not save preferences right now' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not save filter settings right now' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
