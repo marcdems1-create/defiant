@@ -29,7 +29,7 @@ export interface Opportunity {
   positionToken?: `0x${string}`;
   positionDecimals?: number;
   positionSymbol?: string;
-  curve?: { numCoins: 2 | 3; coinIndex: number };
+  curve?: { numCoins: 2 | 3; coinIndex: number; amountsEncoding: 'fixed' | 'dynamic' };
   liquidity: 'instant' | 'delayed';
   riskTier: 'established' | 'emerging';
   convertibleFrom?: {

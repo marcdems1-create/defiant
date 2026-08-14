@@ -1,4 +1,4 @@
-import { mainnet } from 'wagmi/chains';
+import { mainnet, base, arbitrum } from 'wagmi/chains';
 import type { Opportunity } from './types';
 import { CURVE, type CurvePoolConfig } from '@/lib/config/addresses';
 import type { SupportedChainId } from '@/lib/wagmi';
@@ -8,6 +8,8 @@ const CURVE_API_BASE = 'https://api.curve.finance/v1';
 /** Maps a supported chain to Curve API's own chain slug. Only chains present in `CURVE` matter. */
 const CURVE_API_CHAIN_SLUG: Partial<Record<number, string>> = {
   [mainnet.id]: 'ethereum',
+  [base.id]: 'base',
+  [arbitrum.id]: 'arbitrum',
 };
 
 /**
@@ -19,11 +21,13 @@ const CURVE_API_CHAIN_SLUG: Partial<Record<number, string>> = {
  * without staking, which is exactly the kind of guessed/inflated number
  * non-negotiable #3 rules out.
  *
- * Exact field names on `api.curve.finance/v1/getPools/all/<chain>` are
- * unverified against the live endpoint — this sandbox's network policy
- * blocks reaching api.curve.finance while building, same constraint already
- * noted in `lib/protocols/yearn.ts`. Parsing below is deliberately
- * defensive: skip the pool rather than guess. Smoke-test on first real run.
+ * Base trading APY lives on `/getSubgraphData/<chain>` (its `data.poolList[]`
+ * carries `latestDailyApy`/`latestWeeklyApy` as PERCENTAGES keyed by pool
+ * address), NOT on `/getPools/all/<chain>` — that endpoint has pool
+ * composition/addresses but no APY, which is why the earlier `getPools`-based
+ * read always came back empty. Both were verified live against
+ * api.curve.finance on 2026-08-14. Parsing stays deliberately defensive: skip
+ * the pool rather than guess a number.
  */
 interface CurvePoolRaw {
   address?: string;
@@ -56,13 +60,17 @@ function buildOpportunity(chainId: SupportedChainId, cfg: CurvePoolConfig, apy: 
     positionToken: cfg.lpToken,
     positionDecimals: 18,
     positionSymbol: `${cfg.label} LP`,
-    curve: { numCoins: cfg.numCoins, coinIndex: cfg.usdcIndex },
+    curve: {
+      numCoins: cfg.numCoins,
+      coinIndex: cfg.usdcIndex,
+      amountsEncoding: cfg.amountsEncoding ?? 'fixed',
+    },
     liquidity: 'instant',
     riskTier: 'established',
   };
 }
 
-/** Curve doesn't deploy either configured pool to any testnet — see the CURVE comment in lib/config/addresses.ts. */
+/** Curve has no testnet deployment on any supported chain — see the CURVE comment in lib/config/addresses.ts. */
 export async function fetchCurveOpportunities(chainId: SupportedChainId): Promise<Opportunity[]> {
   const pools = CURVE[chainId];
   const apiSlug = CURVE_API_CHAIN_SLUG[chainId];
@@ -70,12 +78,12 @@ export async function fetchCurveOpportunities(chainId: SupportedChainId): Promis
 
   let rawPools: CurvePoolRaw[];
   try {
-    const res = await fetch(`${CURVE_API_BASE}/getPools/all/${apiSlug}`, {
+    const res = await fetch(`${CURVE_API_BASE}/getSubgraphData/${apiSlug}`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return [];
     const json = await res.json();
-    rawPools = json?.data?.poolData;
+    rawPools = json?.data?.poolList;
     if (!Array.isArray(rawPools)) return [];
   } catch {
     return [];

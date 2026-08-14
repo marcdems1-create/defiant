@@ -52,6 +52,65 @@ export const curvePoolAbi2Coin = [
   },
 ] as const;
 
+/**
+ * Newer Curve StableSwap-NG pools (Curve's `plainstableng` implementation,
+ * which is what almost every Curve stable pool on Base/Arbitrum is) size
+ * `add_liquidity`/`calc_token_amount` with a DYNAMIC `uint256[]` array rather
+ * than a fixed `uint256[N]`. They revert if called with the fixed-array
+ * selector, so they need their own ABI — verified on-chain (2026-08-14) by
+ * calling both selectors against the live pools: the L2 NG pools answer only
+ * to `uint256[]`, while the older mainnet crvUSD/USDC factory pool answers
+ * only to `uint256[2]`. Caller builds a length-`numCoins` amounts array.
+ *
+ * `remove_liquidity_one_coin`/`calc_withdraw_one_coin` keep the same
+ * (uint256, int128) shape as the fixed-array variants — confirmed against the
+ * same live L2 pools — so the withdraw side is interchangeable and only the
+ * add side actually needs this variant.
+ */
+export const curvePoolAbiNg = [
+  {
+    type: 'function',
+    name: 'add_liquidity',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_amounts', type: 'uint256[]' },
+      { name: '_min_mint_amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'calc_token_amount',
+    stateMutability: 'view',
+    inputs: [
+      { name: '_amounts', type: 'uint256[]' },
+      { name: '_is_deposit', type: 'bool' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'remove_liquidity_one_coin',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_burn_amount', type: 'uint256' },
+      { name: 'i', type: 'int128' },
+      { name: '_min_received', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'calc_withdraw_one_coin',
+    stateMutability: 'view',
+    inputs: [
+      { name: '_burn_amount', type: 'uint256' },
+      { name: 'i', type: 'int128' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
 /** Same shape as `curvePoolAbi2Coin`, sized for 3pool's 3-coin (DAI/USDC/USDT) amounts arrays. */
 export const curvePoolAbi3Coin = [
   {
