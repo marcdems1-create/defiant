@@ -182,26 +182,26 @@ export const COMPOUND_V3 = {
   },
 } as const;
 
-/** Morpho MetaMorpho USDC vaults — app.morpho.org / steakhouse.financial docs (2026-08-13). */
+/** Morpho MetaMorpho USDC vaults — api.morpho.org GraphQL (listed vaults, 2026-08-13). */
 export const MORPHO = {
   [base.id]: [
     {
       id: 'gauntlet-usdc-prime',
       label: 'Gauntlet USDC Prime',
       vault: '0xee8f4ec5672f09119b96ab6fb59c27e1b7e44b61' as `0x${string}`,
-      poolMeta: 'Gauntlet USDC Prime',
+      defiLlamaSymbol: 'GTUSDCP',
     },
     {
       id: 'steakhouse-usdc',
       label: 'Steakhouse USDC',
       vault: '0xbeeF010f9cb27031ad51e3333f9aF9C6B1228183' as `0x${string}`,
-      poolMeta: 'Steakhouse USDC',
+      defiLlamaSymbol: 'STEAKUSDC',
     },
     {
       id: 'steakhouse-hy-usdc',
       label: 'Steakhouse High Yield USDC',
-      vault: '0xbeeff7aE5E00Aae3Db302e4B0d8C883810a58100' as `0x${string}`,
-      poolMeta: 'Steakhouse High Yield',
+      vault: '0xBEEFA7B88064FeEF0cEe02AAeBBd95D30df3878F' as `0x${string}`,
+      defiLlamaSymbol: 'SIRLOINUSDC',
     },
   ],
   [arbitrum.id]: [
@@ -209,13 +209,13 @@ export const MORPHO = {
       id: 'gauntlet-usdc-prime',
       label: 'Gauntlet USDC Prime',
       vault: '0x7c574174DA4b2be3f705c6244B4BfA0815a8B3Ed' as `0x${string}`,
-      poolMeta: 'Gauntlet USDC Prime',
+      defiLlamaSymbol: 'GTUSDCP',
     },
     {
       id: 'steakhouse-hy-usdc',
       label: 'Steakhouse High Yield USDC',
-      vault: '0xbeeff77CE5C059445714E6A3490E273fE7F2492F' as `0x${string}`,
-      poolMeta: 'Steakhouse High Yield',
+      vault: '0x5c0C306Aaa9F877de636f4d5822cA9F2E81563BA' as `0x${string}`,
+      defiLlamaSymbol: 'BBQUSDC',
     },
   ],
 } as const;

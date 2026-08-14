@@ -9,6 +9,30 @@ function chainLabel(chainId: number): 'Base' | 'Arbitrum' | null {
   return null;
 }
 
+async function fetchMorphoVaultApy(
+  vault: `0x${string}`,
+  chainId: SupportedChainId,
+): Promise<number | null> {
+  try {
+    const res = await fetch('https://api.morpho.org/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `{ vaultByAddress(address: "${vault}", chainId: ${chainId}) { state { netApy apy } } }`,
+      }),
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const state = json?.data?.vaultByAddress?.state;
+    const apy = state?.netApy ?? state?.apy;
+    if (typeof apy !== 'number' || Number.isNaN(apy) || apy <= 0) return null;
+    return apy;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchMorphoOpportunities(
   chainId: SupportedChainId,
 ): Promise<Opportunity[]> {
@@ -16,7 +40,7 @@ export async function fetchMorphoOpportunities(
     id: string;
     label: string;
     vault: `0x${string}`;
-    poolMeta: string;
+    defiLlamaSymbol: string;
   }[]>)[chainId];
   const usdc = AAVE_V3[chainId]?.usdc;
   const llamaChain = chainLabel(chainId);
@@ -25,28 +49,15 @@ export async function fetchMorphoOpportunities(
   const out: Opportunity[] = [];
 
   for (const v of vaults) {
-    const apy = await findDefiLlamaApyAnyProject(
-      ['morpho-v1', 'morpho-blue', 'morpho'],
-      llamaChain,
-      (s) => s.includes('USDC'),
-      (meta) => {
-        const m = meta.toLowerCase();
-        if (v.id.includes('hy')) {
-          return m.includes('high yield') || m.includes('high-yield');
-        }
-        if (v.id.includes('gauntlet')) {
-          return m.includes('gauntlet') && (m.includes('prime') || m.length > 0);
-        }
-        if (v.id.includes('steakhouse') && !v.id.includes('hy')) {
-          return (
-            m.includes('steakhouse') &&
-            !m.includes('high yield') &&
-            !m.includes('high-yield')
-          );
-        }
-        return false;
-      },
-    );
+    let apy = await fetchMorphoVaultApy(v.vault, chainId);
+
+    if (apy === null) {
+      apy = await findDefiLlamaApyAnyProject(
+        ['morpho-blue'],
+        llamaChain,
+        (s) => s === v.defiLlamaSymbol,
+      );
+    }
 
     if (apy === null) continue;
 
