@@ -48,35 +48,49 @@ every market this reaches; it does not eliminate it in any of them.
 | Aave v3 | Ethereum, Base, Arbitrum | USDC | `Pool.supply()` | `Pool.withdraw()` — instant |
 | Lido | Ethereum only (no L2 deployment) | ETH → stETH | `stETH.submit()` | Request queue, **1-5 days** to finalize, then `claimWithdrawal()` |
 | Yearn v3 | Ethereum, Base, Arbitrum | USDC vaults | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
-| Curve | Ethereum only (no testnet deployment) | USDC → LP (2 pools, see below) | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
+| Curve | Ethereum (2 pools), Base, Arbitrum — no testnet deployment | USDC → LP | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
 
-Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
-`lib/protocols/curve.ts` turns each configured entry into its own opportunity:
+Curve is several pools across three chains, not one — `lib/config/addresses.ts`'s
+`CURVE[chainId]` is a per-chain array, and `lib/protocols/curve.ts` turns each configured
+entry into its own opportunity:
 
-| Pool | Coins | Why it's here |
-|---|---|---|
-| crvUSD/USDC (factory plain pool) | USDC, crvUSD | Biggest TVL gainer among Curve's crvUSD pools (Curve's own "Best Yields & Key Metrics" weekly post, 2026-08-13) |
-| 3pool | DAI, USDC, USDT | Curve's flagship — "one of the most liquid and widely referenced pools in all of DeFi" |
+| Chain | Pool | Coins | Why it's here |
+|---|---|---|---|
+| Ethereum | crvUSD/USDC (factory plain pool) | USDC, crvUSD | Biggest TVL gainer among Curve's crvUSD pools (Curve's own "Best Yields & Key Metrics" weekly post, 2026-08-13) |
+| Ethereum | 3pool | DAI, USDC, USDT | Curve's flagship — "one of the most liquid and widely referenced pools in all of DeFi" |
+| Base | USDC/scrvUSD | USDC, scrvUSD | Most liquid crvUSD-family USDC stable pool on Base with a live base-trading APY |
+| Arbitrum | USDC/USD₮0 | USDC, USD₮0 | Most liquid native-USDC/USD-stable pool on Arbitrum with a live base-trading APY |
 
-Both were picked specifically for liquidity, and both had to actually contain USDC to
-qualify — single-sided `add_liquidity` only works with a pool's own coins, so a highly liquid
-pool that doesn't hold USDC at all (crvUSD/USDT, for instance) isn't something this app can
-deposit into without a swap step it doesn't build. 3pool is architecturally different from
-every other Curve pool here: it predates Curve's factory-pool pattern, so its LP token (3Crv)
-is a **separate contract** from the swap pool, its `add_liquidity`/`calc_token_amount` take a
-3-element amounts array instead of 2, and `lib/abi/curvePool.ts` exports distinct
-`curvePoolAbi2Coin`/`curvePoolAbi3Coin` ABIs for exactly this reason — `CurvePoolConfig.
-numCoins` in `lib/config/addresses.ts` is what picks the right one at runtime.
+The two L2 pools were added to give a **low-gas route into Curve** — depositing/withdrawing on
+Base or Arbitrum costs a fraction of the equivalent Ethereum transaction. Every pool had to
+actually contain USDC to qualify — single-sided `add_liquidity` only works with a pool's own
+coins, so a highly liquid pool that doesn't hold USDC at all (crvUSD/USDT, for instance) isn't
+something this app can deposit into without a swap step it doesn't build.
+
+Three architectural shapes coexist, and `lib/abi/curvePool.ts` exports a distinct ABI for each:
+
+- **Ethereum crvUSD/USDC** — a StableSwap-NG *factory* pool: the pool contract is its own LP
+  token, and `add_liquidity`/`calc_token_amount` take a fixed 2-element amounts array
+  (`curvePoolAbi2Coin`).
+- **3pool** — predates Curve's factory pattern, so its LP token (3Crv) is a **separate
+  contract** from the swap pool and its amounts arrays are 3-element (`curvePoolAbi3Coin`).
+- **Base/Arbitrum pools** — newer StableSwap-NG (`plainstableng`) pools whose `add_liquidity`/
+  `calc_token_amount` take a **dynamic** `uint256[]` array, not a fixed one; they revert if
+  called with the fixed-array selector (`curvePoolAbiNg`). `CurvePoolConfig.numCoins` +
+  `CurvePoolConfig.amountsEncoding` in `lib/config/addresses.ts` pick the right ABI and array
+  shape at runtime. `remove_liquidity_one_coin`/`calc_withdraw_one_coin` take the same
+  `(uint256, int128)` shape across all three, so the withdraw side is shared.
 
 Contract addresses live in `lib/config/addresses.ts`, pulled from
 [bgd-labs/aave-address-book](https://github.com/bgd-labs/aave-address-book) (Aave's own
 canonical registry) and [lidofinance/docs](https://github.com/lidofinance/docs) on
-2026-08-13. Both Curve pool addresses were verified the same day, but indirectly — this
-sandbox's network policy blocks Curve's own docs/API domains, so it's cross-referenced
-against multiple independent third-party sources instead (see the `CURVE` comment in
-`lib/config/addresses.ts` for exactly which ones and why that's an acceptable substitute).
-**Re-verify against those sources before any mainnet deploy** — don't assume addresses stay
-correct indefinitely.
+2026-08-13. The **Ethereum** Curve pool addresses were verified indirectly against third-party
+sources (the original build sandbox blocked Curve's own domains). The **Base and Arbitrum**
+Curve pool addresses, coin ordering, LP token, and add-side array encoding were instead
+verified **directly** against Curve's own API (`api.curve.finance/v1/getPools/all/<chain>`) and
+a live on-chain `eth_call` to each pool on 2026-08-14 — see the `CURVE` comment in
+`lib/config/addresses.ts` for the exact checks. **Re-verify before any mainnet deploy** — don't
+assume addresses stay correct indefinitely.
 
 ## Fees
 
@@ -212,11 +226,18 @@ npm run dev
   pool's separate CRV emissions requires staking the LP token in its gauge, which this app
   doesn't do — so the CRV-reward APR Curve's API also reports is deliberately left out rather
   than shown as if a plain depositor here would earn it. See `lib/protocols/curve.ts`.
-- **Curve's API response shape is unverified against the live endpoint** — same constraint as
-  Yearn's above: this sandbox's network policy blocks reaching `api.curve.finance` while
-  building, so `lib/protocols/curve.ts` parses defensively (skips the pool rather than
-  guessing a wrong APY) but the field names should be smoke-tested against the real endpoint
-  the first time this runs.
+- **Curve's base APY comes from `getSubgraphData`, not `getPools/all`.** Verified live against
+  `api.curve.finance` on 2026-08-14: `/getSubgraphData/<chain>`'s `data.poolList[]` carries
+  `latestDailyApy`/`latestWeeklyApy` (as percentages, keyed by pool address); `/getPools/all`
+  has pool composition but no APY. `lib/protocols/curve.ts` originally read the latter, so it
+  always came back empty — that's fixed. Parsing is still defensive (skips a pool rather than
+  guessing) in case the shape shifts again.
+- **Curve L2 stable-pool TVL is small** (roughly hundreds of thousands of USD on Base/Arbitrum
+  vs. many millions on Ethereum). Because Curve `add_liquidity`/`remove_liquidity_one_coin`
+  behave like a swap and the modal enforces a 1% min-out, a large single-sided deposit or exit
+  can exceed that tolerance and revert (failing safely rather than executing a bad trade).
+  Fine for modest amounts, which is the point of the low-gas L2 route; not a venue for
+  large-size deposits as configured.
 - **Fee amount is a hardcoded constant, not configurable per-session or A/B tested** —
   `DEPOSIT_FEE_BPS`/`WITHDRAW_FEE_BPS` in `lib/config/fees.ts`. Changing the fee is a one-line
   edit and a redeploy, nothing more sophisticated exists yet.
