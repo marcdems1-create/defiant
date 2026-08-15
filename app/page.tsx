@@ -12,6 +12,7 @@ import {
 } from '@/lib/opportunityFilters';
 import { OpportunityCard } from '@/components/OpportunityCard';
 import { OpportunityFilters } from '@/components/OpportunityFilters';
+import { RiskDisclaimer } from '@/components/RiskDisclaimer';
 import { PositionCard } from '@/components/PositionCard';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { InstallAppBanner } from '@/components/InstallAppBanner';
@@ -40,10 +41,11 @@ export default function CollectionPage() {
           <h1 className="text-3xl font-medium tracking-tight">Yield decks</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
             Live USDC yield on Base and Arbitrum — lower fees than mainnet. Each card shows risk,
-            how battle-tested the venue is, and fee vibe. Not financial advice; yields move and
-            protocols can fail.
+            how battle-tested the venue is, and fee vibe.
           </p>
         </div>
+
+        <RiskDisclaimer />
 
         <OpportunityFilters
           filters={filters}
