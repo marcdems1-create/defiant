@@ -9,7 +9,8 @@ import {
   liquidityLabel,
   PROTOCOL_TINT,
 } from '@/lib/protocols/opportunityDetails';
-import { apyCaption, chainName, formatApy } from '@/lib/format';
+import { apyCaption, assetMark, chainName, formatApy } from '@/lib/format';
+import { AssetMark } from './AssetMark';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 import { ApyHistoryChart } from './ApyHistoryChart';
 
@@ -17,6 +18,7 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
   const [modalOpen, setModalOpen] = useState(false);
   const badges = getCardBadges(opportunity);
   const details = getOpportunityDetails(opportunity);
+  const asset = assetMark(opportunity.asset.symbol);
 
   return (
     <>
@@ -31,7 +33,8 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
         <article
           className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-6 sm:p-8 mb-8`}
         >
-          <div className="flex items-start justify-between gap-4 mb-6">
+          <AssetMark symbol={opportunity.asset.symbol} size="hero" />
+          <div className="relative flex items-start justify-between gap-4 mb-6">
             <div>
               <div className="text-[11px] uppercase tracking-[0.14em] text-ink/45 font-mono">
                 {chainName(opportunity.chainId)}
@@ -39,7 +42,10 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
               <h1 className="text-2xl sm:text-3xl font-medium mt-1 leading-tight">
                 {opportunity.protocolLabel}
               </h1>
-              <div className="text-sm text-ink/55 mt-1">{opportunity.asset.symbol}</div>
+              <div className="text-6xl font-semibold tracking-tight text-ink leading-none mt-4">
+                {asset.mark}
+              </div>
+              <div className="text-sm text-ink/50 mt-2">{asset.label}</div>
             </div>
             <div className="text-right shrink-0">
               <div className="text-4xl font-mono text-accent leading-none">
