@@ -63,7 +63,8 @@ every market this reaches; it does not eliminate it in any of them.
 Openhand does **not** generate or store private keys. A brand-new user who has never
 used a wallet can still get an address:
 
-1. Set `NEXT_PUBLIC_PRIVY_APP_ID` (create an app at [dashboard.privy.io](https://dashboard.privy.io)).
+1. A Privy app ID is already in the client (`cmstzz2zb009k0el4fzr8x8jb`). Override
+   with `NEXT_PUBLIC_PRIVY_APP_ID`, or set it to `off` for RainbowKit-only connect.
 2. In the Privy dashboard: enable **Email**, **Passkeys**, and **embedded Ethereum wallets**.
    Add `https://openhand.online` and `https://www.openhand.online` as allowed origins.
 3. Connect offers email or a passkey first. Privy creates an embedded wallet for users
