@@ -44,7 +44,7 @@ export async function fetchMoonwellOpportunities(
   }
 
   if (apy === null) {
-    apy = await findDefiLlamaApy('moonwell', 'Base', (s) => s === 'USDC' || s.includes('USDC'));
+    apy = await findDefiLlamaApy('moonwell-lending', 'Base', (s) => s === 'USDC' || s.includes('USDC'));
   }
   if (apy === null) return [];
 
@@ -56,8 +56,9 @@ export async function fetchMoonwellOpportunities(
       chainId,
       asset: { address: usdc, symbol: 'USDC', decimals: 6 },
       apy,
+      apyCompounded: true,
       description:
-        'Supply USDC to Moonwell on Base (mUSDC). Floating supply APY; withdraw underlying anytime. Base-native lending market.',
+        'Supply USDC to Moonwell on Base (mUSDC). The rate shown is compounded Base APY (borrower interest auto-compounds into mUSDC) — the same figure moonwell.fi labels Supply APY. WELL rewards are a separate claim and are not included. Withdraw underlying anytime.',
       depositTarget: cfg.mUSDC,
       positionToken: cfg.mUSDC,
       positionDecimals: 8,

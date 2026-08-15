@@ -18,7 +18,7 @@ import { getWagmiConfig } from '@/lib/wagmi';
 import { computeFee, DEPOSIT_FEE_BPS, feesEnabled, WITHDRAW_FEE_BPS } from '@/lib/config/fees';
 import { useSendFee } from '@/lib/hooks/useSendFee';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
-import { chainName, formatApy } from '@/lib/format';
+import { apyCaption, chainName, formatApy } from '@/lib/format';
 import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 
@@ -470,7 +470,8 @@ export function DepositWithdrawModal({
           <div>
             <div className="text-lg font-medium">{opportunity.protocolLabel}</div>
             <div className="text-sm text-ink/50">
-              {chainName(opportunity.chainId)} · {formatApy(opportunity.apy)} APY
+              {chainName(opportunity.chainId)} · {formatApy(opportunity.apy)}{' '}
+              {apyCaption(opportunity)}
             </div>
           </div>
           <button onClick={onClose} className="text-ink/50 hover:text-ink" aria-label="Close">

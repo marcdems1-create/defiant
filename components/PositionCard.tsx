@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { formatUnits } from 'viem';
 import type { Position } from '@/lib/hooks/usePositions';
-import { chainName, formatApy } from '@/lib/format';
+import { apyCaption, chainName, formatApy } from '@/lib/format';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 
 export function PositionCard({ position }: { position: Position }) {
@@ -17,7 +17,9 @@ export function PositionCard({ position }: { position: Position }) {
           <div className="text-sm font-medium">
             {opportunity.protocolLabel} · {chainName(opportunity.chainId)}
           </div>
-          <div className="text-xs text-ink/50">{formatApy(opportunity.apy)} current APY</div>
+          <div className="text-xs text-ink/50">
+            {formatApy(opportunity.apy)} current {apyCaption(opportunity)}
+          </div>
         </div>
         <div className="text-right">
           <div className="font-mono">

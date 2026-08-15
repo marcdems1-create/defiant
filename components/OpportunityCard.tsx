@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { Opportunity } from '@/lib/protocols/types';
 import { getCardBadges } from '@/lib/protocols/cardBadges';
 import { PROTOCOL_TINT } from '@/lib/protocols/opportunityDetails';
-import { chainName, formatApy } from '@/lib/format';
+import { apyCaption, chainName, formatApy } from '@/lib/format';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 
 export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
@@ -35,11 +35,22 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
               <div className="text-3xl font-mono text-accent leading-none">
                 {formatApy(opportunity.apy)}
               </div>
-              <div className="text-[11px] text-ink/45 mt-1 tracking-wide">APY</div>
+              <div className="text-[11px] text-ink/45 mt-1 tracking-wide">
+                {apyCaption(opportunity)}
+              </div>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2 text-sm">
+            {opportunity.apyCompounded && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1"
+                title="This rate is compounded APY, not simple APR. Interest accrues into the receipt token automatically."
+              >
+                <span aria-hidden>🔁</span>
+                <span className="text-accent text-xs">Compounded</span>
+              </span>
+            )}
             <span
               className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1"
               title={badges.risk.label}

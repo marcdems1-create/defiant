@@ -9,8 +9,9 @@ import {
   liquidityLabel,
   PROTOCOL_TINT,
 } from '@/lib/protocols/opportunityDetails';
-import { chainName, formatApy } from '@/lib/format';
+import { apyCaption, chainName, formatApy } from '@/lib/format';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
+import { ApyHistoryChart } from './ApyHistoryChart';
 
 export function OpportunityDetail({ opportunity }: { opportunity: Opportunity }) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -44,11 +45,22 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
               <div className="text-4xl font-mono text-accent leading-none">
                 {formatApy(opportunity.apy)}
               </div>
-              <div className="text-[11px] text-ink/45 mt-1 tracking-wide">live APY</div>
+              <div className="text-[11px] text-ink/45 mt-1 tracking-wide">
+                {apyCaption(opportunity, 'live')}
+              </div>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2 text-sm mb-4">
+            {opportunity.apyCompounded && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1"
+                title="Compounded APY from the per-second supply rate — not simple APR."
+              >
+                <span aria-hidden>🔁</span>
+                <span className="text-accent text-xs">Compounded</span>
+              </span>
+            )}
             <span className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1">
               <span aria-hidden>{badges.risk.emoji}</span>
               <span className="text-ink/80 text-xs">{badges.risk.label}</span>
@@ -70,6 +82,7 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
         </article>
 
         <div className="flex flex-col gap-6">
+          <ApyHistoryChart opportunity={opportunity} />
           <section className="rounded-2xl border border-border bg-white/[0.02] p-5 sm:p-6">
             <h2 className="text-sm font-medium uppercase tracking-[0.12em] text-accent mb-3">
               How yield works here

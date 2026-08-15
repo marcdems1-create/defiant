@@ -164,7 +164,7 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
   },
   moonwell: {
     howYieldWorks:
-      'You supply USDC to Moonwell on Base and receive mUSDC — a receipt token that grows as borrowers pay interest. It\'s a classic Compound-style money market, native to the Base ecosystem.',
+      'You supply USDC to Moonwell on Base and receive mUSDC — a receipt token that grows as borrowers pay interest. The number on this card is compounded Base APY: Moonwell accrues a per-second supply rate, and we convert it the same way their app does — ((rate × 86,400 + 1) ^ 365) − 1 — not a simple APR. Interest compounds into mUSDC automatically. WELL token incentives, if any, must be claimed separately and are not in this number.',
     risks: [
       'Smart contract risk in Moonwell\'s lending contracts.',
       'Liquidity risk — withdrawals depend on available pool liquidity.',
