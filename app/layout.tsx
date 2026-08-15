@@ -4,6 +4,7 @@ import './globals.css';
 import { NavBar } from '@/components/NavBar';
 import { NetworkBanner } from '@/components/NetworkBanner';
 import { MobileTabBar } from '@/components/MobileTabBar';
+import { RiskFooter } from '@/components/RiskDisclaimer';
 
 // wagmi/RainbowKit reach for browser-only APIs (indexedDB, WebSocket) at
 // module-eval time, which crashes Next's Node-side static page-data
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <NetworkBanner />
           <NavBar />
           <main className="max-w-6xl mx-auto px-6 py-10">{children}</main>
+          <RiskFooter />
           <MobileTabBar />
         </Providers>
       </body>

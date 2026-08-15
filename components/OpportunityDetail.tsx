@@ -152,8 +152,8 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
               Deposit {opportunity.asset.symbol}
             </button>
             <p className="text-[11px] text-ink/40 text-center mt-3 leading-relaxed">
-              Not financial advice. Yields change, smart contracts can fail, and you can lose
-              principal. You sign every transaction from your own wallet.
+              Not investment advice. Yield is not insured or guaranteed. Capital is at risk. You
+              sign every transaction from your own wallet.
             </p>
           </div>
         </div>

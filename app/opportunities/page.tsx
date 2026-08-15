@@ -25,7 +25,8 @@ export default function OpportunitiesPage() {
     <div>
       <h1 className="text-2xl font-medium mb-1">Opportunities</h1>
       <p className="text-ink/50 text-sm mb-4">
-        Live on-chain yield. Higher yield usually means more risk.
+        Live on-chain yield across integrated protocols. Higher yield typically reflects higher
+        risk.
       </p>
 
       <RiskDisclaimer className="mb-6" />

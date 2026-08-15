@@ -40,8 +40,8 @@ export default function CollectionPage() {
           </p>
           <h1 className="text-3xl font-medium tracking-tight">Yield decks</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
-            Live USDC yield on Base and Arbitrum — lower fees than mainnet. Each card shows risk,
-            how battle-tested the venue is, and fee vibe.
+            Compare live on-chain USDC yield on Base and Arbitrum. Connect your wallet and sign
+            every deposit or withdrawal yourself.
           </p>
         </div>
 

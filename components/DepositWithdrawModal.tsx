@@ -631,6 +631,11 @@ export function DepositWithdrawModal({
                           : `Withdraw ${opportunity.asset.symbol}`}
             </button>
 
+            <p className="text-[11px] text-ink/40 text-center mt-3 leading-relaxed">
+              Yield is not insured or guaranteed. You can lose capital. Defiant never holds your
+              funds.
+            </p>
+
             {opportunity.protocol === 'lido' && tab === 'withdraw' && (
               <LidoWithdrawalRequests chainId={opportunity.chainId} />
             )}
