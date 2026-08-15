@@ -72,6 +72,14 @@ export interface CurvePoolConfig {
   usdcIndex: number;
   /** Length of this pool's `coins` array — selects which add_liquidity/calc_token_amount ABI variant applies. */
   numCoins: 2 | 3;
+  /**
+   * How this pool sizes its `add_liquidity`/`calc_token_amount` amounts array.
+   * `'fixed'` = older `uint256[N]` (the mainnet crvUSD/USDC factory pool and
+   * 3pool); `'dynamic'` = newer StableSwap-NG `uint256[]` (every Curve L2
+   * stable pool here). Defaults to `'fixed'` when omitted. Verified per-pool
+   * on-chain — calling the wrong selector reverts. See lib/abi/curvePool.ts.
+   */
+  amountsEncoding?: 'fixed' | 'dynamic';
 }
 
 /**
@@ -148,6 +156,59 @@ export const CURVE: Partial<Record<number, CurvePoolConfig[]>> = {
       usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
       usdcIndex: 1,
       numCoins: 3,
+    },
+  ],
+  // Curve on Base and Arbitrum — added to give a low-gas L2 route into Curve,
+  // since the mainnet pools above cost far more per deposit/withdraw. Every
+  // address, coin ordering, LP token, and the dynamic-array ABI below was
+  // verified DIRECTLY against Curve's own API and the live pool contracts on
+  // 2026-08-14 (unlike the mainnet pools, which had to be cross-referenced
+  // via third parties because the original build sandbox blocked Curve):
+  //   - https://api.curve.finance/v1/getPools/all/{base,arbitrum} returns each
+  //     pool's address, coins[] (with symbol+address), lpTokenAddress, and
+  //     `implementation` ("plainstableng"). Both pools below hold native
+  //     (Circle) USDC as a coin and are their own LP token (factory NG pool).
+  //   - An on-chain eth_call to each pool confirmed coins[0]=native USDC and
+  //     that `calc_token_amount`/`add_liquidity` answer to the DYNAMIC
+  //     `uint256[]` selector (not the mainnet `uint256[2]` one), while
+  //     `calc_withdraw_one_coin(uint256,int128)` matches the shared shape. A
+  //     1000-USDC round-trip (deposit-preview then withdraw-preview) returned
+  //     ~999.85 USDC, confirming both are healthy, correctly-pegged pools.
+  //   - Base/Arbitrum native USDC addresses reused verbatim from AAVE_V3 above.
+  // Curve L2 stable-pool TVL is far smaller than mainnet's, so large single-
+  // sided deposits will hit the modal's 1% min-out slippage guard (and fail
+  // safely rather than execute a bad trade) — see README "Known simplifications".
+  [base.id]: [
+    {
+      // getPools/all/base → "USDC/Savings crvUSD", coins[0]=USDC,
+      // coins[1]=scrvUSD (0x646A737B9B6024e49f5908762B3fF73e65B5160c), impl
+      // plainstableng, pool is its own LP token. The most liquid crvUSD-family
+      // USDC stable pool on Base with a live base-trading APY.
+      id: 'crvusd-usdc-savings',
+      label: 'USDC/scrvUSD',
+      pool: '0x5aB01ee6208596f2204B85bDFA39d34c2aDD98F6',
+      lpToken: '0x5aB01ee6208596f2204B85bDFA39d34c2aDD98F6',
+      usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      usdcIndex: 0,
+      numCoins: 2,
+      amountsEncoding: 'dynamic',
+    },
+  ],
+  [arbitrum.id]: [
+    {
+      // getPools/all/arbitrum → "Strategic USD Reserves", coins[0]=native
+      // USDC, coins[1]=USD₮0 (0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9, the
+      // canonical bridged USDT on Arbitrum), impl plainstableng, pool is its
+      // own LP token. The most liquid native-USDC/USD-stable pool on Arbitrum
+      // with a live base-trading APY.
+      id: 'usdc-usdt0',
+      label: 'USDC/USD₮0',
+      pool: '0x49b720F1Aab26260BEAec93A7BeB5BF2925b2A8F',
+      lpToken: '0x49b720F1Aab26260BEAec93A7BeB5BF2925b2A8F',
+      usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+      usdcIndex: 0,
+      numCoins: 2,
+      amountsEncoding: 'dynamic',
     },
   ],
 };

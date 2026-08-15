@@ -28,6 +28,9 @@
 
 const ZEROEX_QUOTE_ENDPOINT = 'https://api.0x.org/swap/allowance-holder/quote';
 
+/** Default slippage tolerance (1%) applied to a quote when the caller doesn't specify one. */
+export const DEFAULT_SWAP_SLIPPAGE_BPS = 100;
+
 export interface SwapQuote {
   to: `0x${string}`;
   data: `0x${string}`;
@@ -35,6 +38,8 @@ export interface SwapQuote {
   /** Contract the sell-token approval must target — NOT necessarily `to`. */
   allowanceTarget: `0x${string}`;
   buyAmount: bigint;
+  /** Worst-case buy amount after slippage — 0x's own `minBuyAmount`, used for the min-received line. */
+  minBuyAmount: bigint;
   sellAmount: bigint;
 }
 
@@ -44,13 +49,22 @@ interface FetchSwapQuoteParams {
   buyToken: `0x${string}`;
   sellAmount: bigint;
   taker: `0x${string}`;
+  slippageBps?: number;
+}
+
+/**
+ * Whether the swap surface is configured to run. Only the 0x API key is truly
+ * required — the fee (NEXT_PUBLIC_SWAP_FEE_RECIPIENT/BPS) is optional and stays
+ * OFF by default, consistent with the treasury-fee posture elsewhere. NEXT_PUBLIC_*
+ * env vars are inlined at build time, so this is safe to call in the browser.
+ */
+export function swapConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_ZEROEX_API_KEY);
 }
 
 export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<SwapQuote | null> {
   const apiKey = process.env.NEXT_PUBLIC_ZEROEX_API_KEY;
-  const feeRecipient = process.env.NEXT_PUBLIC_SWAP_FEE_RECIPIENT;
-  const feeBps = process.env.NEXT_PUBLIC_SWAP_FEE_BPS;
-  if (!apiKey || !feeRecipient) return null;
+  if (!apiKey) return null;
 
   const qs = new URLSearchParams({
     chainId: String(params.chainId),
@@ -58,10 +72,19 @@ export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<Swap
     buyToken: params.buyToken,
     sellAmount: params.sellAmount.toString(),
     taker: params.taker,
-    swapFeeToken: params.buyToken,
-    swapFeeRecipient: feeRecipient,
-    swapFeeBps: feeBps || '0',
+    slippageBps: String(params.slippageBps ?? DEFAULT_SWAP_SLIPPAGE_BPS),
   });
+
+  // Fee is opt-in: only attach the swapFee* params when a recipient is set, so
+  // an unconfigured fee means a plain fee-free swap rather than a broken quote.
+  // The fee (if any) is taken atomically inside the same swap tx by 0x — never
+  // via a custody hop — keeping the non-custodial invariant intact.
+  const feeRecipient = process.env.NEXT_PUBLIC_SWAP_FEE_RECIPIENT;
+  if (feeRecipient) {
+    qs.set('swapFeeToken', params.buyToken);
+    qs.set('swapFeeRecipient', feeRecipient);
+    qs.set('swapFeeBps', process.env.NEXT_PUBLIC_SWAP_FEE_BPS || '0');
+  }
 
   try {
     const res = await fetch(`${ZEROEX_QUOTE_ENDPOINT}?${qs.toString()}`, {
@@ -87,12 +110,15 @@ export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<Swap
       return null;
     }
 
+    const minBuyAmount = typeof json?.minBuyAmount === 'string' ? json.minBuyAmount : buyAmount;
+
     return {
       to: to as `0x${string}`,
       data: data as `0x${string}`,
       value: BigInt(value ?? '0'),
       allowanceTarget: allowanceTarget as `0x${string}`,
       buyAmount: BigInt(buyAmount),
+      minBuyAmount: BigInt(minBuyAmount),
       sellAmount: BigInt(sellAmount),
     };
   } catch {

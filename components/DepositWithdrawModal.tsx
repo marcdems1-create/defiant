@@ -8,7 +8,7 @@ import type { Opportunity } from '@/lib/protocols/types';
 import { erc20Abi } from '@/lib/abi/erc20';
 import { aavePoolAbi } from '@/lib/abi/aavePool';
 import { erc4626Abi } from '@/lib/abi/erc4626';
-import { curvePoolAbi2Coin, curvePoolAbi3Coin } from '@/lib/abi/curvePool';
+import { curvePoolAbi2Coin, curvePoolAbi3Coin, curvePoolAbiNg } from '@/lib/abi/curvePool';
 import { stEthAbi, lidoWithdrawalQueueAbi } from '@/lib/abi/lido';
 import { crvDepositorAbi, cvxCrvRewardsAbi } from '@/lib/abi/convex';
 import { compoundCometAbi } from '@/lib/abi/compoundComet';
@@ -107,6 +107,11 @@ export function DepositWithdrawModal({
   const curveNumCoins = opportunity.curve?.numCoins ?? 2;
   const curveCoinIndexNum = opportunity.curve?.coinIndex ?? 0;
   const curveCoinIndex = BigInt(curveCoinIndexNum);
+  // Newer StableSwap-NG pools (every Curve L2 pool here) take a dynamic
+  // uint256[] amounts array on add_liquidity/calc_token_amount; the older
+  // mainnet factory pool + 3pool take a fixed uint256[N]. Same coin index and
+  // withdraw-side shape either way — only the add side's ABI/array differ.
+  const curveDynamic = opportunity.curve?.amountsEncoding === 'dynamic';
   function curveAmounts2(amount: bigint): [bigint, bigint] {
     const arr: [bigint, bigint] = [0n, 0n];
     arr[curveCoinIndexNum] = amount;
@@ -117,6 +122,11 @@ export function DepositWithdrawModal({
     arr[curveCoinIndexNum] = amount;
     return arr;
   }
+  function curveAmountsDynamic(amount: bigint): bigint[] {
+    const arr = new Array<bigint>(curveNumCoins).fill(0n);
+    arr[curveCoinIndexNum] = amount;
+    return arr;
+  }
 
   // Curve-only: preview the actual USDC amount a withdrawal will produce, so
   // (a) the fee below is based on real USDC out rather than the LP-share
@@ -124,8 +134,11 @@ export function DepositWithdrawModal({
   // remove_liquidity_one_coin's tx (below) can carry a real min-out instead
   // of 0 — unlike Aave/Yearn's fixed-rate mechanics, this behaves like a
   // swap and a 0 min-out is a real sandwich-attack surface.
-  // remove_liquidity_one_coin/calc_withdraw_one_coin are byte-identical
-  // between the 2-coin and 3-coin ABI variants, so either works here.
+  // remove_liquidity_one_coin/calc_withdraw_one_coin take the same
+  // (uint256, int128[, uint256]) shape across all three ABI variants (2-coin,
+  // 3-coin, and dynamic NG — the last verified on-chain against the live L2
+  // pools), so curvePoolAbi2Coin works here regardless of the pool's add-side
+  // array encoding.
   const curveWithdrawPreview = useReadContract({
     address: opportunity.depositTarget,
     abi: curvePoolAbi2Coin,
@@ -163,7 +176,7 @@ export function DepositWithdrawModal({
     functionName: 'calc_token_amount',
     args: [curveAmounts2(netAmount), true],
     chainId: opportunity.chainId,
-    query: { enabled: isCurve && curveNumCoins === 2 && tab === 'deposit' && netAmount > 0n },
+    query: { enabled: isCurve && !curveDynamic && curveNumCoins === 2 && tab === 'deposit' && netAmount > 0n },
   });
   const curveDepositPreview3 = useReadContract({
     address: opportunity.depositTarget,
@@ -171,11 +184,23 @@ export function DepositWithdrawModal({
     functionName: 'calc_token_amount',
     args: [curveAmounts3(netAmount), true],
     chainId: opportunity.chainId,
-    query: { enabled: isCurve && curveNumCoins === 3 && tab === 'deposit' && netAmount > 0n },
+    query: { enabled: isCurve && !curveDynamic && curveNumCoins === 3 && tab === 'deposit' && netAmount > 0n },
   });
-  const curveDepositPreviewData = (curveNumCoins === 3 ? curveDepositPreview3.data : curveDepositPreview2.data) as
-    | bigint
-    | undefined;
+  const curveDepositPreviewNg = useReadContract({
+    address: opportunity.depositTarget,
+    abi: curvePoolAbiNg,
+    functionName: 'calc_token_amount',
+    args: [curveAmountsDynamic(netAmount), true],
+    chainId: opportunity.chainId,
+    query: { enabled: isCurve && curveDynamic && tab === 'deposit' && netAmount > 0n },
+  });
+  const curveDepositPreviewData = (
+    curveDynamic
+      ? curveDepositPreviewNg.data
+      : curveNumCoins === 3
+        ? curveDepositPreview3.data
+        : curveDepositPreview2.data
+  ) as bigint | undefined;
 
   const maxAmount = tab === 'deposit' ? walletBalance : positionBalanceValue;
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
@@ -260,7 +285,16 @@ export function DepositWithdrawModal({
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'curve') {
         const minMintAmount = curveMinOut(curveDepositPreviewData);
-        if (curveNumCoins === 3) {
+        if (curveDynamic) {
+          const hash = await writeContractAsync({
+            address: opportunity.depositTarget,
+            abi: curvePoolAbiNg,
+            functionName: 'add_liquidity',
+            args: [curveAmountsDynamic(netAmount), minMintAmount],
+            chainId: opportunity.chainId,
+          });
+          await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        } else if (curveNumCoins === 3) {
           const hash = await writeContractAsync({
             address: opportunity.depositTarget,
             abi: curvePoolAbi3Coin,

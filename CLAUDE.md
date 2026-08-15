@@ -126,19 +126,27 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
 - Yearn's yDaemon API response shape (`apr.forwardAPR.netAPR` etc.) is unverified against the
   live endpoint — this sandbox's network policy blocked reaching `ydaemon.yearn.fi` while
   building. Smoke-test on first real run.
-- Curve's `api.curve.finance` response shape is likewise unverified against the live endpoint
-  for the same reason (this sandbox blocks that domain too) — `lib/protocols/curve.ts` parses
-  defensively and skips rather than guesses, but smoke-test the field names on first real run.
-  Both pool addresses were verified indirectly, by cross-referencing multiple independent
-  third-party sources rather than Curve's own (unreachable) docs — see the `CURVE` comment in
-  `lib/config/addresses.ts`. Re-verify against Curve's own docs before trusting it further.
-- 3pool (one of the two Curve pools) predates Curve's factory-pool pattern: its LP token
-  (3Crv) is a separate contract from the swap pool, and its `add_liquidity`/`calc_token_amount`
-  take a 3-element amounts array instead of 2. `lib/abi/curvePool.ts` has distinct
-  `curvePoolAbi2Coin`/`curvePoolAbi3Coin` exports and `DepositWithdrawModal` branches on
-  `opportunity.curve.numCoins` for exactly this reason — if a future Curve pool is added, check
-  whether it's a factory pool (numCoins matches, pool IS the LP token) or an old-style pool
-  (separate LP token, verify the amounts-array size) before reusing either ABI blindly.
+- Curve's base APY was being read from the WRONG endpoint (`getPools/all`, which has no APY),
+  so mainnet Curve cards never populated. Fixed 2026-08-14: `lib/protocols/curve.ts` now reads
+  `getSubgraphData/<chain>` (`data.poolList[]` → `latestDailyApy`/`latestWeeklyApy`, as
+  percentages). Verified live against `api.curve.finance`. Still parses defensively.
+- Curve now runs on Base and Arbitrum too (added 2026-08-14 for a low-gas L2 route), not just
+  Ethereum. Those two L2 pools were verified DIRECTLY against Curve's own API and a live
+  on-chain `eth_call` (the environment reaches Curve now, unlike the original build sandbox) —
+  addresses, coin order, LP token, and add-side array encoding all confirmed; see the `CURVE`
+  comment in `lib/config/addresses.ts`. The Ethereum pool addresses remain third-party-verified.
+- THREE Curve pool shapes now coexist and `lib/abi/curvePool.ts` has an ABI for each; pick via
+  `CurvePoolConfig.numCoins` + `amountsEncoding`:
+  - Ethereum crvUSD/USDC — StableSwap-NG factory pool, pool IS the LP token, fixed `uint256[2]`
+    (`curvePoolAbi2Coin`).
+  - 3pool — pre-factory, LP token (3Crv) is a SEPARATE contract, fixed `uint256[3]`
+    (`curvePoolAbi3Coin`).
+  - Base/Arbitrum `plainstableng` pools — pool IS the LP token but `add_liquidity`/
+    `calc_token_amount` take a DYNAMIC `uint256[]` and revert on the fixed selector
+    (`curvePoolAbiNg`, `amountsEncoding: 'dynamic'`).
+  `remove_liquidity_one_coin`/`calc_withdraw_one_coin` are `(uint256, int128)` across all three,
+  so the withdraw side is shared. If a future Curve pool is added, `eth_call` both `calc_token_
+  amount` selectors against the live pool to determine fixed vs dynamic before reusing an ABI.
 - Lido withdrawal-queue allowance isn't read live (always submits approve) — harmless, just
   an extra signature on repeat withdrawals.
 - USDC-only for Aave/Yearn/Curve. No risk scoring, no TVL display. Curve's shown APY is base
@@ -165,8 +173,11 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
    so give its deposit/add_liquidity/remove_liquidity_one_coin code path (and the min-out
    slippage math around it) extra scrutiny before that first mainnet run.
 2. Smoke-test the Yearn API integration specifically — verify `apr.forwardAPR.netAPR` is the
-   right field before trusting displayed Yearn APYs. Same for Curve's `api.curve.finance`
-   response shape assumed in `lib/protocols/curve.ts`.
+   right field before trusting displayed Yearn APYs. (Curve's `api.curve.finance` shape is now
+   verified live and the endpoint bug is fixed — see the Curve notes above and the 2026-08-14
+   session update.) The Base/Arbitrum Curve deposit path uses a dynamic-array ABI verified by
+   read-only `eth_call`; the actual `add_liquidity`/`remove_liquidity_one_coin` writes still
+   need a real on-chain run (small size, mind the low L2 TVL / 1% min-out) before trusting.
 3. Once a treasury address exists, smoke-test the fee flow specifically — both success and
    partial-failure paths (reject the second signature after the first succeeds) — before
    trusting it with real money.
@@ -256,3 +267,36 @@ browser, no real wallet, no RPC in this sandbox.
 6. Real compliance review before any mainnet/public launch — unchanged from the original
    list, and now more relevant given the fee-on-conversion feature touches money movement
    even though it stays non-custodial.
+
+## Session update (2026-08-14) — Curve on Base + Arbitrum (low-gas L2 route) + APY endpoint fix
+
+Extended Curve beyond Ethereum to Base and Arbitrum so users have a low-gas L2 route into
+Curve (Ethereum deposits/withdraws cost far more per tx). Two pools added, one per chain:
+- Base: `USDC/scrvUSD` (0x5aB01ee6208596f2204B85bDFA39d34c2aDD98F6).
+- Arbitrum: `USDC/USD₮0` "Strategic USD Reserves" (0x49b720F1Aab26260BEAec93A7BeB5BF2925b2A8F).
+
+Both are Curve `plainstableng` (StableSwap-NG) pools where `add_liquidity`/`calc_token_amount`
+take a **dynamic `uint256[]`** array, unlike the older mainnet crvUSD/USDC factory pool
+(`uint256[2]`) and 3pool (`uint256[3]`). Added `curvePoolAbiNg` in `lib/abi/curvePool.ts`, an
+`amountsEncoding: 'fixed' | 'dynamic'` field on `CurvePoolConfig`, threaded it through
+`Opportunity.curve`, and branched the add side of `DepositWithdrawModal` on it. Withdraw side
+(`remove_liquidity_one_coin`/`calc_withdraw_one_coin`, `(uint256,int128)`) is shared across all
+three shapes.
+
+**Address verification (per Non-negotiable #5):** this environment reaches Curve's own API and
+public L2 RPCs (the original build sandbox did not), so both L2 pools were verified DIRECTLY:
+`api.curve.finance/v1/getPools/all/{base,arbitrum}` for address/coins/lpToken/implementation,
+plus a live `eth_call` per pool confirming `coins[0]` = native USDC, the dynamic-array selector
+(the fixed one reverts), and a healthy ~999.85-USDC round-trip on a 1000-USDC deposit→withdraw
+preview. Citations in the `CURVE` comment in `lib/config/addresses.ts`.
+
+**Also fixed a pre-existing bug:** `lib/protocols/curve.ts` was reading base APY from
+`getPools/all` (which has no APY), so Curve cards never populated on ANY chain. Now reads
+`getSubgraphData/<chain>` (`data.poolList[]` → `latestDailyApy`/`latestWeeklyApy`), verified
+live. This makes mainnet Curve actually show up for the first time, too.
+
+`npm run typecheck`, `npm run lint`, and `npm run build` all pass clean. The read-only paths
+(APY fetch, deposit/withdraw previews, dynamic-array ABI) were smoke-tested against live L2
+pools; the actual on-chain `add_liquidity`/`remove_liquidity_one_coin` **writes** are still
+untested with real funds — same caveat as every other transaction flow in this app, plus mind
+the small L2 TVL vs. the modal's 1% min-out (large deposits will revert safely).
