@@ -5,7 +5,21 @@ import { moonwellMTokenAbi } from '@/lib/abi/moonwell';
 import { chains, type SupportedChainId } from '@/lib/wagmi';
 import { findDefiLlamaApy } from './defillama';
 
-const SECONDS_PER_YEAR = 31_536_000;
+const SECONDS_PER_DAY = 86_400;
+const DAYS_PER_YEAR = 365;
+
+/**
+ * Moonwell SDK `calculateApy`: ((ratePerSec * 86400 + 1) ** 365 - 1).
+ * Matches the Base APY on moonwell.fi. WELL incentives are claimable
+ * separately and are not included.
+ */
+function supplyRateToApy(ratePerTimestamp: bigint): number | null {
+  const ratePerSecond = Number(ratePerTimestamp) / 1e18;
+  if (!(ratePerSecond > 0) || !Number.isFinite(ratePerSecond)) return null;
+  const apy = (ratePerSecond * SECONDS_PER_DAY + 1) ** DAYS_PER_YEAR - 1;
+  if (!(apy > 0) || !Number.isFinite(apy)) return null;
+  return apy;
+}
 
 export async function fetchMoonwellOpportunities(
   chainId: SupportedChainId,
@@ -24,8 +38,7 @@ export async function fetchMoonwellOpportunities(
       abi: moonwellMTokenAbi,
       functionName: 'supplyRatePerTimestamp',
     });
-    apy = (Number(rate) / 1e18) * SECONDS_PER_YEAR;
-    if (!(apy > 0)) apy = null;
+    apy = supplyRateToApy(rate);
   } catch {
     apy = null;
   }
