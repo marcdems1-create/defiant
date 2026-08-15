@@ -80,7 +80,7 @@ export default function CollectionPage() {
       {!isConnected && (
         <div className="rounded-2xl border border-border bg-white/[0.02] p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
           <p className="text-sm text-ink/65 max-w-md">
-            Connect a wallet to deposit. Browse the collection freely either way — Defiant never
+            Connect a wallet to deposit. Browse the collection freely either way — Openhand never
             holds your keys or funds.
           </p>
           <ConnectButtonClient />

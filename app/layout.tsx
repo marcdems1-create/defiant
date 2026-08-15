@@ -5,6 +5,7 @@ import { NavBar } from '@/components/NavBar';
 import { NetworkBanner } from '@/components/NetworkBanner';
 import { MobileTabBar } from '@/components/MobileTabBar';
 import { RiskFooter } from '@/components/RiskDisclaimer';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/config/site';
 
 // wagmi/RainbowKit reach for browser-only APIs (indexedDB, WebSocket) at
 // module-eval time, which crashes Next's Node-side static page-data
@@ -15,14 +16,22 @@ const Providers = dynamic(() => import('./providers').then((m) => m.Providers), 
 });
 
 export const metadata: Metadata = {
-  title: 'Defiant — non-custodial DeFi yield',
-  description:
-    'Connect your own wallet, compare on-chain USDC yield on Base and Arbitrum, deposit and withdraw with your own keys. Defiant never holds your funds.',
-  applicationName: 'Defiant',
+  metadataBase: new URL(SITE_URL),
+  title: `${SITE_NAME} — non-custodial DeFi yield`,
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — non-custodial DeFi yield`,
+    description: SITE_DESCRIPTION,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Defiant',
+    title: SITE_NAME,
   },
   icons: {
     icon: '/icons/icon.svg',

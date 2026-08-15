@@ -632,7 +632,7 @@ export function DepositWithdrawModal({
             </button>
 
             <p className="text-[11px] text-ink/40 text-center mt-3 leading-relaxed">
-              Yield is not insured or guaranteed. You can lose capital. Defiant never holds your
+              Yield is not insured or guaranteed. You can lose capital. Openhand never holds your
               funds.
             </p>
 
