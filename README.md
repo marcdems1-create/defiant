@@ -18,9 +18,9 @@ key, no path for the app itself to move anyone's money.
 The product ships as **Openhand** at `https://openhand.online`. Point the Namecheap
 zone at Vercel (not the parking page) and add the domain on the Vercel project:
 
-1. In Namecheap, turn off URL Forward / parking on `@` and `www`.
-2. Apex `A` record: `@` → `10.0.1.2` (Vercel anycast).
-3. `CNAME` `www` → `cname.vercel-dns.com`.
+1. In Namecheap, delete the URL Redirect on `@` and the parking `CNAME` on `www`.
+2. Apex `A` record: Host `@` → `76.76.21.21` (Vercel anycast).
+3. `CNAME` Host `www` → `cname.vercel-dns.com` (not `name.vercel-dns.com`).
 4. In Vercel → Project → Settings → Domains, add `openhand.online` and
    `www.openhand.online`. Set the apex as primary.
 5. Set `NEXT_PUBLIC_SITE_URL=https://openhand.online` on the Vercel project.
