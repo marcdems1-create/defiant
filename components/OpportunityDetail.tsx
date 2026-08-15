@@ -9,13 +9,16 @@ import {
   liquidityLabel,
   PROTOCOL_TINT,
 } from '@/lib/protocols/opportunityDetails';
-import { chainName, formatApy } from '@/lib/format';
+import { apyCaption, assetMark, chainName, formatApy } from '@/lib/format';
+import { AssetMark } from './AssetMark';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
+import { ApyHistoryChart } from './ApyHistoryChart';
 
 export function OpportunityDetail({ opportunity }: { opportunity: Opportunity }) {
   const [modalOpen, setModalOpen] = useState(false);
   const badges = getCardBadges(opportunity);
   const details = getOpportunityDetails(opportunity);
+  const asset = assetMark(opportunity.asset.symbol);
 
   return (
     <>
@@ -30,7 +33,8 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
         <article
           className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-6 sm:p-8 mb-8`}
         >
-          <div className="flex items-start justify-between gap-4 mb-6">
+          <AssetMark symbol={opportunity.asset.symbol} size="hero" />
+          <div className="relative flex items-start justify-between gap-4 mb-6">
             <div>
               <div className="text-[11px] uppercase tracking-[0.14em] text-ink/45 font-mono">
                 {chainName(opportunity.chainId)}
@@ -38,17 +42,31 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
               <h1 className="text-2xl sm:text-3xl font-medium mt-1 leading-tight">
                 {opportunity.protocolLabel}
               </h1>
-              <div className="text-sm text-ink/55 mt-1">{opportunity.asset.symbol}</div>
+              <div className="text-6xl font-semibold tracking-tight text-ink leading-none mt-4">
+                {asset.mark}
+              </div>
+              <div className="text-sm text-ink/50 mt-2">{asset.label}</div>
             </div>
             <div className="text-right shrink-0">
               <div className="text-4xl font-mono text-accent leading-none">
                 {formatApy(opportunity.apy)}
               </div>
-              <div className="text-[11px] text-ink/45 mt-1 tracking-wide">live APY</div>
+              <div className="text-[11px] text-ink/45 mt-1 tracking-wide">
+                {apyCaption(opportunity, 'live')}
+              </div>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2 text-sm mb-4">
+            {opportunity.apyCompounded && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1"
+                title="Compounded APY from the per-second supply rate — not simple APR."
+              >
+                <span aria-hidden>🔁</span>
+                <span className="text-accent text-xs">Compounded</span>
+              </span>
+            )}
             <span className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1">
               <span aria-hidden>{badges.risk.emoji}</span>
               <span className="text-ink/80 text-xs">{badges.risk.label}</span>
@@ -70,6 +88,7 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
         </article>
 
         <div className="flex flex-col gap-6">
+          <ApyHistoryChart opportunity={opportunity} />
           <section className="rounded-2xl border border-border bg-white/[0.02] p-5 sm:p-6">
             <h2 className="text-sm font-medium uppercase tracking-[0.12em] text-accent mb-3">
               How yield works here
@@ -139,8 +158,8 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
               Deposit {opportunity.asset.symbol}
             </button>
             <p className="text-[11px] text-ink/40 text-center mt-3 leading-relaxed">
-              Not financial advice. Yields change, smart contracts can fail, and you can lose
-              principal. You sign every transaction from your own wallet.
+              Not investment advice. Yield is not insured or guaranteed. Capital is at risk. You
+              sign every transaction from your own wallet.
             </p>
           </div>
         </div>

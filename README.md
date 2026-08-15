@@ -1,8 +1,10 @@
-# Defiant
+# Openhand
+
+Public site: [openhand.online](https://openhand.online). GitHub repo: `defiant`.
 
 A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
 across Aave v3, Lido, Yearn v3, and Curve, and deposit or withdraw with transactions you sign
-yourself. Defiant never takes custody of user funds — there is no pooled contract, no admin
+yourself. Openhand never takes custody of user funds — there is no pooled contract, no admin
 key, no path for the app itself to move anyone's money.
 
 > **Naming note:** this is deliberately *not* marketed as a "savings app" anywhere in the
@@ -10,6 +12,20 @@ key, no path for the app itself to move anyone's money.
 > insured the way a bank savings account is (no FDIC/CDIC/FSCS-equivalent coverage anywhere).
 > Calling it a savings product would misrepresent that risk to users — see the regulatory
 > section below.
+
+## Production domain
+
+The product ships as **Openhand** at `https://openhand.online`. Point the Namecheap
+zone at Vercel (not the parking page) and add the domain on the Vercel project:
+
+1. In Namecheap, delete the URL Redirect on `@` and the parking `CNAME` on `www`.
+2. Apex `A` record: Host `@` → `216.198.79.1` (the value on this project's Vercel domain card).
+3. `CNAME` Host `www` → `cname.vercel-dns.com` (not `name.vercel-dns.com`).
+4. In Vercel → Project → Settings → Domains, add `openhand.online` and
+   `www.openhand.online`. Set the apex as primary.
+5. Set `NEXT_PUBLIC_SITE_URL=https://openhand.online` on the Vercel project.
+6. Register that origin in Reown / WalletConnect and in Onramper’s allowlist.
+   `*.vercel.app` preview URLs are not the production host.
 
 ## Why non-custodial
 

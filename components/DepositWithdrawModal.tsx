@@ -18,8 +18,9 @@ import { getWagmiConfig } from '@/lib/wagmi';
 import { computeFee, DEPOSIT_FEE_BPS, feesEnabled, WITHDRAW_FEE_BPS } from '@/lib/config/fees';
 import { useSendFee } from '@/lib/hooks/useSendFee';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
-import { chainName, formatApy } from '@/lib/format';
+import { apyCaption, chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
+import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 
 type Tab = 'deposit' | 'withdraw';
@@ -39,6 +40,19 @@ export function DepositWithdrawModal({
   const { switchChainAsync, isPending: switching } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const { sendFee } = useSendFee();
+
+  async function writeTx(params: {
+    address: `0x${string}`;
+    abi: readonly { type?: string }[];
+    functionName: string;
+    args?: readonly unknown[];
+    value?: bigint;
+    chainId: number;
+  }) {
+    if (!address) throw new Error('Connect a wallet first');
+    const gas = await estimateCappedGas({ ...params, account: address });
+    return writeContractAsync({ ...params, gas } as never);
+  }
 
   const [tab, setTab] = useState<Tab>('deposit');
   const [amount, setAmount] = useState('');
@@ -177,6 +191,20 @@ export function DepositWithdrawModal({
     | bigint
     | undefined;
 
+  const moonwellRate = useReadContract({
+    address: opportunity.depositTarget,
+    abi: moonwellMTokenAbi,
+    functionName: 'exchangeRateStored',
+    chainId: opportunity.chainId,
+    query: { enabled: opportunity.protocol === 'moonwell' && netAmount > 0n },
+  });
+  const moonwellMintTokens =
+    opportunity.protocol === 'moonwell' &&
+    typeof moonwellRate.data === 'bigint' &&
+    moonwellRate.data > 0n
+      ? (netAmount * 10n ** 18n) / moonwellRate.data
+      : 0n;
+
   const maxAmount = tab === 'deposit' ? walletBalance : positionBalanceValue;
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
@@ -217,7 +245,7 @@ export function DepositWithdrawModal({
 
       if (opportunity.protocol === 'lido') {
         setStep('acting');
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: stEthAbi,
           functionName: 'submit',
@@ -237,7 +265,7 @@ export function DepositWithdrawModal({
       // that's all that actually reaches the protocol.
       if (allowanceValue < netAmount) {
         setStep('approving');
-        const approveHash = await writeContractAsync({
+        const approveHash = await writeTx({
           address: opportunity.asset.address,
           abi: erc20Abi,
           functionName: 'approve',
@@ -250,7 +278,7 @@ export function DepositWithdrawModal({
 
       setStep('acting');
       if (opportunity.protocol === 'aave-v3') {
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: aavePoolAbi,
           functionName: 'supply',
@@ -261,7 +289,7 @@ export function DepositWithdrawModal({
       } else if (opportunity.protocol === 'curve') {
         const minMintAmount = curveMinOut(curveDepositPreviewData);
         if (curveNumCoins === 3) {
-          const hash = await writeContractAsync({
+          const hash = await writeTx({
             address: opportunity.depositTarget,
             abi: curvePoolAbi3Coin,
             functionName: 'add_liquidity',
@@ -270,7 +298,7 @@ export function DepositWithdrawModal({
           });
           await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         } else {
-          const hash = await writeContractAsync({
+          const hash = await writeTx({
             address: opportunity.depositTarget,
             abi: curvePoolAbi2Coin,
             functionName: 'add_liquidity',
@@ -280,7 +308,7 @@ export function DepositWithdrawModal({
           await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         }
       } else if (opportunity.protocol === 'compound-v3') {
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: compoundCometAbi,
           functionName: 'supply',
@@ -289,7 +317,7 @@ export function DepositWithdrawModal({
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'moonwell') {
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
           functionName: 'mint',
@@ -298,7 +326,7 @@ export function DepositWithdrawModal({
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isConvex) {
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: crvDepositorAbi,
           functionName: 'deposit',
@@ -307,7 +335,7 @@ export function DepositWithdrawModal({
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else {
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'deposit',
@@ -320,7 +348,7 @@ export function DepositWithdrawModal({
       await refreshBalances();
     } catch (e) {
       setStep('error');
-      setErrorMsg(e instanceof Error ? e.message : 'Transaction failed');
+      setErrorMsg(formatTxError(e));
     }
   }
 
@@ -330,7 +358,7 @@ export function DepositWithdrawModal({
     try {
       if (opportunity.protocol === 'aave-v3') {
         setStep('acting');
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: aavePoolAbi,
           functionName: 'withdraw',
@@ -340,7 +368,7 @@ export function DepositWithdrawModal({
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'compound-v3') {
         setStep('acting');
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: compoundCometAbi,
           functionName: 'withdraw',
@@ -350,7 +378,7 @@ export function DepositWithdrawModal({
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'moonwell') {
         setStep('acting');
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
           functionName: 'redeemUnderlying',
@@ -360,7 +388,7 @@ export function DepositWithdrawModal({
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isConvex) {
         setStep('acting');
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.positionToken!,
           abi: cvxCrvRewardsAbi,
           functionName: 'withdraw',
@@ -373,7 +401,7 @@ export function DepositWithdrawModal({
         opportunity.protocol !== 'yearn-v3'
       ) {
         setStep('acting');
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'redeem',
@@ -383,7 +411,7 @@ export function DepositWithdrawModal({
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'yearn-v3') {
         setStep('acting');
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'redeem',
@@ -394,7 +422,7 @@ export function DepositWithdrawModal({
       } else if (opportunity.protocol === 'curve') {
         setStep('acting');
         const minReceived = curveMinOut(curveWithdrawPreview.data as bigint | undefined);
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: curvePoolAbi2Coin,
           functionName: 'remove_liquidity_one_coin',
@@ -415,7 +443,7 @@ export function DepositWithdrawModal({
         const stEthAllowance = 0n;
         if (stEthAllowance < amountBig) {
           setStep('approving');
-          const approveHash = await writeContractAsync({
+          const approveHash = await writeTx({
             // For Lido, asset.address and depositTarget are both the stETH token.
             address: opportunity.depositTarget,
             abi: erc20Abi,
@@ -428,7 +456,7 @@ export function DepositWithdrawModal({
         }
 
         setStep('acting');
-        const hash = await writeContractAsync({
+        const hash = await writeTx({
           address: cfg.withdrawalQueue,
           abi: lidoWithdrawalQueueAbi,
           functionName: 'requestWithdrawals',
@@ -457,7 +485,7 @@ export function DepositWithdrawModal({
       await refreshBalances();
     } catch (e) {
       setStep('error');
-      setErrorMsg(e instanceof Error ? e.message : 'Transaction failed');
+      setErrorMsg(formatTxError(e));
     }
   }
 
@@ -470,7 +498,8 @@ export function DepositWithdrawModal({
           <div>
             <div className="text-lg font-medium">{opportunity.protocolLabel}</div>
             <div className="text-sm text-ink/50">
-              {chainName(opportunity.chainId)} · {formatApy(opportunity.apy)} APY
+              {chainName(opportunity.chainId)} · {formatApy(opportunity.apy)}{' '}
+              {apyCaption(opportunity)}
             </div>
           </div>
           <button onClick={onClose} className="text-ink/50 hover:text-ink" aria-label="Close">
@@ -556,6 +585,13 @@ export function DepositWithdrawModal({
                 </div>
               </div>
             )}
+            {opportunity.protocol === 'moonwell' && tab === 'deposit' && moonwellMintTokens > 0n && (
+              <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3">
+                You receive ~{formatTokenAmount(moonwellMintTokens, positionDecimals)} mUSDC.
+                Receipt tokens are not 1:1 with USDC — your claim on the pool grows as interest
+                accrues.
+              </div>
+            )}
             {opportunity.protocol === 'lido' && tab === 'withdraw' && feesEnabled() && (
               <div className="text-xs text-ink/50 mb-3">
                 Withdrawal fee ({(WITHDRAW_FEE_BPS / 100).toFixed(2)}%) is taken when you claim
@@ -594,6 +630,11 @@ export function DepositWithdrawModal({
                           ? 'Request withdrawal'
                           : `Withdraw ${opportunity.asset.symbol}`}
             </button>
+
+            <p className="text-[11px] text-ink/40 text-center mt-3 leading-relaxed">
+              Yield is not insured or guaranteed. You can lose capital. Openhand never holds your
+              funds.
+            </p>
 
             {opportunity.protocol === 'lido' && tab === 'withdraw' && (
               <LidoWithdrawalRequests chainId={opportunity.chainId} />

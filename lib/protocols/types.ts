@@ -24,6 +24,8 @@ export interface Opportunity {
   };
   /** Annualized yield as a decimal, e.g. 0.045 = 4.5% */
   apy: number;
+  /** True when `apy` is compounded (APY), not a simple annualized rate (APR). */
+  apyCompounded?: boolean;
   description: string;
   depositTarget: `0x${string}`;
   positionToken?: `0x${string}`;

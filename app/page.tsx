@@ -12,6 +12,7 @@ import {
 } from '@/lib/opportunityFilters';
 import { OpportunityCard } from '@/components/OpportunityCard';
 import { OpportunityFilters } from '@/components/OpportunityFilters';
+import { RiskDisclaimer } from '@/components/RiskDisclaimer';
 import { PositionCard } from '@/components/PositionCard';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { InstallAppBanner } from '@/components/InstallAppBanner';
@@ -39,11 +40,12 @@ export default function CollectionPage() {
           </p>
           <h1 className="text-3xl font-medium tracking-tight">Yield decks</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
-            Live USDC yield on Base and Arbitrum — lower fees than mainnet. Each card shows risk,
-            how battle-tested the venue is, and fee vibe. Not financial advice; yields move and
-            protocols can fail.
+            Compare live on-chain USDC yield on Base and Arbitrum. Connect your wallet and sign
+            every deposit or withdrawal yourself.
           </p>
         </div>
+
+        <RiskDisclaimer />
 
         <OpportunityFilters
           filters={filters}
@@ -78,7 +80,7 @@ export default function CollectionPage() {
       {!isConnected && (
         <div className="rounded-2xl border border-border bg-white/[0.02] p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
           <p className="text-sm text-ink/65 max-w-md">
-            Connect a wallet to deposit. Browse the collection freely either way — Defiant never
+            Connect a wallet to deposit. Browse the collection freely either way — Openhand never
             holds your keys or funds.
           </p>
           <ConnectButtonClient />

@@ -64,7 +64,7 @@ export default function DashboardPage() {
           </p>
           <h1 className="text-3xl font-medium tracking-tight">Dashboard</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
-            Track where you stand and stay the course. Live on-chain reads only — Defiant never
+            Track where you stand and stay the course. Live on-chain reads only — Openhand never
             holds your keys or funds.
           </p>
         </div>
