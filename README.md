@@ -19,7 +19,7 @@ The product ships as **Openhand** at `https://openhand.online`. Point the Namech
 zone at Vercel (not the parking page) and add the domain on the Vercel project:
 
 1. In Namecheap, delete the URL Redirect on `@` and the parking `CNAME` on `www`.
-2. Apex `A` record: Host `@` → `76.76.21.21` (Vercel anycast).
+2. Apex `A` record: Host `@` → `216.198.79.1` (the value on this project's Vercel domain card).
 3. `CNAME` Host `www` → `cname.vercel-dns.com` (not `name.vercel-dns.com`).
 4. In Vercel → Project → Settings → Domains, add `openhand.online` and
    `www.openhand.online`. Set the apex as primary.
