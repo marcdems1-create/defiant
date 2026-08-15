@@ -10,7 +10,6 @@ import {
   PROTOCOL_TINT,
 } from '@/lib/protocols/opportunityDetails';
 import { apyCaption, assetMark, chainName, formatApy } from '@/lib/format';
-import { AssetMark } from './AssetMark';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 import { ApyHistoryChart } from './ApyHistoryChart';
 
@@ -33,7 +32,6 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
         <article
           className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-6 sm:p-8 mb-8`}
         >
-          <AssetMark symbol={opportunity.asset.symbol} size="hero" />
           <div className="relative flex items-start justify-between gap-4 mb-6">
             <div>
               <div className="text-[11px] uppercase tracking-[0.14em] text-ink/45 font-mono">
