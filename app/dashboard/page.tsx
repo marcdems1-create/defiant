@@ -75,8 +75,8 @@ export default function DashboardPage() {
           <div>
             <h2 className="text-lg font-medium mb-1">Connect to see your portfolio</h2>
             <p className="text-sm text-ink/60 max-w-md">
-              Personal analytics and projections appear only for your connected wallet. Browse
-              market stats below until then.
+              Personal analytics appear only for your connected wallet. New here? Email or a
+              passkey creates one — we never hold the key.
             </p>
           </div>
           <ConnectButtonClient />

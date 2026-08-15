@@ -25,6 +25,8 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    be built client-side and signed by the connected wallet. No relayer, no meta-transaction
    sponsor wallet, no server-side signer holding user assets — that's the entire non-custodial
    premise and it's the whole reason this doesn't need FINTRAC/CSA registration on day one.
+   Optional Privy email/passkey wallets are third-party infra (`NEXT_PUBLIC_PRIVY_APP_ID`);
+   Openhand must not persist keys or the email Privy collects.
 2. **Never approve `type(uint256).max` / unbounded allowances.** Every ERC-20 `approve` call
    scopes to the exact amount being deposited. See `components/DepositWithdrawModal.tsx`.
 3. **Never fabricate an APY.** If a protocol's API/on-chain read doesn't return a value we can
@@ -70,6 +72,8 @@ language, flag the regulatory/consumer-protection implication first — don't ju
 
 `lib/wagmi.ts` exports `getWagmiConfig()`, a lazy singleton — **not** an eagerly-evaluated
 `export const wagmiConfig = getDefaultConfig(...)`. This is load-bearing, not a style choice.
+The same rule applies to Privy's `createConfig()` from `@privy-io/wagmi` when
+`NEXT_PUBLIC_PRIVY_APP_ID` is set.
 
 RainbowKit's `getDefaultConfig()` constructs every default wallet connector (WalletConnect,
 MetaMask SDK, Coinbase Smart Wallet) and touches browser-only APIs (`indexedDB`, `WebSocket`)

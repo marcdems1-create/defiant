@@ -52,10 +52,30 @@ every market this reaches; it does not eliminate it in any of them.
 
 - Next.js 14 (App Router) + TypeScript
 - [wagmi](https://wagmi.sh) + [viem](https://viem.sh) for wallet connection and contract calls
-- [RainbowKit](https://rainbowkit.com) for the connect UI
+- [RainbowKit](https://rainbowkit.com) for the connect UI when Privy is unset
+- [Privy](https://www.privy.io) (optional) for email / passkey embedded wallets — see below
 - Tailwind CSS
 - No backend, no database. Everything reads directly from-chain or from each protocol's
   public read-only API.
+
+## First-time wallets (Privy)
+
+Openhand does **not** generate or store private keys. A brand-new user who has never
+used a wallet can still get an address:
+
+1. Set `NEXT_PUBLIC_PRIVY_APP_ID` (create an app at [dashboard.privy.io](https://dashboard.privy.io)).
+2. In the Privy dashboard: enable **Email**, **Passkeys**, and **embedded Ethereum wallets**.
+   Add `https://openhand.online` and `https://www.openhand.online` as allowed origins.
+3. Connect offers email or a passkey first. Privy creates an embedded wallet for users
+   who do not already have one. MetaMask / Rainbow / Rabby / WalletConnect remain available.
+   Coinbase is not featured.
+4. Onramper (when wired) should receive that connected address as the destination.
+   Onramper does not create the wallet.
+
+Email is processed by **Privy**, not written to Openhand's database. If
+`NEXT_PUBLIC_PRIVY_APP_ID` is unset, Connect stays RainbowKit-only (existing
+extension / WalletConnect path). This is a third-party wallet vendor, not custody
+by Openhand — still get a compliance read before treating email login as production-ready.
 
 ## Protocols integrated
 
