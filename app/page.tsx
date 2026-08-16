@@ -38,7 +38,7 @@ export default function CollectionPage() {
   const usdcValue = (usdcBalance.data as bigint | undefined) ?? 0n;
   const usdcReady = Boolean(address && starter && !usdcBalance.isLoading);
 
-  const hasPosition = !positionsLoading && positions.length > 0;
+  const hasPosition = positions.length > 0;
   const firstRun = !isConnected || (!positionsLoading && !hasPosition);
 
   const filtered = useMemo(
@@ -84,12 +84,19 @@ export default function CollectionPage() {
         </header>
       )}
 
-      {isConnected && hasPosition && (
+      {isConnected && (hasPosition || positionsLoading) && (
         <section>
           <div className="flex items-baseline justify-between mb-3">
             <h2 className="text-lg font-medium">Your cards</h2>
-            <span className="text-xs text-ink/45">{positions.length} held</span>
+            <span className="text-xs text-ink/45">
+              {positionsLoading && !hasPosition ? 'Loading…' : `${positions.length} held`}
+            </span>
           </div>
+          {positionsLoading && !hasPosition && (
+            <div className="border border-dashed border-border rounded-2xl p-6 text-sm text-ink/55">
+              Reading your on-chain positions…
+            </div>
+          )}
           <div className="flex flex-col gap-3">
             {positions.map((p) => (
               <PositionCard key={p.opportunity.id} position={p} />
