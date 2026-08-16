@@ -16,6 +16,13 @@ export const moonwellMTokenAbi = [
   },
   {
     type: 'function',
+    name: 'redeem',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'redeemTokens', type: 'uint256' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
     name: 'balanceOf',
     stateMutability: 'view',
     inputs: [{ name: 'owner', type: 'address' }],
