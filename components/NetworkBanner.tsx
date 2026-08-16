@@ -10,8 +10,8 @@ export function NetworkBanner() {
   }
 
   return (
-    <div className="w-full bg-danger/10 border-b border-danger/30 text-danger text-sm text-center py-1.5 px-4">
-      Mainnet mode — transactions move real funds.
+    <div className="w-full bg-white/[0.04] border-b border-border text-ink/60 text-sm text-center py-1.5 px-4">
+      Openhand is currently in beta. Use at your own risk.
     </div>
   );
 }
