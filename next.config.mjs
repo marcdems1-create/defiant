@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['@privy-io/react-auth', '@privy-io/wagmi'],
+  async redirects() {
+    return [{ source: '/opportunities', destination: '/', permanent: false }];
+  },
   webpack: (config) => {
     // pino-pretty/lokijs/encoding: optional WalletConnect logger deps.
     // @x402/*: optional Coinbase Smart Wallet payment-protocol deps pulled in

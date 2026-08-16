@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseUnits, formatUnits } from 'viem';
 import { useAccount, useBalance, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
@@ -21,7 +21,11 @@ import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance'
 import { apyCaption, chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
+import { track } from '@/lib/analytics/track';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
+import { OnrampModal } from './OnrampModal';
+import { ConnectButtonClient } from './ConnectButtonClient';
+import { isStableDollarAsset } from '@/lib/firstRun';
 
 type Tab = 'deposit' | 'withdraw';
 type Step = 'idle' | 'sendingFee' | 'approving' | 'acting' | 'done' | 'error';
@@ -31,13 +35,17 @@ const NULL_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
 export function DepositWithdrawModal({
   opportunity,
   onClose,
+  initialTab = 'deposit',
 }: {
   opportunity: Opportunity;
   onClose: () => void;
+  initialTab?: Tab;
 }) {
   const { address } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
+  const [switchFailed, setSwitchFailed] = useState(false);
+  const autoSwitchKey = useRef('');
   const { writeContractAsync } = useWriteContract();
   const { sendFee } = useSendFee();
 
@@ -54,28 +62,53 @@ export function DepositWithdrawModal({
     return writeContractAsync({ ...params, gas } as never);
   }
 
-  const [tab, setTab] = useState<Tab>('deposit');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [buyOpen, setBuyOpen] = useState(false);
+  const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
+
+  useEffect(() => {
+    track(tab === 'withdraw' ? 'withdraw_open' : 'deposit_open', {
+      opportunityId: opportunity.id,
+      chainId: opportunity.chainId,
+    });
+  }, [tab, opportunity.id, opportunity.chainId]);
+
+  const prevStep = useRef<Step>('idle');
+  useEffect(() => {
+    if (step === 'done' && prevStep.current !== 'done') {
+      track(tab === 'withdraw' ? 'withdraw_done' : 'deposit_done', {
+        opportunityId: opportunity.id,
+        chainId: opportunity.chainId,
+      });
+    }
+    prevStep.current = step;
+  }, [step, tab, opportunity.id, opportunity.chainId]);
 
   const wrongNetwork = currentChainId !== opportunity.chainId;
   const isNativeDeposit = opportunity.protocol === 'lido';
   const isCurve = opportunity.protocol === 'curve';
   const isConvex = opportunity.protocol === 'convex-cvxcrv';
+  const isMoonwell = opportunity.protocol === 'moonwell';
   // Lido withdrawal fee is charged at claim time (funds aren't in the
   // wallet yet at request time) — see LidoWithdrawalRequests.
   const feeAppliesHere = feesEnabled() && !(opportunity.protocol === 'lido' && tab === 'withdraw');
 
-  // Curve LP shares aren't 1:1 with the underlying asset the way Aave's
-  // aTokens or Yearn's vault shares are — different decimals AND a virtual
-  // price that isn't 1. The withdraw tab enters an amount of positionToken
-  // (LP shares), not asset (USDC), so it needs its own decimals/symbol.
-  // Unset for every other protocol, where position and asset match.
+  // Curve LP shares (and Morpho vault shares) aren't 1:1 with the underlying,
+  // so those withdraw tabs enter an amount of positionToken. Moonwell's
+  // redeemUnderlying takes USDC — mUSDC is only a receipt the contract burns.
+  // If we labeled that field mUSDC, users would think they need a second
+  // conversion step, and Max would parse 8-decimal shares into a 6-decimal
+  // redeemUnderlying call.
   const positionDecimals = opportunity.positionDecimals ?? opportunity.asset.decimals;
   const positionSymbol = opportunity.positionSymbol ?? opportunity.asset.symbol;
-  const amountDecimals = tab === 'withdraw' ? positionDecimals : opportunity.asset.decimals;
-  const amountSymbol = tab === 'withdraw' ? positionSymbol : opportunity.asset.symbol;
+  const withdrawInPositionUnits = tab === 'withdraw' && !isMoonwell;
+  const amountDecimals = withdrawInPositionUnits
+    ? positionDecimals
+    : opportunity.asset.decimals;
+  const amountSymbol = withdrawInPositionUnits ? positionSymbol : opportunity.asset.symbol;
 
   const nativeBalance = useBalance({
     address,
@@ -196,16 +229,20 @@ export function DepositWithdrawModal({
     abi: moonwellMTokenAbi,
     functionName: 'exchangeRateStored',
     chainId: opportunity.chainId,
-    query: { enabled: opportunity.protocol === 'moonwell' && netAmount > 0n },
+    query: { enabled: isMoonwell },
   });
+  const moonwellExchangeRate =
+    typeof moonwellRate.data === 'bigint' && moonwellRate.data > 0n ? moonwellRate.data : 0n;
   const moonwellMintTokens =
-    opportunity.protocol === 'moonwell' &&
-    typeof moonwellRate.data === 'bigint' &&
-    moonwellRate.data > 0n
-      ? (netAmount * 10n ** 18n) / moonwellRate.data
+    isMoonwell && moonwellExchangeRate > 0n ? (netAmount * 10n ** 18n) / moonwellExchangeRate : 0n;
+  // Same conversion as usePositions: underlying = shares * exchangeRate / 1e18.
+  const moonwellUnderlyingBalance =
+    isMoonwell && moonwellExchangeRate > 0n
+      ? (positionBalanceValue * moonwellExchangeRate) / 10n ** 18n
       : 0n;
 
-  const maxAmount = tab === 'deposit' ? walletBalance : positionBalanceValue;
+  const maxAmount =
+    tab === 'deposit' ? walletBalance : isMoonwell ? moonwellUnderlyingBalance : positionBalanceValue;
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
   function setMax() {
@@ -221,18 +258,31 @@ export function DepositWithdrawModal({
     ]);
   }
 
-  async function handleSwitchNetwork() {
-    try {
-      await switchChainAsync({ chainId: opportunity.chainId });
-    } catch {
-      // user rejected the switch — leave the button visible to retry
-    }
+  async function ensureChain() {
+    if (currentChainId === opportunity.chainId) return;
+    await switchChainAsync({ chainId: opportunity.chainId });
   }
+
+  useEffect(() => {
+    if (!address || currentChainId === opportunity.chainId) {
+      autoSwitchKey.current = '';
+      setSwitchFailed(false);
+      return;
+    }
+    const key = `${address}:${opportunity.chainId}`;
+    if (autoSwitchKey.current === key) return;
+    autoSwitchKey.current = key;
+    setSwitchFailed(false);
+    switchChainAsync({ chainId: opportunity.chainId }).catch(() => {
+      setSwitchFailed(true);
+    });
+  }, [address, currentChainId, opportunity.chainId, switchChainAsync]);
 
   async function handleDeposit() {
     if (!address || amountBig === 0n) return;
     setErrorMsg(null);
     try {
+      await ensureChain();
       if (feeAmount > 0n) {
         setStep('sendingFee');
         await sendFee({
@@ -356,6 +406,7 @@ export function DepositWithdrawModal({
     if (!address || amountBig === 0n) return;
     setErrorMsg(null);
     try {
+      await ensureChain();
       if (opportunity.protocol === 'aave-v3') {
         setStep('acting');
         const hash = await writeTx({
@@ -378,11 +429,17 @@ export function DepositWithdrawModal({
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'moonwell') {
         setStep('acting');
+        // Max burns every mUSDC share (redeem) so rounding in redeemUnderlying
+        // cannot leave a dust receipt behind. Partial exits stay in USDC.
+        const redeemAll =
+          positionBalanceValue > 0n &&
+          moonwellUnderlyingBalance > 0n &&
+          amountBig >= moonwellUnderlyingBalance;
         const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
-          functionName: 'redeemUnderlying',
-          args: [amountBig],
+          functionName: redeemAll ? 'redeem' : 'redeemUnderlying',
+          args: [redeemAll ? positionBalanceValue : amountBig],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -489,9 +546,11 @@ export function DepositWithdrawModal({
     }
   }
 
-  const busy = step === 'sendingFee' || step === 'approving' || step === 'acting';
+  const busy = step === 'sendingFee' || step === 'approving' || step === 'acting' || switching;
+  const waitingOnSwitch = wrongNetwork && !switchFailed;
 
   return (
+    <>
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4">
       <div className="w-full max-w-md bg-paper border border-border rounded-lg p-6">
         <div className="flex items-start justify-between mb-4">
@@ -514,53 +573,69 @@ export function DepositWithdrawModal({
           </div>
         )}
 
-        <div className="flex gap-2 mb-4">
-          {(['deposit', 'withdraw'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => {
-                setTab(t);
-                setStep('idle');
-                setErrorMsg(null);
-                setAmount('');
-              }}
-              className={`flex-1 py-1.5 rounded text-sm capitalize border ${
-                tab === t
-                  ? 'bg-accent text-paper border-accent'
-                  : 'border-border text-ink/70'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        {address && (
+          <div className="flex gap-2 mb-4">
+            {(['deposit', 'withdraw'] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  setTab(t);
+                  setStep('idle');
+                  setErrorMsg(null);
+                  setAmount('');
+                }}
+                className={`flex-1 py-1.5 rounded text-sm capitalize border ${
+                  tab === t
+                    ? 'bg-accent text-paper border-accent'
+                    : 'border-border text-ink/70'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {wrongNetwork ? (
-          <button
-            onClick={handleSwitchNetwork}
-            disabled={switching}
-            className="w-full py-2 rounded-md bg-warn text-paper font-medium text-sm disabled:opacity-50"
-          >
-            {switching ? 'Switching…' : `Switch to ${chainName(opportunity.chainId)}`}
-          </button>
+        {!address ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-ink/65 leading-relaxed">
+              Get a wallet first — email or a passkey. Then you can deposit. Openhand never holds
+              your keys.
+            </p>
+            <ConnectButtonClient label="Get started" />
+          </div>
         ) : (
           <>
+            {wrongNetwork && (
+              <div className="text-xs text-ink/50 mb-3">
+                {switching || !switchFailed
+                  ? `Switching to ${chainName(opportunity.chainId)}…`
+                  : `Confirm ${chainName(opportunity.chainId)} in your wallet to continue.`}
+              </div>
+            )}
             <div className="flex justify-between text-xs text-ink/50 mb-1">
-              <span>Amount</span>
+              <span>Amount{dollarInput && tab === 'deposit' ? ' (USD)' : ''}</span>
               <span>
-                {tab === 'deposit' ? 'Wallet' : 'Deposited'}: {formatUnits(maxAmount, amountDecimals)}{' '}
-                {amountSymbol}
+                {tab === 'deposit' ? 'Wallet' : 'Deposited'}:{' '}
+                {dollarInput && tab === 'deposit' ? '$' : ''}
+                {formatUnits(maxAmount, amountDecimals)}{' '}
+                {dollarInput && tab === 'deposit' ? 'USDC' : amountSymbol}
               </span>
             </div>
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.0"
-                className="flex-1 bg-transparent border border-border rounded px-3 py-2 text-sm font-mono outline-none focus:border-accent"
-              />
+            <div className="flex gap-2 mb-3">
+              <div className="flex-1 flex items-center border border-border rounded px-3 focus-within:border-accent">
+                {dollarInput && tab === 'deposit' && (
+                  <span className="text-ink/45 font-mono text-sm mr-1">$</span>
+                )}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder={dollarInput && tab === 'deposit' ? '50' : '0.0'}
+                  className="flex-1 bg-transparent py-2 text-sm font-mono outline-none"
+                />
+              </div>
               <button
                 onClick={setMax}
                 className="px-3 py-2 rounded border border-border text-xs text-ink/70 hover:text-ink"
@@ -568,6 +643,20 @@ export function DepositWithdrawModal({
                 Max
               </button>
             </div>
+            {dollarInput && tab === 'deposit' && (
+              <div className="flex gap-2 mb-4">
+                {['25', '50', '100'].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setAmount(preset)}
+                    className="px-3 py-1 rounded-full border border-border text-xs text-ink/70 hover:text-ink"
+                  >
+                    ${preset}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {feeAppliesHere && amountBig > 0n && (
               <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3 flex flex-col gap-1">
@@ -585,11 +674,24 @@ export function DepositWithdrawModal({
                 </div>
               </div>
             )}
-            {opportunity.protocol === 'moonwell' && tab === 'deposit' && moonwellMintTokens > 0n && (
+            {isMoonwell && tab === 'deposit' && moonwellMintTokens > 0n && (
               <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3">
-                You receive ~{formatTokenAmount(moonwellMintTokens, positionDecimals)} mUSDC.
-                Receipt tokens are not 1:1 with USDC — your claim on the pool grows as interest
-                accrues.
+                You receive ~{formatTokenAmount(moonwellMintTokens, positionDecimals)} mUSDC as a
+                receipt. It is not 1:1 with USDC — your claim on the pool grows as interest
+                accrues. Withdrawing burns the receipt and returns USDC to this wallet.
+              </div>
+            )}
+            {isMoonwell && tab === 'withdraw' && (
+              <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3">
+                Withdrawal returns USDC to this wallet. mUSDC is Moonwell&apos;s receipt — the
+                contract burns it in the same transaction, so you don&apos;t convert it
+                afterwards.
+                {amountBig > 0n && !feeAppliesHere && (
+                  <>
+                    {' '}
+                    You receive {formatUnits(netAmount, opportunity.asset.decimals)} USDC.
+                  </>
+                )}
               </div>
             )}
             {opportunity.protocol === 'lido' && tab === 'withdraw' && feesEnabled() && (
@@ -607,29 +709,49 @@ export function DepositWithdrawModal({
               <div className="text-xs text-accent mb-3">
                 {tab === 'withdraw' && opportunity.protocol === 'lido'
                   ? 'Withdrawal requested. It will appear below once claimable.'
-                  : 'Transaction confirmed.'}
+                  : tab === 'withdraw' && isMoonwell
+                    ? 'USDC is back in your wallet.'
+                    : tab === 'deposit' && dollarInput
+                      ? `Your $${amount || '0'} is in ${opportunity.protocolLabel} on ${chainName(opportunity.chainId)}.`
+                      : 'Transaction confirmed.'}
               </div>
             )}
 
-            <button
-              onClick={tab === 'deposit' ? handleDeposit : handleWithdraw}
-              disabled={busy || amountBig === 0n || insufficientBalance || !address}
-              className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              {!address
-                ? 'Connect wallet'
-                : step === 'sendingFee'
-                  ? 'Sending fee…'
-                  : step === 'approving'
-                    ? 'Approving…'
-                    : step === 'acting'
-                      ? 'Confirming…'
-                      : tab === 'deposit'
-                        ? `Deposit ${opportunity.asset.symbol}`
-                        : opportunity.protocol === 'lido'
-                          ? 'Request withdrawal'
-                          : `Withdraw ${opportunity.asset.symbol}`}
-            </button>
+            {tab === 'deposit' && address && walletBalance === 0n ? (
+              <button
+                type="button"
+                onClick={() => setBuyOpen(true)}
+                className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm"
+              >
+                {dollarInput ? 'Buy USDC first' : `Get ${opportunity.asset.symbol} first`}
+              </button>
+            ) : (
+              <button
+                onClick={tab === 'deposit' ? handleDeposit : handleWithdraw}
+                disabled={busy || waitingOnSwitch || amountBig === 0n || insufficientBalance || !address}
+                className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {!address
+                  ? 'Get started'
+                  : switching || waitingOnSwitch
+                    ? `Switching to ${chainName(opportunity.chainId)}…`
+                    : step === 'sendingFee'
+                    ? 'Sending fee…'
+                    : step === 'approving'
+                      ? dollarInput && amount
+                        ? `Approve $${amount} ${opportunity.asset.symbol}`
+                        : 'Approving…'
+                      : step === 'acting'
+                        ? 'Confirming…'
+                        : tab === 'deposit'
+                          ? dollarInput && amount
+                            ? `Deposit $${amount}`
+                            : `Deposit ${opportunity.asset.symbol}`
+                          : opportunity.protocol === 'lido'
+                            ? 'Request withdrawal'
+                            : `Withdraw ${opportunity.asset.symbol}`}
+              </button>
+            )}
 
             <p className="text-[11px] text-ink/40 text-center mt-3 leading-relaxed">
               Yield is not insured or guaranteed. You can lose capital. Openhand never holds your
@@ -643,5 +765,13 @@ export function DepositWithdrawModal({
         )}
       </div>
     </div>
+    {buyOpen && address && (
+      <OnrampModal
+        address={address}
+        chainId={opportunity.chainId}
+        onClose={() => setBuyOpen(false)}
+      />
+    )}
+    </>
   );
 }

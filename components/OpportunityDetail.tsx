@@ -3,14 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { Opportunity } from '@/lib/protocols/types';
-import { getCardBadges } from '@/lib/protocols/cardBadges';
-import {
-  getOpportunityDetails,
-  liquidityLabel,
-  PROTOCOL_TINT,
-} from '@/lib/protocols/opportunityDetails';
+import { COMPOUNDED_BADGE, getCardBadges } from '@/lib/protocols/cardBadges';
+import { getOpportunityDetails, PROTOCOL_TINT } from '@/lib/protocols/opportunityDetails';
 import { apyCaption, assetMark, chainName, formatApy } from '@/lib/format';
 import { AssetMark } from './AssetMark';
+import { CardBadgeChip } from './CardBadgeChip';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 import { ApyHistoryChart } from './ApyHistoryChart';
 
@@ -24,14 +21,14 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
     <>
       <div className="max-w-2xl mx-auto">
         <Link
-          href="/opportunities"
+          href="/"
           className="inline-flex items-center gap-1.5 text-sm text-ink/50 hover:text-accent transition-colors mb-6"
         >
-          <span aria-hidden>←</span> Back to opportunities
+          <span aria-hidden>←</span> Back to collection
         </Link>
 
         <article
-          className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-6 sm:p-8 mb-8`}
+          className={`relative rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-6 sm:p-8 mb-8`}
         >
           <AssetMark symbol={opportunity.asset.symbol} size="hero" />
           <div className="relative flex items-start justify-between gap-4 mb-6">
@@ -58,30 +55,11 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
           </div>
 
           <div className="flex flex-wrap gap-2 text-sm mb-4">
-            {opportunity.apyCompounded && (
-              <span
-                className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1"
-                title="Compounded APY from the per-second supply rate — not simple APR."
-              >
-                <span aria-hidden>🔁</span>
-                <span className="text-accent text-xs">Compounded</span>
-              </span>
-            )}
-            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1">
-              <span aria-hidden>{badges.risk.emoji}</span>
-              <span className="text-ink/80 text-xs">{badges.risk.label}</span>
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1">
-              <span aria-hidden>{badges.battle.emoji}</span>
-              <span className="text-ink/80 text-xs">{badges.battle.label}</span>
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1">
-              <span aria-hidden>{badges.fee.emoji}</span>
-              <span className="text-ink/80 text-xs">{badges.fee.label}</span>
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1">
-              <span className="text-ink/80 text-xs">{liquidityLabel(opportunity.liquidity)}</span>
-            </span>
+            {opportunity.apyCompounded && <CardBadgeChip badge={COMPOUNDED_BADGE} accent />}
+            <CardBadgeChip badge={badges.risk} />
+            <CardBadgeChip badge={badges.battle} />
+            <CardBadgeChip badge={badges.fee} />
+            <CardBadgeChip badge={badges.liquidity} />
           </div>
 
           <p className="text-sm text-ink/65 leading-relaxed">{opportunity.description}</p>
