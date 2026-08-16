@@ -74,13 +74,6 @@ export default function CollectionPage() {
             </p>
           </div>
           <RiskDisclaimer />
-          <OpportunityFilters
-            filters={filters}
-            onChange={setFilters}
-            opportunities={allCards}
-            visibleCount={filtered.length}
-            totalCount={allCards.length}
-          />
         </header>
       )}
 
@@ -123,44 +116,41 @@ export default function CollectionPage() {
         </section>
       )}
 
-      {!firstRun && (
-        <section>
-          <div className="flex items-baseline justify-between mb-4">
-            <h2 className="text-lg font-medium">Collection</h2>
-            <Link href="/opportunities" className="text-xs text-accent hover:underline">
-              Full list →
-            </Link>
-          </div>
-
-          {isLoading && <div className="text-ink/50 text-sm">Loading live rates…</div>}
-          {isError && (
-            <div className="text-danger text-sm">
-              Couldn&apos;t load opportunities. Check your network and try again.
-            </div>
-          )}
-          {!isLoading && !isError && filtered.length === 0 && (
-            <div className="text-ink/50 text-sm">
-              No cards match these filters. Try another chain or asset.
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((opp) => (
-              <OpportunityCard key={opp.id} opportunity={opp} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {firstRun && !isConnected && (
-        <p className="text-sm text-ink/45">
-          You can browse every yield anytime.{' '}
-          <Link href="/opportunities" className="text-accent hover:underline">
-            See the full list
+      <section>
+        <div className="flex items-baseline justify-between mb-4">
+          <h2 className="text-lg font-medium">{firstRun ? 'All yields' : 'Collection'}</h2>
+          <Link href="/opportunities" className="text-xs text-accent hover:underline">
+            Full list →
           </Link>
-          .
-        </p>
-      )}
+        </div>
+
+        <OpportunityFilters
+          filters={filters}
+          onChange={setFilters}
+          opportunities={allCards}
+          visibleCount={filtered.length}
+          totalCount={allCards.length}
+          className="mb-6"
+        />
+
+        {isLoading && <div className="text-ink/50 text-sm">Loading live rates…</div>}
+        {isError && (
+          <div className="text-danger text-sm">
+            Couldn&apos;t load opportunities. Check your network and try again.
+          </div>
+        )}
+        {!isLoading && !isError && filtered.length === 0 && (
+          <div className="text-ink/50 text-sm">
+            No cards match these filters. Try another chain or asset.
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((opp) => (
+            <OpportunityCard key={opp.id} opportunity={opp} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

@@ -82,6 +82,18 @@ export function OpportunityFilters({
 
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
+      <FilterGroup label="Yield">
+        {SORT_FILTER_OPTIONS.map((option) => (
+          <FilterPill
+            key={option.id}
+            active={filters.sort === option.id}
+            onClick={() => patch({ sort: option.id as SortFilter })}
+          >
+            {option.label}
+          </FilterPill>
+        ))}
+      </FilterGroup>
+
       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 sm:gap-x-8 sm:gap-y-4">
         {chains.length > 0 && (
           <FilterGroup label="Chain">
@@ -113,18 +125,6 @@ export function OpportunityFilters({
             ))}
           </FilterGroup>
         )}
-
-        <FilterGroup label="Sort">
-          {SORT_FILTER_OPTIONS.map((option) => (
-            <FilterPill
-              key={option.id}
-              active={filters.sort === option.id}
-              onClick={() => patch({ sort: option.id as SortFilter })}
-            >
-              {option.label}
-            </FilterPill>
-          ))}
-        </FilterGroup>
       </div>
 
       {showCount && (

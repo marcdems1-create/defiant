@@ -67,8 +67,8 @@ export function chainFilterOptions(
 }
 
 export const SORT_FILTER_OPTIONS: { id: SortFilter; label: string }[] = [
-  { id: 'apy-desc', label: 'Yield high → low' },
-  { id: 'apy-asc', label: 'Yield low → high' },
+  { id: 'apy-desc', label: 'High to low' },
+  { id: 'apy-asc', label: 'Low to high' },
 ];
 
 export function filterOpportunities(
