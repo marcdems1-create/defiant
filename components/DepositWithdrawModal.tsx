@@ -34,9 +34,11 @@ const NULL_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
 export function DepositWithdrawModal({
   opportunity,
   onClose,
+  initialTab = 'deposit',
 }: {
   opportunity: Opportunity;
   onClose: () => void;
+  initialTab?: Tab;
 }) {
   const { address } = useAccount();
   const currentChainId = useChainId();
@@ -57,7 +59,7 @@ export function DepositWithdrawModal({
     return writeContractAsync({ ...params, gas } as never);
   }
 
-  const [tab, setTab] = useState<Tab>('deposit');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

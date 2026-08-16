@@ -13,6 +13,7 @@ import {
 import { chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { GrowthChart } from '@/components/GrowthChart';
+import { PositionActions } from '@/components/PositionActions';
 
 function StatCard({
   label,
@@ -162,18 +163,21 @@ export default function DashboardPage() {
                 {analytics.nonStablePositions.map((p) => (
                   <li
                     key={p.opportunity.id}
-                    className="flex items-center justify-between text-sm font-mono"
+                    className="flex items-center justify-between gap-4 text-sm font-mono"
                   >
                     <span className="text-ink/70">
                       {p.opportunity.protocolLabel} · {chainName(p.opportunity.chainId)}
                     </span>
-                    <span>
-                      {formatTokenAmount(p.balance, p.opportunity.asset.decimals)}{' '}
-                      {p.opportunity.asset.symbol}{' '}
-                      <span className="text-ink/45 text-xs">
-                        @ {formatApy(p.opportunity.apy)}
+                    <div className="flex flex-col items-end gap-1">
+                      <span>
+                        {formatTokenAmount(p.balance, p.opportunity.asset.decimals)}{' '}
+                        {p.opportunity.asset.symbol}{' '}
+                        <span className="text-ink/45 text-xs">
+                          @ {formatApy(p.opportunity.apy)}
+                        </span>
                       </span>
-                    </span>
+                      <PositionActions opportunity={p.opportunity} />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -228,6 +232,9 @@ export default function DashboardPage() {
                           ≈ ${usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       )}
+                      <div className="mt-1.5">
+                        <PositionActions opportunity={p.opportunity} />
+                      </div>
                     </div>
                   </li>
                 );
