@@ -23,6 +23,7 @@ import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 import { OnrampModal } from './OnrampModal';
+import { ConnectButtonClient } from './ConnectButtonClient';
 import { isStableDollarAsset } from '@/lib/firstRun';
 
 type Tab = 'deposit' | 'withdraw';
@@ -519,28 +520,38 @@ export function DepositWithdrawModal({
           </div>
         )}
 
-        <div className="flex gap-2 mb-4">
-          {(['deposit', 'withdraw'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => {
-                setTab(t);
-                setStep('idle');
-                setErrorMsg(null);
-                setAmount('');
-              }}
-              className={`flex-1 py-1.5 rounded text-sm capitalize border ${
-                tab === t
-                  ? 'bg-accent text-paper border-accent'
-                  : 'border-border text-ink/70'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        {address && (
+          <div className="flex gap-2 mb-4">
+            {(['deposit', 'withdraw'] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  setTab(t);
+                  setStep('idle');
+                  setErrorMsg(null);
+                  setAmount('');
+                }}
+                className={`flex-1 py-1.5 rounded text-sm capitalize border ${
+                  tab === t
+                    ? 'bg-accent text-paper border-accent'
+                    : 'border-border text-ink/70'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {wrongNetwork ? (
+        {!address ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-ink/65 leading-relaxed">
+              Get a wallet first — email or a passkey. Then you can deposit. Openhand never holds
+              your keys.
+            </p>
+            <ConnectButtonClient label="Get started" />
+          </div>
+        ) : wrongNetwork ? (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-ink/65 leading-relaxed">
               This card uses {chainName(opportunity.chainId)}. Your wallet is on a different
