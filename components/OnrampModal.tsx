@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect } from 'react';
 import { NETWORK_MODE } from '@/lib/wagmi';
 import { chainName } from '@/lib/format';
 import { onrampAvailable, onramperWidgetSrc } from '@/lib/config/onramper';
+import { track } from '@/lib/analytics/track';
 
 export function OnrampModal({
   address,
@@ -15,6 +17,10 @@ export function OnrampModal({
 }) {
   const src = onramperWidgetSrc(address, chainId);
   const live = onrampAvailable() && Boolean(src);
+
+  useEffect(() => {
+    track('onramp_open', { chainId });
+  }, [chainId]);
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4">

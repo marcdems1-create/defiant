@@ -21,6 +21,7 @@ import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance'
 import { apyCaption, chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
+import { track } from '@/lib/analytics/track';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 import { OnrampModal } from './OnrampModal';
 import { ConnectButtonClient } from './ConnectButtonClient';
@@ -67,6 +68,24 @@ export function DepositWithdrawModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
   const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
+
+  useEffect(() => {
+    track(tab === 'withdraw' ? 'withdraw_open' : 'deposit_open', {
+      opportunityId: opportunity.id,
+      chainId: opportunity.chainId,
+    });
+  }, [tab, opportunity.id, opportunity.chainId]);
+
+  const prevStep = useRef<Step>('idle');
+  useEffect(() => {
+    if (step === 'done' && prevStep.current !== 'done') {
+      track(tab === 'withdraw' ? 'withdraw_done' : 'deposit_done', {
+        opportunityId: opportunity.id,
+        chainId: opportunity.chainId,
+      });
+    }
+    prevStep.current = step;
+  }, [step, tab, opportunity.id, opportunity.chainId]);
 
   const wrongNetwork = currentChainId !== opportunity.chainId;
   const isNativeDeposit = opportunity.protocol === 'lido';

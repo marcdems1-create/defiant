@@ -54,19 +54,21 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    filter"). If a future request pushes toward "recommend the best option for me" or a
    computed risk score, flag the regulatory shift explicitly before building it — don't just
    extend `applyPreferences()` past a filter/sort function.
-8. **Nothing gets written to the database without an unchecked-by-default consent checkbox
+8. **Nothing wallet-linked gets written to the database without an unchecked-by-default consent checkbox
    AND a valid wallet signature proving ownership of the address the data is attributed to.**
    `app/api/preferences/route.ts` rejects with 401 on a missing/invalid signature — that check
    is not optional scaffolding, it's the difference between real consent and a claim anyone
    could fabricate for anyone else's public address. If a future feature adds another
-   server-side write path, it needs the same two properties (opt-in default state + proof of
-   identity) or an explicit flagged exception, not a silent precedent-break.
-9. **This app collects zero personal data outside the single opt-in questionnaire save path.**
-   Don't add analytics, telemetry, tracking pixels, or any other data collection without
-   surfacing it the same way this one was surfaced — as a decision with real privacy-law
-   weight, not a routine addition. See README "Data collection" for what's actually stored
-   (three answers + wallet address + timestamp, nothing else) and what's still missing before
-   this can face real users (privacy policy, retention policy, deletion mechanism).
+   wallet-linked server-side write path, it needs the same two properties (opt-in default
+   state + proof of identity) or an explicit flagged exception, not a silent precedent-break.
+   First-party site analytics (`site_events`) is a flagged exception: anonymous event
+   counts with no wallet, no IP, and no user-agent. See README "Site analytics."
+9. **Wallet-linked personal data exists only on the opt-in questionnaire save path.**
+   Don't add third-party analytics, telemetry, tracking pixels, or any other data collection
+   without surfacing it the same way this one was surfaced — as a decision with real
+   privacy-law weight, not a routine addition. See README "Data collection" (questionnaire)
+   and "Site analytics" (anonymous first-party events). What's still missing before either
+   store faces real users: privacy policy, retention policy, deletion mechanism.
 
 ## ⛔ RainbowKit/wagmi config must stay lazy — do not regress
 
@@ -156,11 +158,13 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
   action then fails, or vice versa) — surfaces the error, no auto-refund/resume. Untested
   against a live RPC, same as everything else here.
 - **Data collection defaults to off too** — `DATABASE_URL` is unset, so the opt-in save path
-  errors (caught, surfaced as a small non-blocking message) until it's configured and
-  `migrations/001_questionnaire_responses.sql` has been run against it.
+  and first-party site analytics both no-op until it's configured and
+  `migrations/001_questionnaire_responses.sql` + `migrations/002_site_analytics.sql` have
+  been run. `/admin` stays disabled until `ADMIN_PASSWORD` is set.
 - **No privacy policy, retention policy, or deletion mechanism** for the saved questionnaire
-  data yet — see non-negotiable #9 and README "Data collection." This is the actual blocker
-  before turning the opt-in on for real users, not a nice-to-have.
+  data (or the anonymous event table) yet — see non-negotiable #9 and README "Data collection"
+  / "Site analytics." This is the actual blocker before turning either store on for real
+  users, not a nice-to-have.
 
 ## What to build next (not started, in rough priority order)
 

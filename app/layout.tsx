@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import dynamic from 'next/dynamic';
 import './globals.css';
+import { AnalyticsBeacon } from '@/components/AnalyticsBeacon';
 import { NavBar } from '@/components/NavBar';
 import { NetworkBanner } from '@/components/NetworkBanner';
 import { MobileTabBar } from '@/components/MobileTabBar';
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen bg-paper text-ink font-sans pb-20 md:pb-0">
+        <AnalyticsBeacon />
         <Providers>
           <NetworkBanner />
           <NavBar />

@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { track } from '@/lib/analytics/track';
 import { privyAppId } from '@/lib/config/privy';
 
 // RainbowKit / Privy touch browser-only APIs at module-eval time (indexedDB,
@@ -22,5 +23,13 @@ export function ConnectButtonClient(props: {
   chainStatus?: 'icon' | 'full' | 'none';
   label?: string;
 }) {
-  return <WalletButton {...props} />;
+  return (
+    <span
+      onClick={() => {
+        track('connect_open');
+      }}
+    >
+      <WalletButton {...props} />
+    </span>
+  );
 }

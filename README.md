@@ -55,8 +55,8 @@ every market this reaches; it does not eliminate it in any of them.
 - [RainbowKit](https://rainbowkit.com) for the connect UI when Privy is unset
 - [Privy](https://www.privy.io) (optional) for email / passkey embedded wallets — see below
 - Tailwind CSS
-- No backend, no database. Everything reads directly from-chain or from each protocol's
-  public read-only API.
+- Optional Postgres for the questionnaire opt-in save and first-party site analytics.
+  Everything else reads directly on-chain or from each protocol's public read-only API.
 
 ## First-time wallets (Privy)
 
@@ -173,7 +173,12 @@ same compliance review called out above.
 
 ## Data collection
 
-The only place this app stores anything server-side, at all, is an explicit opt-in on the
+Two optional server-side stores exist, both **off until `DATABASE_URL` is set**. Neither
+is a third-party analytics pixel (no Google Analytics, no Mixpanel, no tracking scripts).
+
+### Questionnaire (wallet-linked, opt-in)
+
+The only place this app stores anything **linked to a wallet**, at all, is an explicit opt-in on the
 questionnaire: a checkbox, unchecked by default, that saves the three answers **linked to
 the connected wallet address** so they can be used to improve the product and — per how this
 was scoped — potentially to contact the user about relevant updates later. This is the app's
@@ -193,20 +198,40 @@ constraint, not an afterthought:
 - **Minimal fields.** `wallet_address`, the three answers, and a `consented_at` timestamp —
   see `migrations/001_questionnaire_responses.sql`. No email, no IP address, no device
   fingerprint, nothing beyond what was explicitly asked for.
-- **No backend existed before this.** Everything else in the app is either a direct on-chain
-  read or a call to a protocol's own public API — see `lib/db.ts`'s comment for why the
-  Postgres pool is a lazy singleton (same reasoning as `lib/wagmi.ts`'s `getWagmiConfig()`,
-  just for a different crash mode: importing `pg` into a client bundle rather than an SSR
-  crash). `DATABASE_URL` is unset by default; the save path simply errors until it's
-  configured, everything else in the app is unaffected.
+- **Postgres is optional.** The pool is a lazy singleton in `lib/db.ts` (never import that
+  file from a client component). `DATABASE_URL` is unset by default; the save path simply
+  errors until it's configured, everything else in the app is unaffected.
 
-**What's explicitly NOT built yet, and must exist before this goes anywhere near real users:**
+### Site analytics (anonymous, first-party)
+
+A password-gated dashboard at `/admin` counts page views and a short allowlist of product
+events (`page_view`, `connect_open`, `deposit_open`, `deposit_done`, `withdraw_open`,
+`withdraw_done`, `onramp_open`). This is **not** linked from the public nav. `robots.txt`
+disallows `/admin`.
+
+- **Off until configured.** Events are dropped unless `DATABASE_URL` is set and
+  `migrations/002_site_analytics.sql` has been run. `/admin` login is disabled unless
+  `ADMIN_PASSWORD` is set.
+- **No wallets, no IPs, no user-agents, no third-party pixels.** The ingest path
+  (`POST /api/analytics/event`) stores only the event name, a sanitized public path, an
+  optional catalog opportunity id, an optional chain id, and a truncated daily hash of
+  (salt + IP). The IP itself is never written. The hash rotates each UTC day so it cannot
+  be used as a long-lived profile.
+- **Allowlisted events only.** Unknown event names are rejected. Paths under `/admin` and
+  `/api` are dropped.
+- **Explicit exception to the questionnaire write-path rule.** This path does not ask for
+  a wallet signature because it does not attribute anything to a wallet. It is still a
+  privacy decision — same as the questionnaire — not a routine "add analytics" add-on.
+
+**What's explicitly NOT built yet, and must exist before either store goes anywhere near real users:**
 a privacy policy describing this collection, a data retention policy, and a self-service (or
 at minimum request-based) deletion mechanism — most privacy regimes that would plausibly
 apply once real wallet-linked data is being stored (GDPR, CCPA/CPRA, PIPEDA, and others)
 require some version of a right to erasure and a stated lawful basis/purpose for processing.
-**This is not legal advice** — get a real privacy/compliance review before enabling this in
-front of real users, same as the fee model and the custody architecture above.
+The anonymous event table is a lighter category than wallet-linked answers, but it is still
+in scope for that review. **This is not legal advice** — get a real privacy/compliance
+review before enabling this in front of real users, same as the fee model and the custody
+architecture above.
 
 ## Safety defaults
 
@@ -226,8 +251,9 @@ npm install
 cp .env.example .env.local
 # Fill in NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID at minimum (free at https://cloud.reown.com)
 # NEXT_PUBLIC_TREASURY_ADDRESS is optional — fees stay disabled until it's set (see "Fees")
-# DATABASE_URL is optional — questionnaire opt-in save stays broken until it's set AND
-# migrations/001_questionnaire_responses.sql has been run against it (see "Data collection")
+# DATABASE_URL is optional — questionnaire opt-in save and site analytics stay
+# off until it's set AND migrations/001 + 002 have been run (see "Data collection"
+# and "Site analytics"). ADMIN_PASSWORD is optional — /admin stays disabled until set.
 npm run dev
 ```
 
@@ -279,9 +305,10 @@ npm run dev
 - **No privacy policy, retention policy, or deletion mechanism yet** for the opt-in
   questionnaire data — see "Data collection." Needed before this runs in front of real users,
   not before some later "polish" pass.
-- **No migration runner.** `migrations/001_questionnaire_responses.sql` is applied by hand
-  (psql, or your Postgres host's SQL console) — there's exactly one migration and no tracking
-  of which have run. Fine at this scale, revisit if the schema grows.
+- **No migration runner.** `migrations/001_questionnaire_responses.sql` and
+  `migrations/002_site_analytics.sql` are applied by hand (psql, or your Postgres host's
+  SQL console) — no tracking of which have run. Fine at this scale, revisit if the schema
+  grows.
 - **The consent signature has no expiry or nonce.** `CONSENT_MESSAGE` is a fixed string, so a
   captured signature could in principle be replayed to re-save the same preferences again —
   low-severity since replaying it can't change what's stored to anything the original signer
@@ -296,6 +323,11 @@ npm run dev
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
 | `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
 | `lib/db.ts` | Server-only lazy Postgres pool. Never import from a client component. |
+| `lib/analytics/track.ts` | Client beacon — posts allowlisted events; swallows errors |
+| `app/api/analytics/event/route.ts` | First-party event ingest (no wallet/IP stored) |
+| `app/admin/page.tsx` | Password-gated analytics dashboard (not in public nav) |
+| `migrations/001_questionnaire_responses.sql` | Questionnaire opt-in schema. Applied by hand. |
+| `migrations/002_site_analytics.sql` | Anonymous site event schema. Applied by hand. |
 | `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants) |
 | `lib/protocols/{aave,lido,yearn,curve}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
 | `lib/protocols/aggregate.ts` | Combines all four into one sorted list |
@@ -303,10 +335,9 @@ npm run dev
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |
 | `lib/hooks/useSendFee.ts` | Sends the fee transfer (native or ERC-20) to the treasury address, no-ops if unconfigured |
+| `app/api/preferences/route.ts` | The one wallet-linked write path — validates + signature-verifies before any insert |
 | `components/DepositWithdrawModal.tsx` | The actual transaction flow — fee transfer + approve/deposit/withdraw per protocol |
 | `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim + fee-on-claim |
 | `components/InvestmentStyleQuestionnaire.tsx` | The preference questionnaire — filter/sort only (see "Investment-style filter") + the signature-gated opt-in save (see "Data collection") |
-| `app/api/preferences/route.ts` | The one write path to the database — validates + signature-verifies before any insert |
-| `migrations/001_questionnaire_responses.sql` | The only schema in this app. Applied by hand, no migration runner. |
 | `app/page.tsx` | Portfolio dashboard (connect-wallet hero when disconnected) |
 | `app/opportunities/page.tsx` | Full opportunity comparison list, questionnaire-gated on first visit |
