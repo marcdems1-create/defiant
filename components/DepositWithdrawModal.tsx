@@ -63,19 +63,24 @@ export function DepositWithdrawModal({
   const isNativeDeposit = opportunity.protocol === 'lido';
   const isCurve = opportunity.protocol === 'curve';
   const isConvex = opportunity.protocol === 'convex-cvxcrv';
+  const isMoonwell = opportunity.protocol === 'moonwell';
   // Lido withdrawal fee is charged at claim time (funds aren't in the
   // wallet yet at request time) — see LidoWithdrawalRequests.
   const feeAppliesHere = feesEnabled() && !(opportunity.protocol === 'lido' && tab === 'withdraw');
 
-  // Curve LP shares aren't 1:1 with the underlying asset the way Aave's
-  // aTokens or Yearn's vault shares are — different decimals AND a virtual
-  // price that isn't 1. The withdraw tab enters an amount of positionToken
-  // (LP shares), not asset (USDC), so it needs its own decimals/symbol.
-  // Unset for every other protocol, where position and asset match.
+  // Curve LP shares (and Morpho vault shares) aren't 1:1 with the underlying,
+  // so those withdraw tabs enter an amount of positionToken. Moonwell's
+  // redeemUnderlying takes USDC — mUSDC is only a receipt the contract burns.
+  // If we labeled that field mUSDC, users would think they need a second
+  // conversion step, and Max would parse 8-decimal shares into a 6-decimal
+  // redeemUnderlying call.
   const positionDecimals = opportunity.positionDecimals ?? opportunity.asset.decimals;
   const positionSymbol = opportunity.positionSymbol ?? opportunity.asset.symbol;
-  const amountDecimals = tab === 'withdraw' ? positionDecimals : opportunity.asset.decimals;
-  const amountSymbol = tab === 'withdraw' ? positionSymbol : opportunity.asset.symbol;
+  const withdrawInPositionUnits = tab === 'withdraw' && !isMoonwell;
+  const amountDecimals = withdrawInPositionUnits
+    ? positionDecimals
+    : opportunity.asset.decimals;
+  const amountSymbol = withdrawInPositionUnits ? positionSymbol : opportunity.asset.symbol;
 
   const nativeBalance = useBalance({
     address,
@@ -196,16 +201,20 @@ export function DepositWithdrawModal({
     abi: moonwellMTokenAbi,
     functionName: 'exchangeRateStored',
     chainId: opportunity.chainId,
-    query: { enabled: opportunity.protocol === 'moonwell' && netAmount > 0n },
+    query: { enabled: isMoonwell },
   });
+  const moonwellExchangeRate =
+    typeof moonwellRate.data === 'bigint' && moonwellRate.data > 0n ? moonwellRate.data : 0n;
   const moonwellMintTokens =
-    opportunity.protocol === 'moonwell' &&
-    typeof moonwellRate.data === 'bigint' &&
-    moonwellRate.data > 0n
-      ? (netAmount * 10n ** 18n) / moonwellRate.data
+    isMoonwell && moonwellExchangeRate > 0n ? (netAmount * 10n ** 18n) / moonwellExchangeRate : 0n;
+  // Same conversion as usePositions: underlying = shares * exchangeRate / 1e18.
+  const moonwellUnderlyingBalance =
+    isMoonwell && moonwellExchangeRate > 0n
+      ? (positionBalanceValue * moonwellExchangeRate) / 10n ** 18n
       : 0n;
 
-  const maxAmount = tab === 'deposit' ? walletBalance : positionBalanceValue;
+  const maxAmount =
+    tab === 'deposit' ? walletBalance : isMoonwell ? moonwellUnderlyingBalance : positionBalanceValue;
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
   function setMax() {
@@ -378,11 +387,17 @@ export function DepositWithdrawModal({
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'moonwell') {
         setStep('acting');
+        // Max burns every mUSDC share (redeem) so rounding in redeemUnderlying
+        // cannot leave a dust receipt behind. Partial exits stay in USDC.
+        const redeemAll =
+          positionBalanceValue > 0n &&
+          moonwellUnderlyingBalance > 0n &&
+          amountBig >= moonwellUnderlyingBalance;
         const hash = await writeTx({
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
-          functionName: 'redeemUnderlying',
-          args: [amountBig],
+          functionName: redeemAll ? 'redeem' : 'redeemUnderlying',
+          args: [redeemAll ? positionBalanceValue : amountBig],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -585,11 +600,24 @@ export function DepositWithdrawModal({
                 </div>
               </div>
             )}
-            {opportunity.protocol === 'moonwell' && tab === 'deposit' && moonwellMintTokens > 0n && (
+            {isMoonwell && tab === 'deposit' && moonwellMintTokens > 0n && (
               <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3">
-                You receive ~{formatTokenAmount(moonwellMintTokens, positionDecimals)} mUSDC.
-                Receipt tokens are not 1:1 with USDC — your claim on the pool grows as interest
-                accrues.
+                You receive ~{formatTokenAmount(moonwellMintTokens, positionDecimals)} mUSDC as a
+                receipt. It is not 1:1 with USDC — your claim on the pool grows as interest
+                accrues. Withdrawing burns the receipt and returns USDC to this wallet.
+              </div>
+            )}
+            {isMoonwell && tab === 'withdraw' && (
+              <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3">
+                Withdrawal returns USDC to this wallet. mUSDC is Moonwell&apos;s receipt — the
+                contract burns it in the same transaction, so you don&apos;t convert it
+                afterwards.
+                {amountBig > 0n && !feeAppliesHere && (
+                  <>
+                    {' '}
+                    You receive {formatUnits(netAmount, opportunity.asset.decimals)} USDC.
+                  </>
+                )}
               </div>
             )}
             {opportunity.protocol === 'lido' && tab === 'withdraw' && feesEnabled() && (
@@ -607,7 +635,9 @@ export function DepositWithdrawModal({
               <div className="text-xs text-accent mb-3">
                 {tab === 'withdraw' && opportunity.protocol === 'lido'
                   ? 'Withdrawal requested. It will appear below once claimable.'
-                  : 'Transaction confirmed.'}
+                  : tab === 'withdraw' && isMoonwell
+                    ? 'USDC is back in your wallet.'
+                    : 'Transaction confirmed.'}
               </div>
             )}
 
