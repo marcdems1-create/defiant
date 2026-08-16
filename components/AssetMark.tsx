@@ -12,7 +12,7 @@ export function AssetMark({
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 overflow-hidden select-none"
+      className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl select-none"
       aria-hidden
     >
       <span
