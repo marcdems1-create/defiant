@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseUnits, formatUnits } from 'viem';
 import { useAccount, useBalance, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
@@ -43,6 +43,8 @@ export function DepositWithdrawModal({
   const { address } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
+  const [switchFailed, setSwitchFailed] = useState(false);
+  const autoSwitchKey = useRef('');
   const { writeContractAsync } = useWriteContract();
   const { sendFee } = useSendFee();
 
@@ -237,18 +239,31 @@ export function DepositWithdrawModal({
     ]);
   }
 
-  async function handleSwitchNetwork() {
-    try {
-      await switchChainAsync({ chainId: opportunity.chainId });
-    } catch {
-      // user rejected the switch — leave the button visible to retry
-    }
+  async function ensureChain() {
+    if (currentChainId === opportunity.chainId) return;
+    await switchChainAsync({ chainId: opportunity.chainId });
   }
+
+  useEffect(() => {
+    if (!address || currentChainId === opportunity.chainId) {
+      autoSwitchKey.current = '';
+      setSwitchFailed(false);
+      return;
+    }
+    const key = `${address}:${opportunity.chainId}`;
+    if (autoSwitchKey.current === key) return;
+    autoSwitchKey.current = key;
+    setSwitchFailed(false);
+    switchChainAsync({ chainId: opportunity.chainId }).catch(() => {
+      setSwitchFailed(true);
+    });
+  }, [address, currentChainId, opportunity.chainId, switchChainAsync]);
 
   async function handleDeposit() {
     if (!address || amountBig === 0n) return;
     setErrorMsg(null);
     try {
+      await ensureChain();
       if (feeAmount > 0n) {
         setStep('sendingFee');
         await sendFee({
@@ -372,6 +387,7 @@ export function DepositWithdrawModal({
     if (!address || amountBig === 0n) return;
     setErrorMsg(null);
     try {
+      await ensureChain();
       if (opportunity.protocol === 'aave-v3') {
         setStep('acting');
         const hash = await writeTx({
@@ -511,7 +527,8 @@ export function DepositWithdrawModal({
     }
   }
 
-  const busy = step === 'sendingFee' || step === 'approving' || step === 'acting';
+  const busy = step === 'sendingFee' || step === 'approving' || step === 'acting' || switching;
+  const waitingOnSwitch = wrongNetwork && !switchFailed;
 
   return (
     <>
@@ -568,22 +585,15 @@ export function DepositWithdrawModal({
             </p>
             <ConnectButtonClient label="Get started" />
           </div>
-        ) : wrongNetwork ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-ink/65 leading-relaxed">
-              This card uses {chainName(opportunity.chainId)}. Your wallet is on a different
-              network. Switch to continue — your address stays the same.
-            </p>
-            <button
-              onClick={handleSwitchNetwork}
-              disabled={switching}
-              className="w-full py-2 rounded-md bg-warn text-paper font-medium text-sm disabled:opacity-50"
-            >
-              {switching ? 'Switching…' : `Switch to ${chainName(opportunity.chainId)}`}
-            </button>
-          </div>
         ) : (
           <>
+            {wrongNetwork && (
+              <div className="text-xs text-ink/50 mb-3">
+                {switching || !switchFailed
+                  ? `Switching to ${chainName(opportunity.chainId)}…`
+                  : `Confirm ${chainName(opportunity.chainId)} in your wallet to continue.`}
+              </div>
+            )}
             <div className="flex justify-between text-xs text-ink/50 mb-1">
               <span>Amount{dollarInput && tab === 'deposit' ? ' (USD)' : ''}</span>
               <span>
@@ -699,12 +709,14 @@ export function DepositWithdrawModal({
             ) : (
               <button
                 onClick={tab === 'deposit' ? handleDeposit : handleWithdraw}
-                disabled={busy || amountBig === 0n || insufficientBalance || !address}
+                disabled={busy || waitingOnSwitch || amountBig === 0n || insufficientBalance || !address}
                 className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {!address
                   ? 'Get started'
-                  : step === 'sendingFee'
+                  : switching || waitingOnSwitch
+                    ? `Switching to ${chainName(opportunity.chainId)}…`
+                    : step === 'sendingFee'
                     ? 'Sending fee…'
                     : step === 'approving'
                       ? dollarInput && amount
