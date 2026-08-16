@@ -24,8 +24,8 @@ zone at Vercel (not the parking page) and add the domain on the Vercel project:
 4. In Vercel → Project → Settings → Domains, add `openhand.online` and
    `www.openhand.online`. Set the apex as primary.
 5. Set `NEXT_PUBLIC_SITE_URL=https://openhand.online` on the Vercel project.
-6. Register that origin in Reown / WalletConnect and in Onramper’s allowlist.
-   `*.vercel.app` preview URLs are not the production host.
+6. Register that origin in Reown / WalletConnect, Privy, and Transak’s
+   allowlist. `*.vercel.app` preview URLs are not the production host.
 
 ## Why non-custodial
 
@@ -55,6 +55,7 @@ every market this reaches; it does not eliminate it in any of them.
 - [RainbowKit](https://rainbowkit.com) for the connect UI when Privy is unset
 - [Privy](https://www.privy.io) (optional) for email / passkey embedded wallets — see below
 - Tailwind CSS
+- Optional [Transak](https://transak.com) widget for CAD / Interac → USDC (mainnet only)
 - Optional Postgres for first-party site analytics. Everything else reads directly
   on-chain or from each protocol's public read-only API.
 
@@ -70,8 +71,8 @@ used a wallet can still get an address:
 3. Connect offers email or a passkey first. Privy creates an embedded wallet for users
    who do not already have one. MetaMask / Rainbow / Rabby / WalletConnect remain available.
    Coinbase is not featured.
-4. Onramper (when wired) should receive that connected address as the destination.
-   Onramper does not create the wallet.
+4. Transak (when wired) receives that connected address as the destination.
+   Transak does not create the wallet.
 
 Email is processed by **Privy**, not written to Openhand's database. Set
 `NEXT_PUBLIC_PRIVY_APP_ID=off` for RainbowKit-only connect. This is a third-party
@@ -83,13 +84,42 @@ treating email login as production-ready.
 A first-time visitor sees a three-step path, then the full catalog:
 
 1. **Deposit** — email or passkey (Privy) to get a wallet. Existing wallets stay behind “Continue with a wallet.”
-2. **Add USDC** — if the wallet is empty, Buy USDC opens Onramper on mainnet (needs
-   `NEXT_PUBLIC_ONRAMPER_API_KEY`). Practice / testnet mode does not open a card purchase.
+2. **Add USDC** — if the wallet is empty, Buy USDC opens Transak (needs
+   `TRANSAK_API_KEY` + `TRANSAK_API_SECRET`). CAD is the default fiat; Interac is
+   the usual Canadian path. Transak staging (`TRANSAK_STAGING=true`) can be tested
+   without flipping the app to mainnet; production buys need mainnet + production keys.
 3. **Deposit** — browse the collection and pick a card. There is no featured or
    “start here” opportunity. Highlighting one product is a recommendation even with
    a disclaimer, so the app does not do it.
 
 Deposit amounts for USDC are in dollars. Approve/deposit buttons say what they are signing.
+
+## Buy USDC (Transak)
+
+The first-session buy is a **third-party Transak checkout**, not an Openhand custody
+path. USDC is sent to the **connected wallet**. Openhand never receives the funds,
+never holds a Transak customer account, and does not store the wallet address from
+this flow.
+
+Transak is the onramp for Canadian no-coiners: FINTRAC-registered, CAD, Interac
+e-Transfer, **no monthly partner fee**. MoonPay's USDC-on-Base listing currently
+blocks Canada (`notAllowedCountries` includes `CA`), so it is not used. Onramper's
+aggregator was not adopted (paid monthly plan). Deposit / swap / referral stay on
+wagmi — only the buy iframe uses Transak.
+
+**Setup (production):**
+
+1. Partner account at [dashboard.transak.com](https://dashboard.transak.com) → Developers.
+   Copy the API key and API secret.
+2. Allowlist `openhand.online` and `www.openhand.online`.
+3. On Vercel, set `TRANSAK_API_KEY` and `TRANSAK_API_SECRET` (server-only — never
+   `NEXT_PUBLIC_*`). Optional `TRANSAK_STAGING=true` for Transak sandbox keys.
+4. The app must be `NEXT_PUBLIC_NETWORK_MODE=mainnet`. Testnet cannot receive real USDC.
+
+`POST /api/onramp/widget` mints a Partner Access Token from the secret (cached in
+memory; Transak tokens last ~7 days) and then a **single-use widget URL** (~5 minutes).
+The modal fetches a fresh session on every open. Transak requires the end-user IP as
+`x-user-ip` for KYC/geo; Openhand forwards it and does not store it.
 
 ## Protocols integrated
 
@@ -279,6 +309,10 @@ npm run dev
 | `lib/wagmi.ts` | Chain list + wallet connector config, testnet/mainnet switch |
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
 | `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
+| `lib/config/transak.ts` | Transak env, CAD default, USDC network map. Server-only secrets. |
+| `lib/transak/accessToken.ts` | Partner access-token cache. Never import from a client component. |
+| `app/api/onramp/widget/route.ts` | One-shot Transak widget URL locked to the connected wallet |
+| `components/OnrampModal.tsx` | Buy USDC iframe (Transak on mainnet; faucet copy on testnet) |
 | `lib/db.ts` | Server-only lazy Postgres pool. Never import from a client component. |
 | `lib/analytics/track.ts` | Client beacon — posts allowlisted events; swallows errors |
 | `app/api/analytics/event/route.ts` | First-party event ingest (no wallet/IP stored) |

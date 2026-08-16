@@ -257,3 +257,21 @@ browser, no real wallet, no RPC in this sandbox.
 6. Real compliance review before any mainnet/public launch — unchanged from the original
    list, and now more relevant given the fee-on-conversion feature touches money movement
    even though it stays non-custodial.
+
+## Session update (2026-08-16) — Transak CAD / Interac onramp
+
+Replaced the unused Onramper iframe with Transak for Canadian no-coiners.
+
+- **Why Transak:** FINTRAC-registered, CAD + Interac, no monthly partner fee. MoonPay
+  USDC-on-Base currently blocks CA. Onramper Essentials is $199/mo — not used.
+- **Non-custodial:** `POST /api/onramp/widget` builds a one-shot Transak session locked
+  to the connected wallet (`walletAddress` + `disableWalletAddressForm`). Funds never
+  touch Openhand. Deposit/swap/referral stay on wagmi.
+- **Secrets:** `TRANSAK_API_KEY` + `TRANSAK_API_SECRET` are server-only. The API secret
+  mints a Partner Access Token (cached in memory, ~7 days). Do not put the secret in
+  `NEXT_PUBLIC_*`. Optional `TRANSAK_STAGING=true` for Transak sandbox.
+- **Mainnet only.** Testnet cannot receive real USDC; the modal shows faucet copy instead.
+- **IP:** Transak requires `x-user-ip` for KYC/geo. Forwarded, never stored.
+
+`lib/config/onramper.ts` is deleted. Allowlist `openhand.online` in the Transak dashboard
+and set the two env vars on Vercel before Buy USDC works in production.
