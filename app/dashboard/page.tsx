@@ -73,13 +73,13 @@ export default function DashboardPage() {
       {!isConnected && (
         <div className="rounded-2xl border border-border bg-gradient-to-br from-accent/10 via-transparent to-transparent p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
           <div>
-            <h2 className="text-lg font-medium mb-1">Connect to see your portfolio</h2>
+            <h2 className="text-lg font-medium mb-1">Get started to see your portfolio</h2>
             <p className="text-sm text-ink/60 max-w-md">
-              Personal analytics appear only for your connected wallet. New here? Email or a
-              passkey creates one — we never hold the key.
+              Personal analytics appear only for your wallet. Email or a passkey creates one —
+              we never hold the key.
             </p>
           </div>
-          <ConnectButtonClient />
+          <ConnectButtonClient label="Get started" />
         </div>
       )}
 

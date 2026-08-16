@@ -22,6 +22,8 @@ import { apyCaption, chainName, formatApy, formatTokenAmount } from '@/lib/forma
 import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
+import { OnrampModal } from './OnrampModal';
+import { isStableDollarAsset } from '@/lib/firstRun';
 
 type Tab = 'deposit' | 'withdraw';
 type Step = 'idle' | 'sendingFee' | 'approving' | 'acting' | 'done' | 'error';
@@ -58,6 +60,8 @@ export function DepositWithdrawModal({
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [buyOpen, setBuyOpen] = useState(false);
+  const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
 
   const wrongNetwork = currentChainId !== opportunity.chainId;
   const isNativeDeposit = opportunity.protocol === 'lido';
@@ -492,6 +496,7 @@ export function DepositWithdrawModal({
   const busy = step === 'sendingFee' || step === 'approving' || step === 'acting';
 
   return (
+    <>
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4">
       <div className="w-full max-w-md bg-paper border border-border rounded-lg p-6">
         <div className="flex items-start justify-between mb-4">
@@ -536,31 +541,44 @@ export function DepositWithdrawModal({
         </div>
 
         {wrongNetwork ? (
-          <button
-            onClick={handleSwitchNetwork}
-            disabled={switching}
-            className="w-full py-2 rounded-md bg-warn text-paper font-medium text-sm disabled:opacity-50"
-          >
-            {switching ? 'Switching…' : `Switch to ${chainName(opportunity.chainId)}`}
-          </button>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-ink/65 leading-relaxed">
+              This card uses {chainName(opportunity.chainId)}. Your wallet is on a different
+              network. Switch to continue — your address stays the same.
+            </p>
+            <button
+              onClick={handleSwitchNetwork}
+              disabled={switching}
+              className="w-full py-2 rounded-md bg-warn text-paper font-medium text-sm disabled:opacity-50"
+            >
+              {switching ? 'Switching…' : `Switch to ${chainName(opportunity.chainId)}`}
+            </button>
+          </div>
         ) : (
           <>
             <div className="flex justify-between text-xs text-ink/50 mb-1">
-              <span>Amount</span>
+              <span>Amount{dollarInput && tab === 'deposit' ? ' (USD)' : ''}</span>
               <span>
-                {tab === 'deposit' ? 'Wallet' : 'Deposited'}: {formatUnits(maxAmount, amountDecimals)}{' '}
-                {amountSymbol}
+                {tab === 'deposit' ? 'Wallet' : 'Deposited'}:{' '}
+                {dollarInput && tab === 'deposit' ? '$' : ''}
+                {formatUnits(maxAmount, amountDecimals)}{' '}
+                {dollarInput && tab === 'deposit' ? 'USDC' : amountSymbol}
               </span>
             </div>
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.0"
-                className="flex-1 bg-transparent border border-border rounded px-3 py-2 text-sm font-mono outline-none focus:border-accent"
-              />
+            <div className="flex gap-2 mb-3">
+              <div className="flex-1 flex items-center border border-border rounded px-3 focus-within:border-accent">
+                {dollarInput && tab === 'deposit' && (
+                  <span className="text-ink/45 font-mono text-sm mr-1">$</span>
+                )}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder={dollarInput && tab === 'deposit' ? '50' : '0.0'}
+                  className="flex-1 bg-transparent py-2 text-sm font-mono outline-none"
+                />
+              </div>
               <button
                 onClick={setMax}
                 className="px-3 py-2 rounded border border-border text-xs text-ink/70 hover:text-ink"
@@ -568,6 +586,20 @@ export function DepositWithdrawModal({
                 Max
               </button>
             </div>
+            {dollarInput && tab === 'deposit' && (
+              <div className="flex gap-2 mb-4">
+                {['25', '50', '100'].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setAmount(preset)}
+                    className="px-3 py-1 rounded-full border border-border text-xs text-ink/70 hover:text-ink"
+                  >
+                    ${preset}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {feeAppliesHere && amountBig > 0n && (
               <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3 flex flex-col gap-1">
@@ -607,29 +639,45 @@ export function DepositWithdrawModal({
               <div className="text-xs text-accent mb-3">
                 {tab === 'withdraw' && opportunity.protocol === 'lido'
                   ? 'Withdrawal requested. It will appear below once claimable.'
-                  : 'Transaction confirmed.'}
+                  : tab === 'deposit' && dollarInput
+                    ? `Your $${amount || '0'} is in ${opportunity.protocolLabel} on ${chainName(opportunity.chainId)}.`
+                    : 'Transaction confirmed.'}
               </div>
             )}
 
-            <button
-              onClick={tab === 'deposit' ? handleDeposit : handleWithdraw}
-              disabled={busy || amountBig === 0n || insufficientBalance || !address}
-              className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              {!address
-                ? 'Connect wallet'
-                : step === 'sendingFee'
-                  ? 'Sending fee…'
-                  : step === 'approving'
-                    ? 'Approving…'
-                    : step === 'acting'
-                      ? 'Confirming…'
-                      : tab === 'deposit'
-                        ? `Deposit ${opportunity.asset.symbol}`
-                        : opportunity.protocol === 'lido'
-                          ? 'Request withdrawal'
-                          : `Withdraw ${opportunity.asset.symbol}`}
-            </button>
+            {tab === 'deposit' && address && walletBalance === 0n ? (
+              <button
+                type="button"
+                onClick={() => setBuyOpen(true)}
+                className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm"
+              >
+                {dollarInput ? 'Buy USDC first' : `Get ${opportunity.asset.symbol} first`}
+              </button>
+            ) : (
+              <button
+                onClick={tab === 'deposit' ? handleDeposit : handleWithdraw}
+                disabled={busy || amountBig === 0n || insufficientBalance || !address}
+                className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {!address
+                  ? 'Get started'
+                  : step === 'sendingFee'
+                    ? 'Sending fee…'
+                    : step === 'approving'
+                      ? dollarInput && amount
+                        ? `Approve $${amount} ${opportunity.asset.symbol}`
+                        : 'Approving…'
+                      : step === 'acting'
+                        ? 'Confirming…'
+                        : tab === 'deposit'
+                          ? dollarInput && amount
+                            ? `Deposit $${amount}`
+                            : `Deposit ${opportunity.asset.symbol}`
+                          : opportunity.protocol === 'lido'
+                            ? 'Request withdrawal'
+                            : `Withdraw ${opportunity.asset.symbol}`}
+              </button>
+            )}
 
             <p className="text-[11px] text-ink/40 text-center mt-3 leading-relaxed">
               Yield is not insured or guaranteed. You can lose capital. Openhand never holds your
@@ -643,5 +691,13 @@ export function DepositWithdrawModal({
         )}
       </div>
     </div>
+    {buyOpen && address && (
+      <OnrampModal
+        address={address}
+        chainId={opportunity.chainId}
+        onClose={() => setBuyOpen(false)}
+      />
+    )}
+    </>
   );
 }

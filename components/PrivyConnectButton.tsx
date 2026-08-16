@@ -9,9 +9,11 @@ function shortAddress(address: string): string {
 
 export function PrivyConnectButton({
   chainStatus = 'none',
+  label = 'Get started',
 }: {
   showBalance?: boolean;
   chainStatus?: 'icon' | 'full' | 'none';
+  label?: string;
 }) {
   const { ready, authenticated, login, logout } = usePrivy();
   const { address, chain } = useAccount();
@@ -48,7 +50,7 @@ export function PrivyConnectButton({
       onClick={() => login()}
       className="rounded-xl bg-accent text-paper font-medium text-sm px-4 py-2 hover:bg-accent/90 transition-colors"
     >
-      Connect
+      {label}
     </button>
   );
 }

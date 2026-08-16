@@ -73,10 +73,23 @@ used a wallet can still get an address:
 4. Onramper (when wired) should receive that connected address as the destination.
    Onramper does not create the wallet.
 
-Email is processed by **Privy**, not written to Openhand's database. If
-`NEXT_PUBLIC_PRIVY_APP_ID` is unset, Connect stays RainbowKit-only (existing
-extension / WalletConnect path). This is a third-party wallet vendor, not custody
-by Openhand — still get a compliance read before treating email login as production-ready.
+Email is processed by **Privy**, not written to Openhand's database. Set
+`NEXT_PUBLIC_PRIVY_APP_ID=off` for RainbowKit-only connect. This is a third-party
+wallet vendor, not custody by Openhand — still get a compliance read before
+treating email login as production-ready.
+
+## First session
+
+A first-time visitor sees a three-step path, not the full market:
+
+1. **Get started** — email or passkey (Privy). Existing wallets stay behind “Continue with a wallet.”
+2. **Add USDC** — if the wallet is empty, Buy USDC opens Onramper on mainnet (needs
+   `NEXT_PUBLIC_ONRAMPER_API_KEY`). Practice / testnet mode does not open a card purchase.
+3. **Start here** — one USDC card on Base (or Base Sepolia). That is a default first path,
+   not a scored recommendation. Filters, the PWA install banner, and the full collection
+   appear after they hold a position.
+
+Deposit amounts for USDC are in dollars. Approve/deposit buttons say what they are signing.
 
 ## Protocols integrated
 
