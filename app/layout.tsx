@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { AnalyticsBeacon } from '@/components/AnalyticsBeacon';
-import { SiteShell } from '@/components/SiteShell';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/config/site';
 
 export const metadata: Metadata = {
@@ -39,10 +37,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-paper text-ink font-sans pb-20 md:pb-0">
-        <AnalyticsBeacon />
-        <SiteShell>{children}</SiteShell>
-      </body>
+      <body className="min-h-screen bg-paper text-ink font-sans">{children}</body>
     </html>
   );
 }
