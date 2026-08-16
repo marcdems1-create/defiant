@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useAccount } from 'wagmi';
 import { useOpportunities } from '@/lib/hooks/useOpportunities';
 import { usePositions } from '@/lib/hooks/usePositions';
@@ -102,9 +101,6 @@ export default function CollectionPage() {
         <section>
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="text-lg font-medium">Start here</h2>
-            <Link href="/opportunities" className="text-xs text-accent hover:underline">
-              See all yields →
-            </Link>
           </div>
           <p className="text-sm text-ink/50 mb-4 max-w-xl">
             USDC on {starter.protocolLabel} — a first path so you are not picking among every
@@ -118,10 +114,7 @@ export default function CollectionPage() {
 
       <section>
         <div className="flex items-baseline justify-between mb-4">
-          <h2 className="text-lg font-medium">{firstRun ? 'All yields' : 'Collection'}</h2>
-          <Link href="/opportunities" className="text-xs text-accent hover:underline">
-            Full list →
-          </Link>
+          <h2 className="text-lg font-medium">Collection</h2>
         </div>
 
         <OpportunityFilters

@@ -13,9 +13,6 @@ export function NavBar() {
         <Link href="/" className="text-ink/70 hover:text-ink transition-colors">
           Collection
         </Link>
-        <Link href="/opportunities" className="text-ink/70 hover:text-ink transition-colors">
-          All yields
-        </Link>
         <Link href="/dashboard" className="text-ink/70 hover:text-ink transition-colors">
           Dashboard
         </Link>

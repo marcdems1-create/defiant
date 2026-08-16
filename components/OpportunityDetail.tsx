@@ -21,10 +21,10 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
     <>
       <div className="max-w-2xl mx-auto">
         <Link
-          href="/opportunities"
+          href="/"
           className="inline-flex items-center gap-1.5 text-sm text-ink/50 hover:text-accent transition-colors mb-6"
         >
-          <span aria-hidden>←</span> Back to opportunities
+          <span aria-hidden>←</span> Back to collection
         </Link>
 
         <article
