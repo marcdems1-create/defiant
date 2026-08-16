@@ -2,40 +2,36 @@ import { base, arbitrum, mainnet, sepolia, baseSepolia, arbitrumSepolia } from '
 import { NETWORK_MODE } from '@/lib/wagmi';
 import type { Opportunity } from '@/lib/protocols/types';
 
-export type ChainFilter = 'all' | 'base' | 'arbitrum' | 'ethereum' | 'other';
-export type RiskFilter = 'all' | 'established' | 'emerging';
+export type ChainFilter = 'all' | 'base' | 'arbitrum' | 'ethereum';
 export type AssetFilter = 'all' | string;
+export type SortFilter = 'apy-desc' | 'apy-asc';
 
 export interface OpportunityFilterState {
   chain: ChainFilter;
-  risk: RiskFilter;
   asset: AssetFilter;
+  sort: SortFilter;
 }
 
 export const DEFAULT_OPPORTUNITY_FILTERS: OpportunityFilterState = {
   chain: 'all',
-  risk: 'all',
   asset: 'all',
+  sort: 'apy-desc',
 };
 
 const BASE_CHAIN_ID = NETWORK_MODE === 'mainnet' ? base.id : baseSepolia.id;
 const ARBITRUM_CHAIN_ID = NETWORK_MODE === 'mainnet' ? arbitrum.id : arbitrumSepolia.id;
 const ETHEREUM_CHAIN_ID = NETWORK_MODE === 'mainnet' ? mainnet.id : sepolia.id;
-const L2_CHAIN_IDS = new Set<number>([BASE_CHAIN_ID, ARBITRUM_CHAIN_ID]);
 
 function matchesChain(chainId: number, filter: ChainFilter): boolean {
   if (filter === 'all') return true;
   if (filter === 'base') return chainId === BASE_CHAIN_ID;
   if (filter === 'arbitrum') return chainId === ARBITRUM_CHAIN_ID;
   if (filter === 'ethereum') return chainId === ETHEREUM_CHAIN_ID;
-  if (filter === 'other') return !L2_CHAIN_IDS.has(chainId) && chainId !== ETHEREUM_CHAIN_ID;
   return true;
 }
 
 export function hasActiveOpportunityFilters(filters: OpportunityFilterState): boolean {
-  return (
-    filters.chain !== 'all' || filters.risk !== 'all' || filters.asset !== 'all'
-  );
+  return filters.chain !== 'all' || filters.asset !== 'all' || filters.sort !== 'apy-desc';
 }
 
 /** Unique asset symbols present in the list, USDC/ETH first then alphabetical. */
@@ -54,40 +50,38 @@ export function assetFilterOptions(opportunities: Opportunity[]): string[] {
   });
 }
 
+const CHAIN_DEFS: { id: Exclude<ChainFilter, 'all'>; label: string; chainId: number }[] = [
+  { id: 'base', label: 'Base', chainId: BASE_CHAIN_ID },
+  { id: 'arbitrum', label: 'Arbitrum', chainId: ARBITRUM_CHAIN_ID },
+  { id: 'ethereum', label: 'Ethereum', chainId: ETHEREUM_CHAIN_ID },
+];
+
+/** Chain pills that actually appear in the current catalog — no empty Other. */
+export function chainFilterOptions(
+  opportunities: Opportunity[],
+): { id: ChainFilter; label: string }[] {
+  const present = new Set<number>(opportunities.map((o) => o.chainId));
+  const chains = CHAIN_DEFS.filter((c) => present.has(c.chainId));
+  if (chains.length <= 1) return [];
+  return [{ id: 'all', label: 'All' }, ...chains.map(({ id, label }) => ({ id, label }))];
+}
+
+export const SORT_FILTER_OPTIONS: { id: SortFilter; label: string }[] = [
+  { id: 'apy-desc', label: 'Yield high → low' },
+  { id: 'apy-asc', label: 'Yield low → high' },
+];
+
 export function filterOpportunities(
   opportunities: Opportunity[],
   filters: OpportunityFilterState,
-  options?: { sortL2First?: boolean },
 ): Opportunity[] {
-  let list = opportunities.filter((o) => {
+  const list = opportunities.filter((o) => {
     if (!matchesChain(o.chainId, filters.chain)) return false;
-    if (filters.risk !== 'all' && o.riskTier !== filters.risk) return false;
     if (filters.asset !== 'all' && o.asset.symbol !== filters.asset) return false;
     return true;
   });
 
-  if (options?.sortL2First && filters.chain === 'all') {
-    list = [...list].sort((a, b) => {
-      const aL2 = L2_CHAIN_IDS.has(a.chainId) ? 0 : 1;
-      const bL2 = L2_CHAIN_IDS.has(b.chainId) ? 0 : 1;
-      if (aL2 !== bL2) return aL2 - bL2;
-      return b.apy - a.apy;
-    });
-  }
-
-  return list;
+  return [...list].sort((a, b) =>
+    filters.sort === 'apy-asc' ? a.apy - b.apy : b.apy - a.apy,
+  );
 }
-
-export const CHAIN_FILTER_OPTIONS: { id: ChainFilter; label: string }[] = [
-  { id: 'all', label: 'All chains' },
-  { id: 'base', label: 'Base' },
-  { id: 'arbitrum', label: 'Arbitrum' },
-  { id: 'ethereum', label: NETWORK_MODE === 'mainnet' ? 'Ethereum' : 'Sepolia' },
-  { id: 'other', label: 'Other' },
-];
-
-export const RISK_FILTER_OPTIONS: { id: RiskFilter; label: string }[] = [
-  { id: 'all', label: 'All risk' },
-  { id: 'established', label: 'Established' },
-  { id: 'emerging', label: 'Emerging' },
-];
