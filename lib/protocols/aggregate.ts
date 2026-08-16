@@ -9,6 +9,7 @@ import { fetchCompoundOpportunities } from './compound';
 import { fetchMorphoOpportunities } from './morpho';
 import { fetchFluidOpportunities } from './fluid';
 import { fetchMoonwellOpportunities } from './moonwell';
+import { fetchSparkOpportunities } from './spark';
 import type { Opportunity } from './types';
 
 export async function fetchAllOpportunities(): Promise<Opportunity[]> {
@@ -25,6 +26,7 @@ export async function fetchAllOpportunities(): Promise<Opportunity[]> {
         morpho,
         fluid,
         moonwell,
+        spark,
       ] = await Promise.all([
         fetchAaveOpportunities(chain.id).catch(() => []),
         fetchLidoOpportunities(chain.id).catch(() => []),
@@ -36,6 +38,7 @@ export async function fetchAllOpportunities(): Promise<Opportunity[]> {
         fetchMorphoOpportunities(chain.id).catch(() => []),
         fetchFluidOpportunities(chain.id).catch(() => []),
         fetchMoonwellOpportunities(chain.id).catch(() => []),
+        fetchSparkOpportunities(chain.id).catch(() => []),
       ]);
       return [
         ...aave,
@@ -48,6 +51,7 @@ export async function fetchAllOpportunities(): Promise<Opportunity[]> {
         ...morpho,
         ...fluid,
         ...moonwell,
+        ...spark,
       ];
     }),
   );

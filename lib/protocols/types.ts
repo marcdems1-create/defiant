@@ -10,7 +10,8 @@ export type ProtocolId =
   | 'compound-v3'
   | 'morpho'
   | 'fluid'
-  | 'moonwell';
+  | 'moonwell'
+  | 'spark-susds';
 
 export interface Opportunity {
   id: string;

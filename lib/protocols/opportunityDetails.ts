@@ -21,6 +21,7 @@ export const PROTOCOL_TINT: Record<ProtocolId, string> = {
   morpho: 'from-cyan-500/20 via-cyan-500/5 to-transparent',
   fluid: 'from-indigo-500/20 via-indigo-500/5 to-transparent',
   moonwell: 'from-lime-500/20 via-lime-500/5 to-transparent',
+  'spark-susds': 'from-green-500/20 via-green-500/5 to-transparent',
 };
 
 const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
@@ -176,6 +177,22 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
     docsUrl: 'https://docs.moonwell.fi/',
     docsLabel: 'Moonwell documentation',
     withdrawalNote: 'Withdraw underlying USDC anytime, subject to pool liquidity.',
+  },
+  'spark-susds': {
+    howYieldWorks:
+      'Your USDC is swapped into sUSDS through the Spark PSM — a single transaction with no slippage or fees beyond gas. sUSDS is a savings token that steadily rises in value at the Sky Savings Rate (set by Sky governance, backed by a diversified reserve). You hold sUSDS; its price against USDC grows over time, and you swap back to USDC whenever you want.',
+    risks: [
+      'Smart contract risk in the Spark PSM and the sUSDS / Sky Savings contracts.',
+      'Stablecoin / peg risk — sUSDS is backed by USDS, which depends on Sky\'s reserves and peg mechanisms.',
+      'Rate risk — the Sky Savings Rate is set by governance and can change.',
+      'PSM liquidity — very large redemptions depend on USDC liquidity available in the PSM at that moment.',
+    ],
+    coolDetail:
+      'Sky is the protocol formerly known as MakerDAO — the team behind DAI, one of the oldest and most battle-tested stablecoin systems in DeFi. sUSDS is its native savings rate, made reachable from plain USDC on L2s via the Spark PSM.',
+    docsUrl: 'https://docs.spark.fi/',
+    docsLabel: 'Spark / Sky documentation',
+    withdrawalNote:
+      'Swap sUSDS back to USDC anytime through the Spark PSM — no lockup, no slippage or fees beyond gas.',
   },
 };
 

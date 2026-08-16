@@ -297,3 +297,35 @@ export const MOONWELL = {
     mUSDC: '0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22' as `0x${string}`,
   },
 } as const;
+
+/**
+ * Spark PSM3 — swaps USDC <-> sUSDS in a single call (no slippage/fees beyond
+ * gas), so a USDC holder can enter/exit the Sky Savings Rate start-to-finish
+ * without holding USDS or touching a DEX. sUSDS is a value-accruing ERC-20 on
+ * L2 (yield shows up as its price rising vs USDC), redeemable back to USDC
+ * through the same PSM.
+ *
+ * Every address below was verified DIRECTLY on-chain on 2026-08-16 by reading
+ * the PSM3 contract's own usdc()/usds()/susds() getters (the authoritative
+ * source — these are exactly the token addresses the PSM will pull/push), and
+ * a live previewSwapExactIn round-trip (1000 USDC -> sUSDS -> ~1000 USDC)
+ * confirmed both directions quote cleanly. PSM3 addresses are from Spark's
+ * docs (https://docs.spark.fi/dev/savings/spark-psm) and match the deployed
+ * contracts queried above. USDC matches the AAVE_V3 entries for each chain.
+ */
+export const SPARK_PSM: Partial<
+  Record<number, { psm: `0x${string}`; usdc: `0x${string}`; usds: `0x${string}`; susds: `0x${string}` }>
+> = {
+  [base.id]: {
+    psm: '0x1601843c5E9bC251A3272907010AFa41Fa18347E',
+    usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    usds: '0x820C137fa70C8691f0e44Dc420a5e53c168921Dc',
+    susds: '0x5875eEE11Cf8398102FdAd704C9E96607675467a',
+  },
+  [arbitrum.id]: {
+    psm: '0x2B05F8e1cACC6974fD79A673a341Fe1f58d27266',
+    usdc: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    usds: '0x6491c05A82219b8D1479057361ff1654749b876b',
+    susds: '0xdDb46999F8891663a8F2828d25298f70416d7610',
+  },
+};

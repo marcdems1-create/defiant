@@ -9,6 +9,7 @@ import { erc20Abi } from '@/lib/abi/erc20';
 import { aavePoolAbi } from '@/lib/abi/aavePool';
 import { erc4626Abi } from '@/lib/abi/erc4626';
 import { curvePoolAbi2Coin, curvePoolAbi3Coin, curvePoolAbiNg } from '@/lib/abi/curvePool';
+import { sparkPsmAbi } from '@/lib/abi/sparkPsm';
 import { stEthAbi, lidoWithdrawalQueueAbi } from '@/lib/abi/lido';
 import { crvDepositorAbi, cvxCrvRewardsAbi } from '@/lib/abi/convex';
 import { compoundCometAbi } from '@/lib/abi/compoundComet';
@@ -49,6 +50,10 @@ export function DepositWithdrawModal({
   const isNativeDeposit = opportunity.protocol === 'lido';
   const isCurve = opportunity.protocol === 'curve';
   const isConvex = opportunity.protocol === 'convex-cvxcrv';
+  // Sky Savings (sUSDS) via the Spark PSM: USDC <-> sUSDS in a single
+  // swapExactIn call (no slippage/fees beyond gas). Deposit token is USDC
+  // (asset), position is sUSDS (positionToken), and the PSM is depositTarget.
+  const isSpark = opportunity.protocol === 'spark-susds';
   // Lido withdrawal fee is charged at claim time (funds aren't in the
   // wallet yet at request time) — see LidoWithdrawalRequests.
   const feeAppliesHere = feesEnabled() && !(opportunity.protocol === 'lido' && tab === 'withdraw');
@@ -151,6 +156,29 @@ export function DepositWithdrawModal({
   const curveMinOut = (preview: bigint | undefined) =>
     preview ? (preview * (10_000n - CURVE_SLIPPAGE_BPS)) / 10_000n : 0n;
 
+  // Spark PSM (sUSDS): like Curve, the withdraw tab enters sUSDS (18 decimals),
+  // not USDC — so preview the USDC the PSM will return, both to base the fee on
+  // real USDC out and to carry a min-out on the swap. The PSM is fixed-rate
+  // (no AMM slippage); the 1% tolerance only guards against the savings rate
+  // ticking between preview and mining.
+  const sparkWithdrawPreview = useReadContract({
+    address: opportunity.depositTarget,
+    abi: sparkPsmAbi,
+    functionName: 'previewSwapExactIn',
+    args: [opportunity.positionToken ?? NULL_ADDRESS, opportunity.asset.address, amountBig],
+    chainId: opportunity.chainId,
+    query: { enabled: isSpark && tab === 'withdraw' && amountBig > 0n },
+  });
+  // sUSDS must be approved to the PSM before a withdraw swap (the PSM pulls it
+  // via transferFrom). The shared `allowance` hook is scoped to the deposit
+  // side (USDC -> PSM), so the withdraw side needs its own read.
+  const sparkWithdrawAllowance = useErc20Allowance(
+    isSpark ? opportunity.positionToken : undefined,
+    address,
+    opportunity.depositTarget,
+    opportunity.chainId,
+  );
+
   const feeBps = tab === 'deposit' ? DEPOSIT_FEE_BPS : WITHDRAW_FEE_BPS;
   // For a Curve withdrawal, amountBig is LP shares (18 decimals, not 1:1
   // with USDC) — the fee must be computed on the previewed USDC output
@@ -158,7 +186,11 @@ export function DepositWithdrawModal({
   // Aave/Yearn keep using amountBig directly: their share/aToken amounts
   // are a close enough proxy for the underlying that this is fine there.
   const feeBasisAmount =
-    isCurve && tab === 'withdraw' ? ((curveWithdrawPreview.data as bigint | undefined) ?? 0n) : amountBig;
+    tab === 'withdraw' && isCurve
+      ? ((curveWithdrawPreview.data as bigint | undefined) ?? 0n)
+      : tab === 'withdraw' && isSpark
+        ? ((sparkWithdrawPreview.data as bigint | undefined) ?? 0n)
+        : amountBig;
   const feeAmount = feeAppliesHere ? computeFee(feeBasisAmount, feeBps) : 0n;
   // Deposit: fee comes out of what you send in, so less reaches the protocol.
   // Withdraw: the protocol pays out the full gross amount first, then the
@@ -193,6 +225,16 @@ export function DepositWithdrawModal({
     args: [curveAmountsDynamic(netAmount), true],
     chainId: opportunity.chainId,
     query: { enabled: isCurve && curveDynamic && tab === 'deposit' && netAmount > 0n },
+  });
+  // Spark deposit: preview how much sUSDS `netAmount` USDC buys through the PSM,
+  // so the swap can carry a real min-out.
+  const sparkDepositPreview = useReadContract({
+    address: opportunity.depositTarget,
+    abi: sparkPsmAbi,
+    functionName: 'previewSwapExactIn',
+    args: [opportunity.asset.address, opportunity.positionToken ?? NULL_ADDRESS, netAmount],
+    chainId: opportunity.chainId,
+    query: { enabled: isSpark && tab === 'deposit' && netAmount > 0n },
   });
   const curveDepositPreviewData = (
     curveDynamic
@@ -256,10 +298,10 @@ export function DepositWithdrawModal({
         return;
       }
 
-      // Aave, Yearn, and Curve: ERC-20 approve for the exact net deposit
-      // amount, then act. Deliberately not an unbounded approval — scoped
-      // to this deposit only, and scoped to the post-fee amount since
-      // that's all that actually reaches the protocol.
+      // Aave, Yearn, Curve, and Spark (USDC -> PSM): ERC-20 approve for the
+      // exact net deposit amount, then act. Deliberately not an unbounded
+      // approval — scoped to this deposit only, and to the post-fee amount
+      // since that's all that actually reaches the protocol.
       if (allowanceValue < netAmount) {
         setStep('approving');
         const approveHash = await writeContractAsync({
@@ -313,6 +355,17 @@ export function DepositWithdrawModal({
           });
           await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         }
+      } else if (isSpark) {
+        // USDC -> sUSDS in one PSM swap; min-out from the previewed sUSDS.
+        const minOut = curveMinOut(sparkDepositPreview.data as bigint | undefined);
+        const hash = await writeContractAsync({
+          address: opportunity.depositTarget,
+          abi: sparkPsmAbi,
+          functionName: 'swapExactIn',
+          args: [opportunity.asset.address, opportunity.positionToken!, netAmount, minOut, address, 0n],
+          chainId: opportunity.chainId,
+        });
+        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'compound-v3') {
         const hash = await writeContractAsync({
           address: opportunity.depositTarget,
@@ -433,6 +486,32 @@ export function DepositWithdrawModal({
           abi: curvePoolAbi2Coin,
           functionName: 'remove_liquidity_one_coin',
           args: [amountBig, curveCoinIndex, minReceived],
+          chainId: opportunity.chainId,
+        });
+        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+      } else if (isSpark) {
+        // sUSDS -> USDC through the PSM. The PSM pulls sUSDS via transferFrom,
+        // so approve it first (only if the live allowance is short).
+        const susdsAllowance = (sparkWithdrawAllowance.data as bigint | undefined) ?? 0n;
+        if (susdsAllowance < amountBig) {
+          setStep('approving');
+          const approveHash = await writeContractAsync({
+            address: opportunity.positionToken!,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [opportunity.depositTarget, amountBig],
+            chainId: opportunity.chainId,
+          });
+          await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
+          await sparkWithdrawAllowance.refetch();
+        }
+        setStep('acting');
+        const minReceived = curveMinOut(sparkWithdrawPreview.data as bigint | undefined);
+        const hash = await writeContractAsync({
+          address: opportunity.depositTarget,
+          abi: sparkPsmAbi,
+          functionName: 'swapExactIn',
+          args: [opportunity.positionToken!, opportunity.asset.address, amountBig, minReceived, address, 0n],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });

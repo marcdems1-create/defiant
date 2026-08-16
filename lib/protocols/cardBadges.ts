@@ -45,6 +45,7 @@ export function getCardBadges(opportunity: Opportunity): CardBadges {
     opportunity.protocol === 'compound-v3' ||
     opportunity.protocol === 'lido' ||
     opportunity.protocol === 'curve' ||
+    opportunity.protocol === 'spark-susds' ||
     (opportunity.protocol === 'morpho' &&
       !opportunity.protocolLabel.toLowerCase().includes('high yield'));
 
