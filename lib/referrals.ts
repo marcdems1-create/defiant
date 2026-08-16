@@ -72,13 +72,14 @@ export interface ReferralTier {
 
 /**
  * Rank ladder. Thresholds are intentionally gentle for an early program and
- * are trivial to tune. Recruit is the starting rank (min 0).
+ * are trivial to tune. Names are deliberately friendly and gender-neutral
+ * (avoiding militaristic connotations). Starter is the starting rank (min 0).
  */
 export const REFERRAL_TIERS: ReferralTier[] = [
-  { key: 'recruit', name: 'Recruit', min: 0, color: '#B87333', blurb: 'Just getting started.' },
-  { key: 'ally', name: 'Ally', min: 1, color: '#AEB6BF', blurb: 'First friend on board.' },
-  { key: 'vanguard', name: 'Vanguard', min: 5, color: '#E9B949', blurb: 'Building a crew.' },
-  { key: 'legend', name: 'Legend', min: 15, color: '#8BE9FD', blurb: 'Defiant royalty.' },
+  { key: 'starter', name: 'Starter', min: 0, color: '#B87333', blurb: 'Just getting started.' },
+  { key: 'connector', name: 'Connector', min: 1, color: '#AEB6BF', blurb: 'First friend on board.' },
+  { key: 'builder', name: 'Builder', min: 5, color: '#E9B949', blurb: 'Growing your circle.' },
+  { key: 'luminary', name: 'Luminary', min: 15, color: '#8BE9FD', blurb: 'Lighting the way.' },
 ];
 
 export interface TierProgress {
