@@ -13,7 +13,6 @@ interface Stats {
     visitors7d: number;
     deposits7d: number;
     connects7d: number;
-    questionnaire: number;
   };
   days?: { day: string; views: number; visitors: number }[];
   events?: { event: string; n: number }[];
@@ -116,11 +115,6 @@ export default function AdminPage() {
               label="Deposits confirmed · 7d"
               value={String(stats.totals.deposits7d)}
               sub="Client reported tx confirmed"
-            />
-            <StatCard
-              label="Questionnaire saves"
-              value={String(stats.totals.questionnaire)}
-              sub="Opt-in + signature only"
             />
           </section>
 

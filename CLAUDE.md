@@ -48,27 +48,22 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    "Fees" for the full two-step mechanism. `lib/config/fees.ts`'s `getTreasuryAddress()` must
    keep returning `undefined` (disabling every fee code path) on anything other than a valid,
    non-zero configured address — never add a hardcoded fallback treasury.
-7. **The investment-style questionnaire filters and sorts existing opportunities — it never
-   scores suitability or recommends a specific product or allocation.** That line is what
-   keeps it out of investment-adviser-registration territory (see README "Investment-style
-   filter"). If a future request pushes toward "recommend the best option for me" or a
-   computed risk score, flag the regulatory shift explicitly before building it — don't just
-   extend `applyPreferences()` past a filter/sort function.
-8. **Nothing wallet-linked gets written to the database without an unchecked-by-default consent checkbox
-   AND a valid wallet signature proving ownership of the address the data is attributed to.**
-   `app/api/preferences/route.ts` rejects with 401 on a missing/invalid signature — that check
-   is not optional scaffolding, it's the difference between real consent and a claim anyone
-   could fabricate for anyone else's public address. If a future feature adds another
-   wallet-linked server-side write path, it needs the same two properties (opt-in default
-   state + proof of identity) or an explicit flagged exception, not a silent precedent-break.
-   First-party site analytics (`site_events`) is a flagged exception: anonymous event
-   counts with no wallet, no IP, and no user-agent. See README "Site analytics."
-9. **Wallet-linked personal data exists only on the opt-in questionnaire save path.**
-   Don't add third-party analytics, telemetry, tracking pixels, or any other data collection
-   without surfacing it the same way this one was surfaced — as a decision with real
-   privacy-law weight, not a routine addition. See README "Data collection" (questionnaire)
-   and "Site analytics" (anonymous first-party events). What's still missing before either
-   store faces real users: privacy policy, retention policy, deletion mechanism.
+7. **Do not add a questionnaire, suitability score, or “best option for you.”** Browse
+   filters only hide/reorder the existing catalog. That line is what keeps this out of
+   investment-adviser-registration territory. If a future request pushes toward scored
+   recommendations or allocation percentages, flag the regulatory shift explicitly before
+   building it.
+8. **Nothing wallet-linked gets written to the database without an unchecked-by-default
+   consent checkbox AND a valid wallet signature proving ownership of the address the data
+   is attributed to.** There is currently no wallet-linked write path (the questionnaire
+   save was removed). First-party site analytics (`site_events`) is anonymous: no wallet,
+   no IP, no user-agent. See README "Site analytics." If a future feature stores anything
+   against an address, it needs those two properties — not a silent add.
+9. **This app does not collect wallet-linked personal data.** Don't add third-party
+   analytics, telemetry, tracking pixels, or any other data collection without treating it
+   as a decision with real privacy-law weight. The only optional store is anonymous
+   first-party events. See README "Site analytics." What's still missing before that store
+   faces real users: privacy policy, retention policy, deletion mechanism.
 
 ## ⛔ RainbowKit/wagmi config must stay lazy — do not regress
 
@@ -101,7 +96,7 @@ Rules:
   module scope, `npm run build` will fail on `/opportunities` (or wherever imports it) with
   the exact error above. Re-apply the lazy-singleton pattern rather than special-casing routes.
 
-## Current state (2026-08-13, initial build + fees/questionnaire + data collection + Curve same day)
+## Current state (2026-08-13, initial build + fees + Curve; questionnaire later removed)
 
 Scaffolded end-to-end: wallet connect (RainbowKit/wagmi), live opportunity aggregation across
 Aave v3 + Lido + Yearn v3 + Curve (Ethereum/Base/Arbitrum where each protocol is deployed —
@@ -112,22 +107,19 @@ withdrawal queue and Curve's preview-based slippage protection on `add_liquidity
 `remove_liquidity_one_coin` — the only place in the app that does real min-out slippage
 handling, since Curve's pool behaves like a swap unlike Aave/Lido/Yearn's fixed-rate
 mechanics), a deposit/withdrawal fee (0.25%/0.25% default, see README "Fees") taken as a
-separate transfer never skimmed inside a protocol call, an investment-style questionnaire that
-filters/sorts `/opportunities` (never scores or recommends — see README "Investment-style
-filter"), and an opt-in, signature-verified save of the questionnaire answers linked to the
-connected wallet address (README "Data collection"). The Postgres data-collection path is the
-app's only server-side data store; everything else, Curve included, is stateless (on-chain
-reads / protocol public APIs only). `npm run typecheck` and `npm run build` both pass clean,
-including with a treasury address and the Postgres/signature code paths exercised at build
-time. Nothing has been run against a live testnet yet — this was built, typechecked, and
+separate transfer never skimmed inside a protocol call, and a short on-page risk disclosure
+instead of a questionnaire (README "Not advice"). Optional first-party site analytics
+(`site_events`) is the only server-side store; everything else is stateless (on-chain reads /
+protocol public APIs only). `npm run typecheck` and `npm run build` both pass clean.
+Nothing has been run against a live testnet yet — this was built, typechecked, and
 build-verified but not transaction-tested (no browser, no real wallet, no RPC, no live
 Postgres instance in this environment) — and Curve specifically can't be testnet-verified at
 all, since it has no testnet deployment; its first real test will necessarily be against
 mainnet with real funds, so treat it as the least-proven integration in the app until that
 happens. **Before trusting any of the transaction flows with real value, run each
 deposit/withdraw path end-to-end on the default testnet config first (Curve excepted, per
-above — review its code path with extra care instead). Before enabling the data-collection
-opt-in for real users, get the privacy/compliance review — see below.**
+above — review its code path with extra care instead). Before enabling site analytics for
+real users, get the privacy/compliance review — see below.**
 
 Known gaps, detailed in `README.md`'s "Known simplifications" section:
 - Yearn's yDaemon API response shape (`apr.forwardAPR.netAPR` etc.) is unverified against the
@@ -157,14 +149,12 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
 - **The two-step fee flow has no partial-failure recovery** (fee transfer succeeds, main
   action then fails, or vice versa) — surfaces the error, no auto-refund/resume. Untested
   against a live RPC, same as everything else here.
-- **Data collection defaults to off too** — `DATABASE_URL` is unset, so the opt-in save path
-  and first-party site analytics both no-op until it's configured and
-  `migrations/001_questionnaire_responses.sql` + `migrations/002_site_analytics.sql` have
-  been run. `/admin` stays disabled until `ADMIN_PASSWORD` is set.
-- **No privacy policy, retention policy, or deletion mechanism** for the saved questionnaire
-  data (or the anonymous event table) yet — see non-negotiable #9 and README "Data collection"
-  / "Site analytics." This is the actual blocker before turning either store on for real
-  users, not a nice-to-have.
+- **Site analytics defaults to off** — `DATABASE_URL` is unset, so first-party events no-op
+  until it's configured and `migrations/002_site_analytics.sql` has been run. `/admin` stays
+  disabled until `ADMIN_PASSWORD` is set.
+- **No privacy policy, retention policy, or deletion mechanism** for the anonymous event
+  table yet — see non-negotiable #9 and README "Site analytics." This is the actual blocker
+  before turning analytics on for real users, not a nice-to-have.
 
 ## What to build next (not started, in rough priority order)
 
@@ -183,10 +173,10 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
    Do not add jurisdiction-specific marketing copy, "safe", "guaranteed", or any
    deposit-insurance-adjacent language (FDIC, CDIC, FSCS, etc.) anywhere without that review
    happening first. This now also covers the fee model (money-transmitter-adjacent in some
-   readings once real fees flow), the questionnaire (stays fine as long as it's filter-only
-   per non-negotiable #7), and — the highest-priority piece of this review now — the
-   wallet-linked data collection (non-negotiable #9): needs a privacy policy, a stated
-   retention period, and a deletion mechanism before it's turned on for anyone real.
+   readings once real fees flow) and first-party site analytics (non-negotiable #9): needs a
+   privacy policy, a stated retention period, and a deletion mechanism before `/admin` is
+   turned on for anyone real. Do not re-add a questionnaire or scored recommendation
+   (non-negotiable #7).
 5. Risk context per opportunity (protocol TVL, audit status, Aave utilization rate) — an APY
    number with zero risk context is a half-honest product.
 

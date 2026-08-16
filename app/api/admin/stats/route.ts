@@ -25,7 +25,7 @@ export async function GET() {
   }
 
   try {
-    const [days, events, paths, cards, questionnaire, views24h, views7d, views30d, visitors7d, deposits7d, connects7d] =
+    const [days, events, paths, cards, views24h, views7d, views30d, visitors7d, deposits7d, connects7d] =
       await Promise.all([
         pool.query<DayRow>(
           `SELECT date_trunc('day', occurred_at) AS day,
@@ -61,9 +61,6 @@ export async function GET() {
            ORDER BY opens DESC
            LIMIT 12`,
         ),
-        pool
-          .query<CountRow>(`SELECT count(*) AS n FROM questionnaire_responses`)
-          .catch((): { rows: CountRow[] } => ({ rows: [{ n: 0 }] })),
         pool.query<CountRow>(
           `SELECT count(*) AS n FROM site_events WHERE event = 'page_view' AND occurred_at > now() - interval '1 day'`,
         ),
@@ -93,7 +90,6 @@ export async function GET() {
         visitors7d: num(visitors7d.rows[0]?.n),
         deposits7d: num(deposits7d.rows[0]?.n),
         connects7d: num(connects7d.rows[0]?.n),
-        questionnaire: num(questionnaire.rows[0]?.n),
       },
       days: days.rows.map((row) => ({
         day: typeof row.day === 'string' ? row.day : row.day.toISOString(),
