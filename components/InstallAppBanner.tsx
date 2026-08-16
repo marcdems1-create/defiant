@@ -31,7 +31,7 @@ export function InstallAppBanner() {
   if (deferred) {
     return (
       <div className="rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 flex items-center justify-between gap-3 text-sm">
-        <span className="text-ink/80">Install Defiant on your home screen</span>
+        <span className="text-ink/80">Install Openhand on your home screen</span>
         <div className="flex gap-2 shrink-0">
           <button
             type="button"

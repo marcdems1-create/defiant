@@ -1,10 +1,10 @@
-# DEFIANT — Claude Session Memory
+# OPENHAND — Claude Session Memory
 
 > Read this before touching anything in this repo.
 
 ## What this is
 
-**Defiant is a non-custodial DeFi yield interface for a global audience.** Connect your
+**Openhand (formerly Defiant) is a non-custodial DeFi yield interface for a global audience.** Connect your
 own wallet, compare live on-chain yield across Aave v3, Lido, and Yearn v3, deposit or
 withdraw with transactions you sign yourself. The app never holds funds — no pooled
 contract, no admin key, no custody. See `README.md` for the full rationale and regulatory

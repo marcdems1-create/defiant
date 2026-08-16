@@ -15,14 +15,14 @@ const Providers = dynamic(() => import('./providers').then((m) => m.Providers), 
 });
 
 export const metadata: Metadata = {
-  title: 'Defiant — non-custodial DeFi yield',
+  title: 'Openhand — non-custodial DeFi yield',
   description:
-    'Connect your own wallet, compare on-chain USDC yield on Base and Arbitrum, deposit and withdraw with your own keys. Defiant never holds your funds.',
-  applicationName: 'Defiant',
+    'Connect your own wallet, compare on-chain USDC yield on Base and Arbitrum, deposit and withdraw with your own keys. Openhand never holds your funds.',
+  applicationName: 'Openhand',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Defiant',
+    title: 'Openhand',
   },
   icons: {
     icon: '/icons/icon.svg',

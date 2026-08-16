@@ -6,8 +6,8 @@ export interface InvestmentPreferences {
   priority: 'yield' | 'risk';
 }
 
-const STORAGE_KEY = 'defiant:preferences:v1';
-const SKIPPED_KEY = 'defiant:preferences:skipped:v1';
+const STORAGE_KEY = 'openhand:preferences:v1';
+const SKIPPED_KEY = 'openhand:preferences:skipped:v1';
 
 /**
  * Fixed message the wallet signs to prove it owns the address a saved
@@ -18,7 +18,7 @@ const SKIPPED_KEY = 'defiant:preferences:skipped:v1';
  * both at once.
  */
 export const CONSENT_MESSAGE =
-  'I authorize Defiant to store these browse filter settings for the connected wallet address. Defiant may use them to improve the product and may send relevant updates.';
+  'I authorize Openhand to store these browse filter settings for the connected wallet address. Openhand may use them to improve the product and may send relevant updates.';
 
 export function wasSkipped(): boolean {
   if (typeof window === 'undefined') return false;

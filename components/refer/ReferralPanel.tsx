@@ -80,7 +80,7 @@ export function ReferralPanel() {
     <div className="max-w-xl mx-auto">
       <h1 className="text-2xl font-semibold mb-1">Refer &amp; rank up</h1>
       <p className="text-sm text-ink/50 mb-6">
-        Invite friends to Defiant. Every friend who joins with your link climbs your rank.
+        Invite friends to Openhand. Every friend who joins with your link climbs your rank.
       </p>
 
       {!address ? (
@@ -118,7 +118,7 @@ export function ReferralPanel() {
             <div>
               <div className="text-sm font-medium">Perk: fee-free deposits</div>
               <div className="text-xs text-ink/50">
-                Referred crew skip Defiant&apos;s deposit fee. Activates when fees launch —
+                Referred crew skip Openhand&apos;s deposit fee. Activates when fees launch —
                 your rank is banking progress in the meantime.
               </div>
             </div>

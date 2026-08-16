@@ -129,7 +129,7 @@ export function InvestmentStyleQuestionnaire({
               className="mt-0.5"
             />
             <span>
-              Save these filter settings to the connected wallet address so Defiant can
+              Save these filter settings to the connected wallet address so Openhand can
               improve the product and may send relevant updates. Requires a free wallet
               signature — no transaction, no gas. Leave unchecked to apply filters locally
               only.

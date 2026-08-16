@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Defiant — DeFi yield cards',
-    short_name: 'Defiant',
+    name: 'Openhand — DeFi yield cards',
+    short_name: 'Openhand',
     description:
       'Compare USDC yield on Base and Arbitrum. Connect your wallet, deposit and withdraw yourself.',
     start_url: '/',

@@ -1,8 +1,8 @@
-# Defiant
+# Openhand
 
 A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
 across Aave v3, Lido, Yearn v3, and Curve, and deposit or withdraw with transactions you sign
-yourself. Defiant never takes custody of user funds — there is no pooled contract, no admin
+yourself. Openhand never takes custody of user funds — there is no pooled contract, no admin
 key, no path for the app itself to move anyone's money.
 
 > **Naming note:** this is deliberately *not* marketed as a "savings app" anywhere in the

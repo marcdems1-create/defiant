@@ -51,8 +51,8 @@ export function getWagmiConfig() {
   );
 
   _wagmiConfig = buildConfig({
-    appName: 'Defiant',
-    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'defiant-dev-placeholder',
+    appName: 'Openhand',
+    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'openhand-dev-placeholder',
     chains: chains as unknown as readonly [(typeof chains)[number], ...(typeof chains)[number][]],
     transports,
     ssr: true,

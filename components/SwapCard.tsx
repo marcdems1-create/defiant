@@ -184,7 +184,7 @@ export function SwapCard() {
       </div>
       <p className="text-xs text-ink/50 mb-4">
         Convert between stablecoins and tokens in your own wallet. Routed via 0x across
-        on-chain liquidity — every transaction is signed by you; Defiant never holds funds.
+        on-chain liquidity — every transaction is signed by you; Openhand never holds funds.
       </p>
 
       {!supported ? (

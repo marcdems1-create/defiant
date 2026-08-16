@@ -54,7 +54,7 @@ export function AcceptInviteBanner({
 
   return (
     <div className="border border-accent/40 bg-accent/5 rounded-lg p-4 mb-6">
-      <div className="text-sm font-medium mb-1">You were invited to Defiant 🎉</div>
+      <div className="text-sm font-medium mb-1">You were invited to Openhand 🎉</div>
       <p className="text-xs text-ink/60 mb-3">
         Invited by <span className="font-mono">{short}</span>. Accept to join their crew and
         count toward their referral rank.

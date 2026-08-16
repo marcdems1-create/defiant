@@ -25,10 +25,10 @@ const WALLET_RE = /^0x[a-fA-F0-9]{40}$/;
  * (app/api/referrals/route.ts) — change both at once if ever edited.
  */
 export const REFERRAL_CONSENT_MESSAGE =
-  'I authorize Defiant to record that this wallet address joined via a referral link, linked to the referring wallet address. Defiant may use this to attribute referrals and unlock referral perks.';
+  'I authorize Openhand to record that this wallet address joined via a referral link, linked to the referring wallet address. Openhand may use this to attribute referrals and unlock referral perks.';
 
-const REF_CODE_KEY = 'defiant:referral:pending-code:v1';
-const SEEN_TIER_KEY = 'defiant:referral:seen-tier:v1';
+const REF_CODE_KEY = 'openhand:referral:pending-code:v1';
+const SEEN_TIER_KEY = 'openhand:referral:seen-tier:v1';
 
 export function isWalletAddress(value: string | null | undefined): value is `0x${string}` {
   return typeof value === 'string' && WALLET_RE.test(value);
@@ -56,7 +56,7 @@ export function buildReferralLink(referrer: string): string {
   const origin =
     typeof window !== 'undefined' && window.location?.origin
       ? window.location.origin
-      : 'https://defiant.app';
+      : 'https://openhand.app';
   return `${origin}/?ref=${referrer}`;
 }
 
