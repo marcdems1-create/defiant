@@ -2,7 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@privy-io/react-auth', '@privy-io/wagmi'],
-  serverExternalPackages: ['pg'],
   async redirects() {
     return [{ source: '/opportunities', destination: '/', permanent: false }];
   },
