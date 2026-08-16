@@ -23,7 +23,9 @@ import { chains } from '@/lib/wagmi';
 export default function CollectionPage() {
   const { isConnected, address } = useAccount();
   const { data, isLoading, isError } = useOpportunities();
-  const { positions, isLoading: positionsLoading } = usePositions(data);
+  const { positions, isLoading: positionsLoading } = usePositions(data, {
+    catalogLoading: isLoading,
+  });
   const [filters, setFilters] = useState<OpportunityFilterState>(DEFAULT_OPPORTUNITY_FILTERS);
 
   const allCards = data ?? [];

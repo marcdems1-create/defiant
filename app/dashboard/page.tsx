@@ -39,7 +39,9 @@ const PROJECTION_DISCLAIMER =
 export default function DashboardPage() {
   const { isConnected } = useAccount();
   const { data: opportunities, isLoading, isError } = useOpportunities();
-  const { positions, isLoading: positionsLoading } = usePositions(opportunities);
+  const { positions, isLoading: positionsLoading } = usePositions(opportunities, {
+    catalogLoading: isLoading,
+  });
 
   const analytics = useMemo(
     () => computePortfolioAnalytics(positions),
