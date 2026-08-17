@@ -104,7 +104,7 @@ export default function CollectionPage() {
           </div>
           <p className="text-sm text-ink/50 mb-4 max-w-xl">
             USDC on {starter.protocolLabel} — a first path so you are not picking among every
-            market on day one. Not a recommendation.
+            market on day one.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <OpportunityCard opportunity={starter} />

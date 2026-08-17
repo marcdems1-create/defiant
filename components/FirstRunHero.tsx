@@ -45,7 +45,7 @@ export function FirstRunHero({
               : 'Practice mode uses test USDC, not a card purchase. Fund this wallet on the test network, then deposit.')}
           {funded &&
             starter &&
-            `Start with USDC on ${chainName(starter.chainId)} — a first path, not a recommendation. You can browse every yield after this.`}
+            `Start with USDC on ${chainName(starter.chainId)}. You can browse every yield after this.`}
         </p>
       </div>
 
@@ -96,8 +96,26 @@ function Step({
         done ? 'border-accent/40 bg-accent/10' : 'border-border'
       }`}
     >
-      <div className="text-[11px] uppercase tracking-[0.12em] text-ink/40 font-mono">
-        {done ? 'Done' : `Step ${n}`}
+      <div className="text-[11px] uppercase tracking-[0.12em] text-ink/40 font-mono flex items-center gap-1.5">
+        {done ? (
+          <>
+            <svg
+              viewBox="0 0 16 16"
+              className="h-3.5 w-3.5 text-accent"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M3 8.5 6.2 12 13 4.5" />
+            </svg>
+            <span className="sr-only">Complete</span>
+          </>
+        ) : (
+          `Step ${n}`
+        )}
       </div>
       <div className="font-medium mt-0.5">{label}</div>
       <div className="text-xs text-ink/50">{detail}</div>
