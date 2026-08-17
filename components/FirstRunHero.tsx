@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Opportunity } from '@/lib/protocols/types';
-import { chainName, formatApy } from '@/lib/format';
+import { chainName } from '@/lib/format';
 import { ConnectButtonClient } from './ConnectButtonClient';
 import { OnrampModal } from './OnrampModal';
 import { NETWORK_MODE } from '@/lib/wagmi';
@@ -44,15 +44,14 @@ export function FirstRunHero({
               ? `This wallet has no USDC on ${starter ? chainName(starter.chainId) : 'Base'} yet. Buy some with a card, or send USDC in, then deposit.`
               : 'Practice mode uses test USDC, not a card purchase. Fund this wallet on the test network, then deposit.')}
           {funded &&
-            starter &&
-            `Start with USDC on ${chainName(starter.chainId)} — a first path, not a recommendation. You can browse every yield after this.`}
+            'Your USDC is in this wallet. Browse the collection and deposit into any card you choose.'}
         </p>
       </div>
 
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <Step n={1} done={connected} label="Wallet" detail="Email or passkey" />
         <Step n={2} done={funded} label="Add USDC" detail="Card or send in" />
-        <Step n={3} done={false} label="Deposit" detail={starter ? `${starter.protocolLabel} · ${formatApy(starter.apy)}` : 'Pick a card'} />
+        <Step n={3} done={false} label="Deposit" detail="Pick a card" />
       </ol>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -96,8 +95,26 @@ function Step({
         done ? 'border-accent/40 bg-accent/10' : 'border-border'
       }`}
     >
-      <div className="text-[11px] uppercase tracking-[0.12em] text-ink/40 font-mono">
-        {done ? 'Done' : `Step ${n}`}
+      <div className="text-[11px] uppercase tracking-[0.12em] text-ink/40 font-mono flex items-center gap-1.5">
+        {done ? (
+          <>
+            <svg
+              viewBox="0 0 16 16"
+              className="h-3.5 w-3.5 text-accent"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M3 8.5 6.2 12 13 4.5" />
+            </svg>
+            <span className="sr-only">Complete</span>
+          </>
+        ) : (
+          `Step ${n}`
+        )}
       </div>
       <div className="font-medium mt-0.5">{label}</div>
       <div className="text-xs text-ink/50">{detail}</div>

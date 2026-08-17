@@ -2,8 +2,8 @@ import { base, baseSepolia } from 'wagmi/chains';
 import type { Opportunity } from '@/lib/protocols/types';
 
 /**
- * Default first-session card: USDC on Base (or Base Sepolia in testnet).
- * This is a starting path, not a scored recommendation.
+ * Resolve a USDC asset/chain for first-session funding (balance read + buy).
+ * Not a yield pick — do not surface this as a featured opportunity.
  */
 export function pickStarterOpportunity(
   opportunities: Opportunity[],
@@ -12,12 +12,7 @@ export function pickStarterOpportunity(
   const onBase = usdc.filter(
     (o) => o.chainId === base.id || o.chainId === baseSepolia.id,
   );
-  return (
-    onBase.find((o) => o.protocol === 'aave-v3') ??
-    onBase[0] ??
-    usdc[0] ??
-    opportunities[0]
-  );
+  return onBase[0] ?? usdc[0] ?? opportunities[0];
 }
 
 export function isStableDollarAsset(symbol: string, decimals: number): boolean {

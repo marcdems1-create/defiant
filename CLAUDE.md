@@ -48,8 +48,10 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    "Fees" for the full two-step mechanism. `lib/config/fees.ts`'s `getTreasuryAddress()` must
    keep returning `undefined` (disabling every fee code path) on anything other than a valid,
    non-zero configured address — never add a hardcoded fallback treasury.
-7. **Do not add a questionnaire, suitability score, or “best option for you.”** Browse
-   filters only hide/reorder the existing catalog. That line is what keeps this out of
+7. **Do not add a questionnaire, suitability score, “best option for you,” or a featured
+   starter card.** Browse filters only hide/reorder the existing catalog. A single
+   highlighted opportunity is still a recommendation even if the copy says it is not —
+   do not add a “Start here” product. That line is what keeps this out of
    investment-adviser-registration territory. If a future request pushes toward scored
    recommendations or allocation percentages, flag the regulatory shift explicitly before
    building it.
