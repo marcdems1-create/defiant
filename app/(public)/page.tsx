@@ -97,21 +97,6 @@ export default function CollectionPage() {
         </section>
       )}
 
-      {firstRun && starter && (
-        <section>
-          <div className="flex items-baseline justify-between mb-4">
-            <h2 className="text-lg font-medium">Start here</h2>
-          </div>
-          <p className="text-sm text-ink/50 mb-4 max-w-xl">
-            USDC on {starter.protocolLabel} — a first path so you are not picking among every
-            market on day one.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <OpportunityCard opportunity={starter} />
-          </div>
-        </section>
-      )}
-
       <section>
         <div className="flex items-baseline justify-between mb-4">
           <h2 className="text-lg font-medium">Collection</h2>

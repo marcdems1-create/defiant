@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Opportunity } from '@/lib/protocols/types';
-import { chainName, formatApy } from '@/lib/format';
+import { chainName } from '@/lib/format';
 import { ConnectButtonClient } from './ConnectButtonClient';
 import { OnrampModal } from './OnrampModal';
 import { NETWORK_MODE } from '@/lib/wagmi';
@@ -44,15 +44,14 @@ export function FirstRunHero({
               ? `This wallet has no USDC on ${starter ? chainName(starter.chainId) : 'Base'} yet. Buy some with a card, or send USDC in, then deposit.`
               : 'Practice mode uses test USDC, not a card purchase. Fund this wallet on the test network, then deposit.')}
           {funded &&
-            starter &&
-            `Start with USDC on ${chainName(starter.chainId)}. You can browse every yield after this.`}
+            'Your USDC is in this wallet. Browse the collection and deposit into any card you choose.'}
         </p>
       </div>
 
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <Step n={1} done={connected} label="Wallet" detail="Email or passkey" />
         <Step n={2} done={funded} label="Add USDC" detail="Card or send in" />
-        <Step n={3} done={false} label="Deposit" detail={starter ? `${starter.protocolLabel} · ${formatApy(starter.apy)}` : 'Pick a card'} />
+        <Step n={3} done={false} label="Deposit" detail="Pick a card" />
       </ol>
 
       <div className="flex flex-wrap items-center gap-3">

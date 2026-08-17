@@ -80,14 +80,14 @@ treating email login as production-ready.
 
 ## First session
 
-A first-time visitor sees a three-step path, not the full market:
+A first-time visitor sees a three-step path, then the full catalog:
 
 1. **Get started** — email or passkey (Privy). Existing wallets stay behind “Continue with a wallet.”
 2. **Add USDC** — if the wallet is empty, Buy USDC opens Onramper on mainnet (needs
    `NEXT_PUBLIC_ONRAMPER_API_KEY`). Practice / testnet mode does not open a card purchase.
-3. **Start here** — one USDC card on Base (or Base Sepolia). That is a default first path,
-   not a scored recommendation. Filters, the PWA install banner, and the full collection
-   appear after they hold a position.
+3. **Deposit** — browse the collection and pick a card. There is no featured or
+   “start here” opportunity. Highlighting one product is a recommendation even with
+   a disclaimer, so the app does not do it.
 
 Deposit amounts for USDC are in dollars. Approve/deposit buttons say what they are signing.
 
