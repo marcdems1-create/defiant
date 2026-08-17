@@ -426,6 +426,67 @@ export function DepositWithdrawModal({
     }
   }
 
+  // Which protocols' withdraw can be batched (Lido's queue + Convex's reward
+  // unstake keep their own sequential paths).
+  const withdrawBatchable = [
+    'aave-v3',
+    'compound-v3',
+    'moonwell',
+    'curve',
+    'spark-susds',
+    'yearn-v3',
+    'frax-sfrxusd',
+    'morpho',
+    'fluid',
+  ].includes(opportunity.protocol);
+
+  // Encode the withdraw (plus any pre-approval and the trailing fee transfer)
+  // as an ordered call list for batching. Mirrors the sequential switch below.
+  function buildWithdrawCalls(): BatchCall[] {
+    const target = opportunity.depositTarget;
+    const calls: BatchCall[] = [];
+    if (opportunity.protocol === 'aave-v3') {
+      calls.push({ to: target, data: encodeFunctionData({ abi: aavePoolAbi, functionName: 'withdraw', args: [opportunity.asset.address, amountBig, address!] }) });
+    } else if (opportunity.protocol === 'compound-v3') {
+      calls.push({ to: target, data: encodeFunctionData({ abi: compoundCometAbi, functionName: 'withdraw', args: [opportunity.asset.address, amountBig] }) });
+    } else if (opportunity.protocol === 'moonwell') {
+      calls.push({ to: target, data: encodeFunctionData({ abi: moonwellMTokenAbi, functionName: 'redeemUnderlying', args: [amountBig] }) });
+    } else if (isCurve) {
+      const minReceived = curveMinOut(curveWithdrawPreview.data as bigint | undefined);
+      calls.push({ to: target, data: encodeFunctionData({ abi: curvePoolAbi2Coin, functionName: 'remove_liquidity_one_coin', args: [amountBig, curveCoinIndex, minReceived] }) });
+    } else if (isSpark) {
+      const susdsAllowance = (sparkWithdrawAllowance.data as bigint | undefined) ?? 0n;
+      if (susdsAllowance < amountBig) calls.push(approveCall(opportunity.positionToken!, target, amountBig));
+      const minReceived = curveMinOut(sparkWithdrawPreview.data as bigint | undefined);
+      calls.push({ to: target, data: encodeFunctionData({ abi: sparkPsmAbi, functionName: 'swapExactIn', args: [opportunity.positionToken!, opportunity.asset.address, amountBig, minReceived, address!, 0n] }) });
+    } else {
+      // ERC-4626 (yearn/frax/morpho/fluid)
+      calls.push({ to: target, data: encodeFunctionData({ abi: erc4626Abi, functionName: 'redeem', args: [amountBig, address!, address!] }) });
+    }
+    // Withdraw fee: taken from what lands (asset), atomically within the bundle.
+    if (feeAppliesHere && feeAmount > 0n) {
+      const fee = erc20FeeCall(opportunity.asset.address, feeAmount);
+      if (fee) calls.push(fee);
+    }
+    return calls;
+  }
+
+  async function handleBatchedWithdraw(cfg: ReturnType<typeof getWagmiConfig>) {
+    setErrorMsg(null);
+    try {
+      setStep('acting');
+      const txHash = await sendCallsAndWait(cfg, opportunity.chainId, buildWithdrawCalls());
+      if (txHash && feeAmount > 0n && address && refFee.isReferee) {
+        reportReferralFeePaid(address, opportunity.chainId, txHash);
+      }
+      setStep('done');
+      await refreshBalances();
+    } catch (e) {
+      setStep('error');
+      setErrorMsg(e instanceof Error ? e.message : 'Transaction failed');
+    }
+  }
+
   // One-tap zap: pay with USDC, swap to the deposit asset via 0x, then deposit
   // — all wallet-signed, no router contract (non-custodial). Only Convex/Frax
   // set `convertibleFrom`, so the final deposit step handles just those two.
@@ -725,6 +786,14 @@ export function DepositWithdrawModal({
 
   async function handleWithdraw() {
     if (!address || amountBig === 0n) return;
+    // Smart-account wallets: (approve +) withdraw + fee in one confirmation.
+    if (withdrawBatchable) {
+      const cfg = getWagmiConfig();
+      if (await supportsAtomicBatch(cfg, opportunity.chainId)) {
+        await handleBatchedWithdraw(cfg);
+        return;
+      }
+    }
     setErrorMsg(null);
     try {
       if (opportunity.protocol === 'aave-v3') {
