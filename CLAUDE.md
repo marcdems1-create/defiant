@@ -257,3 +257,63 @@ browser, no real wallet, no RPC in this sandbox.
 6. Real compliance review before any mainnet/public launch — unchanged from the original
    list, and now more relevant given the fee-on-conversion feature touches money movement
    even though it stays non-custodial.
+
+## Session update (2026-08-16) — Transak CAD / Interac onramp
+
+Replaced the unused Onramper iframe with Transak for Canadian no-coiners.
+
+- **Why Transak:** FINTRAC-registered, CAD + Interac, no monthly partner fee. MoonPay
+  blocks Canada on every USDC listing we care about (ethereum / base / arbitrum —
+  live `api.moonpay.com/v3/currencies`, `notAllowedCountries: ["CA"]`; MoonPay docs:
+  “Customers in Canada cannot purchase Stablecoins”). Onramper Essentials is $199/mo
+  — not used.
+- **Non-custodial:** `POST /api/onramp/widget` builds a one-shot Transak session locked
+  to the connected wallet (`walletAddress` + `disableWalletAddressForm`). Funds never
+  touch Openhand. Deposit/swap/referral stay on wagmi.
+- **Secrets:** `TRANSAK_API_KEY` + `TRANSAK_API_SECRET` are server-only. The API secret
+  mints a Partner Access Token (cached in memory, ~7 days). Do not put the secret in
+  `NEXT_PUBLIC_*`. Optional `TRANSAK_STAGING=true` for Transak sandbox.
+- **Mainnet only.** Testnet cannot receive real USDC; the modal shows faucet copy instead.
+- **IP:** Transak requires `x-user-ip` for KYC/geo. Forwarded, never stored.
+
+`lib/config/onramper.ts` is deleted. Allowlist `openhand.online` in the Transak dashboard
+and set the two env vars on Vercel before Buy USDC works in production. Transak
+production also needs partner KYB (`https://forms.transak.com/kyb`). Keep the Transak
+dashboard partner fee at 0% — do not stack a markup on Canadian first buys.
+Signup is self-serve at dashboard.transak.com with a **corporate email**
+(`hello@openhand.online`, not Gmail). Staging keys are immediate. Do not wait on
+sales@transak.com for the hosted widget.
+
+## Reown vs Transak — both stay; they are not two onramps
+
+**Use both.** They do different jobs. Do not replace one with the other.
+
+| Piece | What it is | Env |
+|---|---|---|
+| **Reown** | WalletConnect Cloud. How MetaMask / Rainbow / Rabby / the WC QR connect. Privy uses the same project ID for `wallet_connect`. | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` from [cloud.reown.com](https://cloud.reown.com). Allowlist `openhand.online`. |
+| **Privy** | Email / passkey embedded wallet for people with no wallet yet. | `NEXT_PUBLIC_PRIVY_APP_ID` (set to `off` for RainbowKit-only). |
+| **Transak** | CAD / Interac → USDC into the **already-connected** address. Does not create the wallet. | `TRANSAK_API_KEY` + `TRANSAK_API_SECRET` (server-only). |
+
+First-session path: Privy creates a wallet **or** Reown connects an existing one → Transak buys USDC into that address → wagmi signs the deposit.
+
+**Do not turn on Reown AppKit’s bundled onramp** (`features.onramp`, Coinbase Pay / Meld). That is a different product from WalletConnect Cloud. It would fight Transak, typically means swapping RainbowKit/wagmi for AppKit (do not regress the lazy `getWagmiConfig()` rule), and Coinbase Onramp in Canada is **card-only** — no Interac.
+
+**Do not use Privy’s `useFiatOnramp` as the Canadian buy path** even though it is fewer lines and $0/mo. It is a **card / Apple Pay / Google Pay** router (MoonPay, Coinbase, Stripe, Meld). CAD is listed as a source currency, but MoonPay cannot sell USDC to CA, Stripe’s embedded onramp is US/EU, and Coinbase Onramp in CA has no Interac. Interac is the usual Canadian bank path; cards run ~3.5–5.5%.
+
+## Why Transak is the cheapest/simplest in-app path (checked 2026-08-17)
+
+Constraint: in-app, non-custodial, CAD, Interac, USDC on Ethereum/Base/Arbitrum, $0 monthly, keep current wagmi/Privy stack.
+
+| Option | Openhand monthly | Canadian USDC? | Interac? | Why not |
+|---|---|---|---|---|
+| **Transak hosted widget** | **$0** (pay-per-success; the **$10k** fee is Whitelabel API only — we are not using that) | Yes (FINTRAC) | Yes | **This is the path.** Production KYB required. |
+| Banxa widget | Typically $0/mo | Yes, Interac-strong | Yes | Same class as Transak. Switching now is not simpler — Transak is already wired. |
+| Onramper aggregator | **$199/mo** Essentials ($1,800/yr) | Via its providers | Maybe | Pays monthly to wrap Transak/MoonPay. Skip. |
+| MoonPay widget / Privy MoonPay | $0 | **No** — every `usdc*` listing blocks `CA` | Interac exists for *other* assets | Dead end for this product. |
+| Coinbase Onramp / Reown AppKit onramp | $0 | Likely yes | **No** — CA payment method is `CARD` only | Wrong rail for no-coiners; AppKit would replace the wallet stack. |
+| Privy `useFiatOnramp` | $0 | Unreliable for CA USDC (MoonPay blocked; Stripe US/EU) | No (cards) | Simplest *code*, wrong *product*. |
+| “Go buy on Shakepay / NDAX / Newton, then withdraw” | $0 | Yes, often cheapest user fees | Yes | Not in-app. Kills no-coiner conversion. Do not make this the product. |
+
+User-side Transak fees are Transak’s (card ~3.5–5.5%, bank/Interac much lower). Openhand should not add a partner fee on top. Cheapest *user* path in Canada is still a local exchange + withdraw; cheapest *in-app* path that actually does Interac → USDC without a monthly bill is Transak’s hosted widget.
+
+**Do not wire a second onramp as “failover” until Transak is live and downtime is a real problem.** MoonPay / Privy `useFiatOnramp` / Coinbase Onramp / Reown AppKit onramp are not backups for this corridor (no CA USDC, or cards instead of Interac). Onramper is a paid aggregator ($199/mo) for the same job. Banxa is the only same-class Interac peer; adding it now is a second KYB, second iframe, and a second KYC for the user when Transak is down. The modal already falls back to “send USDC to this address” if the widget session fails. Revisit Banxa only after Transak has been used in production.
