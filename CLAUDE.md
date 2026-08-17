@@ -104,6 +104,99 @@ Rules:
   module scope, `npm run build` will fail on `/opportunities` (or wherever imports it) with
   the exact error above. Re-apply the lazy-singleton pattern rather than special-casing routes.
 
+## Agent record (2026-08-17) — do not re-litigate
+
+Owner is signing up **Canadian no-coiners** on `openhand.online` (repo `defiant`). Domain is
+on Namecheap; site is on Vercel (`temporary-instant-bugle-1rh5ndv`). Apex **308s to
+`https://www.openhand.online`**.
+
+### Wallet vs buy — three vendors, three jobs
+
+| Piece | Job | Not |
+|---|---|---|
+| **Privy** | Email / passkey embedded wallet for people with no wallet | Not an onramp. Not email hosting. |
+| **Reown** (`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`) | WalletConnect for MetaMask / Rainbow / Rabby / QR. Privy uses the same project ID for `wallet_connect`. | Not an onramp. Do **not** turn on Reown AppKit `features.onramp` (Coinbase Pay / Meld). That would fight Transak and replace the lazy wagmi stack. |
+| **Transak** | CAD / Interac → USDC into the **already-connected** address | Does not create the wallet. Hosted widget, $0/mo. |
+
+Keep all three. Do not “pick Reown or Transak.”
+
+### Onramp choice (checked 2026-08-17) — Transak hosted widget
+
+Constraint: in-app, non-custodial, CAD, Interac, USDC on Ethereum/Base/Arbitrum, $0 monthly,
+keep wagmi/Privy.
+
+| Option | Why not (or why yes) |
+|---|---|
+| **Transak hosted widget** | **Yes.** FINTRAC, CAD, Interac, $0/mo. $10k fee is **Whitelabel API only** — unused. Production KYB at `forms.transak.com/kyb`. Partner fee in dashboard stays **0%**. |
+| MoonPay / Privy `useFiatOnramp` | **Dead.** Live `api.moonpay.com/v3/currencies`: every `usdc*` listing (ethereum, **base**, arbitrum) has `notAllowedCountries: ["CA"]`. MoonPay docs: Canadians cannot buy stablecoins. Interac on MoonPay does not help this product. |
+| Coinbase Onramp / Reown AppKit onramp | Canada is **CARD only**, no Interac. |
+| Onramper | **$199/mo** Essentials. Skip. |
+| Banxa | Same class as Transak (FINTRAC + Interac). Switching now is not simpler. |
+| “Buy on Shakepay then withdraw” | Cheaper for the user, not in-app. Do not make it the product. |
+
+**No second onramp as failover until Transak is live and downtime is real.** MoonPay / Privy
+cards / Coinbase / AppKit cannot cover this corridor. Banxa could later (second KYB, second
+KYC for the user). If Transak cannot open, the modal already shows the wallet address.
+
+Code lives on **PR #10** `cursor/canada-transak-onramp-f1e6` (`POST /api/onramp/widget`,
+`lib/config/transak.ts`). Not necessarily merged to `main` yet. Server env:
+`TRANSAK_API_KEY` + `TRANSAK_API_SECRET` (never `NEXT_PUBLIC_*`). Sessions are 5 min /
+single-use. `x-user-ip` is forwarded to Transak, not stored.
+
+### Transak signup — skip sales, corporate email only
+
+Gmail / Hotmail / Outlook / iCloud are **rejected**. Do not email sales@ for the hosted
+widget. Self-serve:
+
+1. Inbox on the domain they already own: `hello@openhand.online`.
+2. Namecheap → **Domain List** → Manage `openhand.online`.
+3. **Advanced DNS** → Mail Settings = **Email Forwarding** (SPF TXT for
+   `spf.efwd.registrar-servers.com` means this step is done). Do **not** hunt for a Mail
+   Settings box on that tab after it is already Email Forwarding.
+4. **Domain tab** (not Advanced DNS) → scroll to **Redirect Email** → **Add Forwarder**.
+   Alias `hello` → forward to Gmail. Test from a **different** mailbox.
+5. Sign up at [dashboard.transak.com](https://dashboard.transak.com) with
+   `hello@openhand.online`. Staging keys are immediate under Developers. Production needs
+   KYB with the **same** email.
+6. Allowlist `openhand.online` and `www.openhand.online` in Transak.
+
+Privy’s dashboard is **not** where you create that inbox. **Wallets** in Privy is user
+wallets. Email forwarding is Namecheap only.
+
+### Production white-screen (2026-08-17) — App Secret in a public env var
+
+Symptom: Next.js black page, `Application error: a client-side exception has occurred`,
+desktop and mobile, apex and www. HTML 200s; all assets 200. Origins in Privy were **already**
+`https://openhand.online` and `https://www.openhand.online`. Do **not** spend another session
+re-allowlisting origins as the first hypothesis.
+
+**Actual console error (verified in browser):**
+`Cannot initialize the Privy provider with an invalid Privy app ID`
+
+**Cause:** Vercel `NEXT_PUBLIC_PRIVY_APP_ID` was set to the **Privy App Secret**
+(`privy_app_secret_…`). Next inlines `NEXT_PUBLIC_*` into the browser bundle at **build**
+time. Privy rejects it. The secret was also leaked in public JS until redeploy.
+
+**Fix (ops, must happen even if code is merged):**
+1. Privy → **App settings** → **Basics** → copy **App ID** (short, `cl`/`cm…`).
+2. Same page → **regenerate App Secret**. Never put the new secret in `NEXT_PUBLIC_*`.
+3. Vercel → env `NEXT_PUBLIC_PRIVY_APP_ID` = that **App ID** only.
+4. **Redeploy** (changing the env without a new build does nothing).
+
+**Code (PR #11 `cursor/privy-www-crash-f1e6`):** `privyAppId()` rejects `privy_app_secret_*`
+and non-`cl`/`cm` IDs; `app/providers.tsx` error-boundary falls back to RainbowKit;
+`app/error.tsx` shows the real message. Do not remove that boundary. Default public App ID
+remains `cmstzz2zb009k0el4fzr8x8jb`.
+
+Privy allowed origins UI: **App settings** → **Domains** (not Overview, not Wallets).
+Direct: `https://dashboard.privy.io/apps?setting=domains&page=settings`.
+
+### Open PRs as of this record
+
+- **#10** Transak CAD/Interac onramp — merge when keys exist.
+- **#11** Privy secret / white-screen — merge; still requires the Vercel env fix + secret
+  rotation + redeploy or the old secret stays in the previous deployment’s JS.
+
 ## Current state (2026-08-13, initial build + fees + Curve; questionnaire later removed)
 
 Scaffolded end-to-end: wallet connect (RainbowKit/wagmi), live opportunity aggregation across
