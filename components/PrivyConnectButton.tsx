@@ -9,7 +9,7 @@ function shortAddress(address: string): string {
 
 export function PrivyConnectButton({
   chainStatus = 'none',
-  label = 'Get started',
+  label = 'Deposit',
 }: {
   showBalance?: boolean;
   chainStatus?: 'icon' | 'full' | 'none';

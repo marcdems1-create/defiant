@@ -82,7 +82,7 @@ treating email login as production-ready.
 
 A first-time visitor sees a three-step path, then the full catalog:
 
-1. **Get started** — email or passkey (Privy). Existing wallets stay behind “Continue with a wallet.”
+1. **Deposit** — email or passkey (Privy) to get a wallet. Existing wallets stay behind “Continue with a wallet.”
 2. **Add USDC** — if the wallet is empty, Buy USDC opens Onramper on mainnet (needs
    `NEXT_PUBLIC_ONRAMPER_API_KEY`). Practice / testnet mode does not open a card purchase.
 3. **Deposit** — browse the collection and pick a card. There is no featured or

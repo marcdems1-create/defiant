@@ -55,7 +55,7 @@ export function FirstRunHero({
       </ol>
 
       <div className="flex flex-wrap items-center gap-3">
-        {!connected && <ConnectButtonClient label="Get started" />}
+        {!connected && <ConnectButtonClient label="Deposit" />}
         {empty && address && starter && (
           <button
             type="button"
