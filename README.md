@@ -124,7 +124,9 @@ Do not add a second onramp “just in case Transak is down” until Transak has 
    Gmail / Hotmail / Outlook / iCloud are rejected — you do **not** need to email sales
    for the hosted widget. Copy the API key and API secret. Staging keys are available
    immediately. Production also needs partner KYB (`https://forms.transak.com/kyb`)
-   using the same email. Leave the dashboard partner fee at 0%.
+   using the same email. After KYB, the dashboard **partner fee on the buy** is how
+   Openhand monetizes (start ~0.5–1%; see "Fees"). Do not also turn on the deposit
+   treasury cut.
 2. Allowlist `openhand.online` and `www.openhand.online`.
 3. On Vercel, set `TRANSAK_API_KEY` and `TRANSAK_API_SECRET` (server-only — never
    `NEXT_PUBLIC_*`). Optional `TRANSAK_STAGING=true` for Transak sandbox keys.
@@ -199,27 +201,33 @@ correct indefinitely.
 
 ## Fees
 
-A flat basis-point fee on deposit and withdrawal — 0.25% each way by default
-(`lib/config/fees.ts`). Mechanically it is a **separate wallet-signed transfer to a treasury
-address**, never a cut taken inside the deposit/withdraw call itself:
+**Do not enable the deposit/withdraw treasury fee.** The code path exists
+(`lib/config/fees.ts`, 0.25% each way as a separate wallet-signed transfer, never skimmed
+inside `supply()`/`deposit()`/`submit()`), but a cut on every protocol tx is
+money-transmitter-adjacent and a tax on putting dollars to work. Leave
+`NEXT_PUBLIC_TREASURY_ADDRESS` unset. `getTreasuryAddress()` must keep returning `undefined`
+on anything other than a valid, non-zero configured address — never add a hardcoded fallback.
 
-- **Deposit**: the fee is sent to the treasury first, then the *remaining* amount is what
-  actually gets approved and deposited into the protocol.
-- **Withdraw (Aave/Yearn)**: the full gross amount is withdrawn from the protocol into the
-  wallet first, then the fee is sent to the treasury out of what just landed.
-- **Withdraw (Lido)**: fee is charged at *claim* time, not request time — the requested ETH
-  isn't in the wallet yet when a withdrawal is only requested, so charging a fee then would
-  come out of unrelated funds. `LidoWithdrawalRequests.tsx` takes the fee right after
-  `claimWithdrawal()` lands ETH in the wallet.
+**How Openhand monetizes (2026-08-17):**
 
-This keeps the non-custodial claim intact — the fee transaction is a plain transfer the user
-signs, not something a contract deducts from funds passing through it. The cost is UX: an
-extra signature per deposit/withdrawal when fees are enabled.
+1. **Transak partner fee on Buy USDC** (first dollar). Transak is the licensed onramp; they
+   take CAD, run KYC, and send USDC to the user's wallet. After partner KYB, set a small
+   partner fee in the Transak dashboard (start ~0.5–1% of the *buy*, not of later deposits).
+   Openhand never receives the USDC. Repeat Aave/Yearn deposits stay fee-free. Confirm the
+   split and payout with Transak — do not add a second treasury transfer for this.
+2. **Optional 0x `swapFeeBps`** only on opt-in convert-then-deposit (CRV / Frax / Convex).
+   Already wired in `lib/swap/zeroex.ts`. Do not put a swap in front of plain USDC → Aave.
+3. **CAD subscription later** (Stripe) for extras that are not yield: tax-lot export, alerts,
+   history. No crypto through Openhand. Never a performance fee on yield.
 
-**Fees are off by default.** `getTreasuryAddress()` in `lib/config/fees.ts` returns
-`undefined` — and every fee code path no-ops — until `NEXT_PUBLIC_TREASURY_ADDRESS` is set to
-a real address. There is no fallback address; an unset or malformed value disables fees
-entirely rather than sending anywhere unintended.
+Do not add Openhand-operated vaults, a skim inside a protocol call, an Openhand Interac
+account, or a featured product with an affiliate.
+
+The unused two-step treasury mechanism (documented here so it is not re-invented): fee
+transfer first on deposit, then the remainder is approved and deposited; on Aave/Yearn
+withdraw the gross amount lands in the wallet then the fee is sent; on Lido the fee is
+taken at *claim* time, not request time (`LidoWithdrawalRequests.tsx`). Extra signature,
+partial-failure with no auto-refund. Keep it dark.
 
 ## Not advice
 
@@ -282,7 +290,8 @@ same as the fee model and the custody architecture above.
 npm install
 cp .env.example .env.local
 # Fill in NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID at minimum (free at https://cloud.reown.com)
-# NEXT_PUBLIC_TREASURY_ADDRESS is optional — fees stay disabled until it's set (see "Fees")
+# NEXT_PUBLIC_TREASURY_ADDRESS stays blank — do not enable the deposit/withdraw
+# treasury fee (see "Fees"). Monetize via Transak partner fee on Buy USDC.
 # DATABASE_URL is optional — site analytics stays off until it's set AND
 # migrations/002_site_analytics.sql has been run (see "Site analytics").
 # ADMIN_PASSWORD is optional — /admin stays disabled until set.
