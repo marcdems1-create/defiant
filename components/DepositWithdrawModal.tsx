@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { parseUnits, formatUnits } from 'viem';
 import { useAccount, useBalance, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi';
-import { waitForTransactionReceipt } from 'wagmi/actions';
+import { readContract, sendTransaction, waitForTransactionReceipt } from 'wagmi/actions';
+import { useQuery } from '@tanstack/react-query';
+import { fetchSwapQuote, swapConfigured } from '@/lib/swap/zeroex';
 import type { Opportunity } from '@/lib/protocols/types';
 import { erc20Abi } from '@/lib/abi/erc20';
 import { aavePoolAbi } from '@/lib/abi/aavePool';
@@ -26,7 +28,7 @@ import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 
 type Tab = 'deposit' | 'withdraw';
-type Step = 'idle' | 'sendingFee' | 'approving' | 'acting' | 'done' | 'error';
+type Step = 'idle' | 'sendingFee' | 'approving' | 'swapping' | 'acting' | 'done' | 'error';
 
 const NULL_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
 
@@ -48,6 +50,9 @@ export function DepositWithdrawModal({
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // "Pay with USDC (auto-convert)" — on by default for opportunities whose
+  // deposit asset isn't USDC (Convex/Frax) so a USDC-only user can one-tap in.
+  const [payWithUsdc, setPayWithUsdc] = useState(true);
 
   const wrongNetwork = currentChainId !== opportunity.chainId;
   const isNativeDeposit = opportunity.protocol === 'lido';
@@ -61,6 +66,18 @@ export function DepositWithdrawModal({
   // wallet yet at request time) — see LidoWithdrawalRequests.
   const feeAppliesHere = feesEnabled() && !(opportunity.protocol === 'lido' && tab === 'withdraw');
 
+  // Auto-zap: for opportunities whose deposit asset isn't USDC (they set
+  // `convertibleFrom` = USDC), offer to pay with USDC and swap→deposit in one
+  // flow. Requires the 0x swap engine to be configured; when it isn't, the UI
+  // falls back to the guided /swap link instead (no regression).
+  const convertible = opportunity.convertibleFrom;
+  const zapAvailable = Boolean(convertible) && swapConfigured() && tab === 'deposit';
+  const zapping = zapAvailable && payWithUsdc && Boolean(convertible);
+  // The token the user actually enters/pays on the deposit tab.
+  const depositInputToken = zapping && convertible ? convertible : opportunity.asset;
+  // Token the fee is denominated in for display (USDC when zapping a deposit).
+  const feeToken = tab === 'deposit' ? depositInputToken : opportunity.asset;
+
   // Curve LP shares aren't 1:1 with the underlying asset the way Aave's
   // aTokens or Yearn's vault shares are — different decimals AND a virtual
   // price that isn't 1. The withdraw tab enters an amount of positionToken
@@ -68,8 +85,8 @@ export function DepositWithdrawModal({
   // Unset for every other protocol, where position and asset match.
   const positionDecimals = opportunity.positionDecimals ?? opportunity.asset.decimals;
   const positionSymbol = opportunity.positionSymbol ?? opportunity.asset.symbol;
-  const amountDecimals = tab === 'withdraw' ? positionDecimals : opportunity.asset.decimals;
-  const amountSymbol = tab === 'withdraw' ? positionSymbol : opportunity.asset.symbol;
+  const amountDecimals = tab === 'withdraw' ? positionDecimals : depositInputToken.decimals;
+  const amountSymbol = tab === 'withdraw' ? positionSymbol : depositInputToken.symbol;
 
   const nativeBalance = useBalance({
     address,
@@ -77,7 +94,7 @@ export function DepositWithdrawModal({
     query: { enabled: isNativeDeposit && Boolean(address) },
   });
   const erc20WalletBalance = useErc20Balance(
-    isNativeDeposit ? undefined : opportunity.asset.address,
+    isNativeDeposit ? undefined : depositInputToken.address,
     address,
     opportunity.chainId,
   );
@@ -206,6 +223,32 @@ export function DepositWithdrawModal({
   // fee is taken from what lands in your wallet — see handleWithdraw.
   const netAmount = feeBasisAmount - feeAmount;
 
+  // Auto-zap preview: quote how much of the deposit asset `netAmount` USDC buys
+  // via 0x, so the modal can show an estimate before the user commits. Only
+  // runs when zapping with a positive net amount.
+  const zapQuote = useQuery({
+    queryKey: [
+      'zapQuote',
+      opportunity.chainId,
+      convertible?.address,
+      opportunity.asset.address,
+      netAmount.toString(),
+      address,
+    ],
+    queryFn: () =>
+      fetchSwapQuote({
+        chainId: opportunity.chainId,
+        sellToken: convertible!.address,
+        buyToken: opportunity.asset.address,
+        sellAmount: netAmount,
+        taker: address!,
+        slippageBps: 100,
+      }),
+    enabled: Boolean(zapping && convertible && address && netAmount > 0n),
+    staleTime: 15_000,
+    refetchInterval: 20_000,
+  });
+
   // Preview add_liquidity's LP output for exactly `netAmount` — the amount
   // that actually reaches the pool after any deposit fee — so the min-out
   // below matches what's really being deposited, not the pre-fee amount.
@@ -277,8 +320,143 @@ export function DepositWithdrawModal({
     }
   }
 
+  // One-tap zap: pay with USDC, swap to the deposit asset via 0x, then deposit
+  // — all wallet-signed, no router contract (non-custodial). Only Convex/Frax
+  // set `convertibleFrom`, so the final deposit step handles just those two.
+  // NOTE: the swap+deposit write path needs the 0x key + a funded wallet to run
+  // end-to-end; it isn't transaction-tested (same caveat as every tx flow here).
+  async function handleZapDeposit() {
+    if (!address || amountBig === 0n || !convertible) return;
+    setErrorMsg(null);
+    const cfg = getWagmiConfig();
+    const chainId = opportunity.chainId;
+    try {
+      // 1) optional app fee on the USDC you put in
+      let netUsdc = amountBig;
+      if (feeAmount > 0n) {
+        setStep('sendingFee');
+        const feeHash = await sendFee({
+          isNative: false,
+          tokenAddress: convertible.address,
+          amount: feeAmount,
+          chainId,
+        });
+        netUsdc = amountBig - feeAmount;
+        if (feeHash && refFee.isReferee) reportReferralFeePaid(address, chainId, feeHash);
+      }
+
+      // 2) quote USDC -> deposit asset for the net amount
+      const quote =
+        zapQuote.data ??
+        (await fetchSwapQuote({
+          chainId,
+          sellToken: convertible.address,
+          buyToken: opportunity.asset.address,
+          sellAmount: netUsdc,
+          taker: address,
+          slippageBps: 100,
+        }));
+      if (!quote) {
+        throw new Error(`No swap route for ${convertible.symbol} → ${opportunity.asset.symbol}`);
+      }
+
+      // 3) approve USDC to 0x's allowance target (exact net, never unbounded)
+      const usdcAllowance = (await readContract(cfg, {
+        address: convertible.address,
+        abi: erc20Abi,
+        functionName: 'allowance',
+        args: [address, quote.allowanceTarget],
+      })) as bigint;
+      if (usdcAllowance < netUsdc) {
+        setStep('approving');
+        const approveHash = await writeContractAsync({
+          address: convertible.address,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [quote.allowanceTarget, netUsdc],
+          chainId,
+        });
+        await waitForTransactionReceipt(cfg, { hash: approveHash, chainId });
+      }
+
+      // 4) swap — measure the asset actually received (deposit exactly that)
+      setStep('swapping');
+      const assetBefore = (await readContract(cfg, {
+        address: opportunity.asset.address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [address],
+      })) as bigint;
+      const swapHash = await sendTransaction(cfg, {
+        to: quote.to,
+        data: quote.data,
+        value: quote.value,
+        chainId,
+      });
+      await waitForTransactionReceipt(cfg, { hash: swapHash, chainId });
+      const assetAfter = (await readContract(cfg, {
+        address: opportunity.asset.address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [address],
+      })) as bigint;
+      const received = assetAfter - assetBefore;
+      if (received <= 0n) throw new Error(`Swap produced no ${opportunity.asset.symbol}`);
+
+      // 5) approve the received asset to the protocol
+      const assetAllowance = (await readContract(cfg, {
+        address: opportunity.asset.address,
+        abi: erc20Abi,
+        functionName: 'allowance',
+        args: [address, opportunity.depositTarget],
+      })) as bigint;
+      if (assetAllowance < received) {
+        setStep('approving');
+        const approveHash = await writeContractAsync({
+          address: opportunity.asset.address,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [opportunity.depositTarget, received],
+          chainId,
+        });
+        await waitForTransactionReceipt(cfg, { hash: approveHash, chainId });
+      }
+
+      // 6) deposit the received asset (Convex convert-and-stake, or Frax ERC-4626)
+      setStep('acting');
+      if (isConvex) {
+        const hash = await writeContractAsync({
+          address: opportunity.depositTarget,
+          abi: crvDepositorAbi,
+          functionName: 'deposit',
+          args: [received, false, opportunity.positionToken!],
+          chainId,
+        });
+        await waitForTransactionReceipt(cfg, { hash, chainId });
+      } else {
+        const hash = await writeContractAsync({
+          address: opportunity.depositTarget,
+          abi: erc4626Abi,
+          functionName: 'deposit',
+          args: [received, address],
+          chainId,
+        });
+        await waitForTransactionReceipt(cfg, { hash, chainId });
+      }
+      setStep('done');
+      await refreshBalances();
+    } catch (e) {
+      setStep('error');
+      setErrorMsg(e instanceof Error ? e.message : 'Zap failed');
+    }
+  }
+
   async function handleDeposit() {
     if (!address || amountBig === 0n) return;
+    if (zapping) {
+      await handleZapDeposit();
+      return;
+    }
     setErrorMsg(null);
     try {
       if (feeAmount > 0n) {
@@ -591,7 +769,8 @@ export function DepositWithdrawModal({
     }
   }
 
-  const busy = step === 'sendingFee' || step === 'approving' || step === 'acting';
+  const busy =
+    step === 'sendingFee' || step === 'approving' || step === 'swapping' || step === 'acting';
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4">
@@ -670,7 +849,28 @@ export function DepositWithdrawModal({
               </button>
             </div>
 
-            {tab === 'deposit' && opportunity.convertibleFrom && (
+            {tab === 'deposit' && zapAvailable && convertible && (
+              <label className="flex items-start gap-2 text-xs text-ink/70 border border-accent/30 bg-accent/5 rounded px-3 py-2 mb-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={payWithUsdc}
+                  onChange={(e) => setPayWithUsdc(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Pay with {convertible.symbol} — auto-convert to {opportunity.asset.symbol} and
+                  deposit in one flow.
+                  {zapping && amountBig > 0n && zapQuote.data && (
+                    <span className="text-accent">
+                      {' '}≈ {formatUnits(zapQuote.data.buyAmount, opportunity.asset.decimals)}{' '}
+                      {opportunity.asset.symbol}
+                    </span>
+                  )}
+                  {zapping && amountBig > 0n && zapQuote.isFetching && ' quoting…'}
+                </span>
+              </label>
+            )}
+            {tab === 'deposit' && opportunity.convertibleFrom && !zapAvailable && (
               <Link
                 href={`/swap?sell=${opportunity.convertibleFrom.symbol}&buy=${opportunity.asset.symbol}`}
                 className="block text-xs text-accent border border-accent/30 bg-accent/5 rounded px-3 py-2 mb-4 hover:bg-accent/10"
@@ -696,13 +896,15 @@ export function DepositWithdrawModal({
                         {(STANDARD_FEE_BPS / 100).toFixed(2)}%
                       </span>
                     )}
-                    {formatUnits(feeAmount, opportunity.asset.decimals)} {opportunity.asset.symbol}
+                    {formatUnits(feeAmount, feeToken.decimals)} {feeToken.symbol}
                   </span>
                 </div>
                 <div className="flex justify-between text-ink/70">
-                  <span>{tab === 'deposit' ? "You'll deposit" : "You'll receive"}</span>
                   <span>
-                    {formatUnits(netAmount, opportunity.asset.decimals)} {opportunity.asset.symbol}
+                    {tab === 'withdraw' ? "You'll receive" : zapping ? "You'll swap" : "You'll deposit"}
+                  </span>
+                  <span>
+                    {formatUnits(netAmount, feeToken.decimals)} {feeToken.symbol}
                   </span>
                 </div>
               </div>
@@ -737,13 +939,17 @@ export function DepositWithdrawModal({
                   ? 'Sending fee…'
                   : step === 'approving'
                     ? 'Approving…'
-                    : step === 'acting'
-                      ? 'Confirming…'
-                      : tab === 'deposit'
-                        ? `Deposit ${opportunity.asset.symbol}`
-                        : opportunity.protocol === 'lido'
-                          ? 'Request withdrawal'
-                          : `Withdraw ${opportunity.asset.symbol}`}
+                    : step === 'swapping'
+                      ? 'Swapping…'
+                      : step === 'acting'
+                        ? 'Confirming…'
+                        : tab === 'deposit'
+                          ? zapping
+                            ? `Swap ${convertible?.symbol} & deposit`
+                            : `Deposit ${opportunity.asset.symbol}`
+                          : opportunity.protocol === 'lido'
+                            ? 'Request withdrawal'
+                            : `Withdraw ${opportunity.asset.symbol}`}
             </button>
 
             {opportunity.protocol === 'lido' && tab === 'withdraw' && (
