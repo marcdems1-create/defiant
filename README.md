@@ -115,10 +115,13 @@ WalletConnect — how existing wallets connect. Transak does not replace it, and
 Reown AppKit’s bundled onramp should not replace Transak. Allowlist
 `openhand.online` in both dashboards.
 
+Do not add a second onramp “just in case Transak is down” until Transak has been used in production. MoonPay, Privy card onramp, Coinbase Onramp, and Reown AppKit onramp cannot do this CAD / Interac / USDC job. Banxa could, later — it is a second partner KYB, not a free toggle. If the Transak session fails, the modal already shows the wallet address so the user can send USDC themselves.
+
 **Setup (production):**
 
 1. Partner account at [dashboard.transak.com](https://dashboard.transak.com) → Developers.
-   Copy the API key and API secret.
+   Copy the API key and API secret. Production also needs partner KYB
+   (`https://forms.transak.com/kyb`). Leave the dashboard partner fee at 0%.
 2. Allowlist `openhand.online` and `www.openhand.online`.
 3. On Vercel, set `TRANSAK_API_KEY` and `TRANSAK_API_SECRET` (server-only — never
    `NEXT_PUBLIC_*`). Optional `TRANSAK_STAGING=true` for Transak sandbox keys.
