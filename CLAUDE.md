@@ -325,3 +325,33 @@ placeholders to confirm/retune, and `STANDARD_FEE_BPS` must stay above `REFEREE_
 transaction-tested (needs fees enabled + a treasury); the qualify endpoint verifies a real fee
 tx receipt so it can't be spoofed. Lido claim-time fee in `LidoWithdrawalRequests.tsx` still uses
 the standard rate (no referral discount there yet) — minor follow-up.
+
+## Parked roadmap (2026-08-17) — not started, deferred by request
+
+1. **Recurring DCA ("set and forget").** Two decoupled legs: (a) FIAT recurrence — get USDC into
+   the wallet on a schedule; and (b) ON-CHAIN recurrence — auto-deposit that USDC into a vault
+   (sUSDS) via smart-account **session keys** (a scoped, capped, expiring, revocable mandate — the
+   only non-custodial way to skip the per-tx prompt; needs a security review + tight scoping, and
+   only works for smart-account wallets). We must NOT run a fiat pull ourselves (money-services
+   licensing) — the fiat leg stays with a licensed provider. Fiat-rail status (Canada): Interac
+   e-Transfer can't be auto-pulled; the real recurring rails are **PAD/EFT** (biller pulls) or
+   **bank-scheduled e-Transfer** (user's bank pushes). **Transak Stream** (clean API recurring
+   virtual-account → auto-convert to USDC) is the best future fit but **CAD is "coming soon"**, not
+   live. Pair whichever fiat rail lands with the on-chain session-key DCA. Held off per request.
+
+2. **"Invest in all pools" / diversify zapper.** One action that splits a USDC deposit across
+   multiple opportunities. **Fee check (done 2026-08-17):**
+   - Our % fee does NOT multiply — it's a flat % of the total whether it's 1 pool or N (splitting
+     doesn't raise the percentage cost).
+   - Gas scales ~linearly (~310k gas/pool: approve + deposit + fee transfer). At current gas: cheap
+     everywhere (Base ~$0.03, Arbitrum ~$0.10, Ethereum ~$0.52 for 5 pools). BUT Ethereum-mainnet
+     gas is volatile and can spike (5 pools could be $50–250 during congestion); L2 stays reliably
+     cheap. → **L2-first**; on mainnet, cap pool count / warn.
+   - Avoid swap fees by diversifying only across **USDC-native pools** (Aave/Curve/Spark/Compound/
+     Moonwell/Yearn) — no conversion. Convex/Frax would add swap+slippage; exclude or make opt-in.
+   - Guard against dust/slippage: enforce a **minimum total + per-pool floor + max pool count**
+     (tiny per-pool amounts risk Curve min-out reverts and gas-vs-yield inefficiency).
+   - Use the existing **EIP-5792 batching** so all N deposits are one confirmation (doesn't cut
+     on-chain gas, but removes popup fatigue).
+   Verdict: viable and not fee-prohibitive when scoped to L2 + USDC-native pools + sane min/max;
+   the only real cost risk is many pools + tiny amounts on Ethereum mainnet during high gas.
