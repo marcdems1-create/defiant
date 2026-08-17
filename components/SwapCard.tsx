@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
 import { useAccount, useChainId, useSwitchChain, useWriteContract } from 'wagmi';
 import { sendTransaction, waitForTransactionReceipt } from 'wagmi/actions';
@@ -38,15 +38,32 @@ export function SwapCard() {
 
   // Reset token selection to sensible defaults (USDC -> next) whenever the
   // connected chain changes, so the form never points at a token that doesn't
-  // exist on the current network.
+  // exist on the current network. On first mount, honor ?sell=/?buy= query
+  // params (used by the "pay with USDC" links from the deposit modal) when
+  // those symbols exist on the current chain.
+  const prefillApplied = useRef(false);
   useEffect(() => {
+    const bySymbol = (want: string | null) =>
+      want ? tokens.find((t) => t.symbol.toLowerCase() === want.toLowerCase()) : undefined;
+
     if (tokens.length >= 2) {
-      setSellSymbol(tokens[0].symbol);
-      setBuySymbol(tokens[1].symbol);
+      let sell = tokens[0];
+      let buy = tokens[1];
+      if (!prefillApplied.current) {
+        const params = new URLSearchParams(window.location.search);
+        const wantSell = bySymbol(params.get('sell'));
+        const wantBuy = bySymbol(params.get('buy'));
+        if (wantSell) sell = wantSell;
+        if (wantBuy && wantBuy.symbol !== sell.symbol) buy = wantBuy;
+        else if (buy.symbol === sell.symbol) buy = tokens.find((t) => t.symbol !== sell.symbol) ?? buy;
+      }
+      setSellSymbol(sell.symbol);
+      setBuySymbol(buy.symbol);
     } else {
       setSellSymbol('');
       setBuySymbol('');
     }
+    prefillApplied.current = true;
     setAmount('');
     setStep('idle');
     setErrorMsg(null);

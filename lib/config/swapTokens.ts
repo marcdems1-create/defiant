@@ -34,6 +34,8 @@ export const SWAP_TOKENS: Partial<Record<number, SwapToken[]>> = {
     { symbol: 'crvUSD', address: '0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E', decimals: 18 },
     { symbol: 'CRV', address: '0xD533a949740bb3306d119CC777fa900bA034cd52', decimals: 18 },
     { symbol: 'CVX', address: '0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B', decimals: 18 },
+    // frxUSD — target for the Frax (sfrxUSD) "pay with USDC" guided swap.
+    { symbol: 'frxUSD', address: '0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29', decimals: 18 },
   ],
   [base.id]: [
     { symbol: 'USDC', address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals: 6 },

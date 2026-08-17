@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { parseUnits, formatUnits } from 'viem';
 import { useAccount, useBalance, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi';
@@ -668,6 +669,17 @@ export function DepositWithdrawModal({
                 Max
               </button>
             </div>
+
+            {tab === 'deposit' && opportunity.convertibleFrom && (
+              <Link
+                href={`/swap?sell=${opportunity.convertibleFrom.symbol}&buy=${opportunity.asset.symbol}`}
+                className="block text-xs text-accent border border-accent/30 bg-accent/5 rounded px-3 py-2 mb-4 hover:bg-accent/10"
+              >
+                This deposits {opportunity.asset.symbol}. Only have{' '}
+                {opportunity.convertibleFrom.symbol}? Swap it for {opportunity.asset.symbol} first
+                →
+              </Link>
+            )}
 
             {feeAppliesHere && amountBig > 0n && (
               <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3 flex flex-col gap-1">
