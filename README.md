@@ -120,8 +120,11 @@ Do not add a second onramp “just in case Transak is down” until Transak has 
 **Setup (production):**
 
 1. Partner account at [dashboard.transak.com](https://dashboard.transak.com) → Developers.
-   Copy the API key and API secret. Production also needs partner KYB
-   (`https://forms.transak.com/kyb`). Leave the dashboard partner fee at 0%.
+   Sign up with a **corporate email** on your own domain (e.g. `hello@openhand.online`).
+   Gmail / Hotmail / Outlook / iCloud are rejected — you do **not** need to email sales
+   for the hosted widget. Copy the API key and API secret. Staging keys are available
+   immediately. Production also needs partner KYB (`https://forms.transak.com/kyb`)
+   using the same email. Leave the dashboard partner fee at 0%.
 2. Allowlist `openhand.online` and `www.openhand.online`.
 3. On Vercel, set `TRANSAK_API_KEY` and `TRANSAK_API_SECRET` (server-only — never
    `NEXT_PUBLIC_*`). Optional `TRANSAK_STAGING=true` for Transak sandbox keys.

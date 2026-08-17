@@ -280,6 +280,9 @@ Replaced the unused Onramper iframe with Transak for Canadian no-coiners.
 and set the two env vars on Vercel before Buy USDC works in production. Transak
 production also needs partner KYB (`https://forms.transak.com/kyb`). Keep the Transak
 dashboard partner fee at 0% — do not stack a markup on Canadian first buys.
+Signup is self-serve at dashboard.transak.com with a **corporate email**
+(`hello@openhand.online`, not Gmail). Staging keys are immediate. Do not wait on
+sales@transak.com for the hosted widget.
 
 ## Reown vs Transak — both stay; they are not two onramps
 
