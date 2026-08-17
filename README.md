@@ -102,10 +102,18 @@ never holds a Transak customer account, and does not store the wallet address fr
 this flow.
 
 Transak is the onramp for Canadian no-coiners: FINTRAC-registered, CAD, Interac
-e-Transfer, **no monthly partner fee**. MoonPay's USDC-on-Base listing currently
-blocks Canada (`notAllowedCountries` includes `CA`), so it is not used. Onramper's
-aggregator was not adopted (paid monthly plan). Deposit / swap / referral stay on
-wagmi — only the buy iframe uses Transak.
+e-Transfer, **no monthly partner fee** on the hosted widget (the $10k Transak fee
+is Whitelabel API only — this app does not use that). MoonPay blocks Canada on
+every USDC listing (ethereum / base / arbitrum — `notAllowedCountries` includes
+`CA`; MoonPay: “Customers in Canada cannot purchase Stablecoins”), so it is not
+used. Onramper’s aggregator was not adopted ($199/mo). Coinbase Onramp / Reown
+AppKit onramp and Privy’s `useFiatOnramp` are card rails in Canada, not Interac.
+Deposit / swap / referral stay on wagmi — only the buy iframe uses Transak.
+
+**Reown stays.** Reown Cloud (`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`) is
+WalletConnect — how existing wallets connect. Transak does not replace it, and
+Reown AppKit’s bundled onramp should not replace Transak. Allowlist
+`openhand.online` in both dashboards.
 
 **Setup (production):**
 
