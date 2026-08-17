@@ -42,7 +42,7 @@ export function FirstRunHero({
           {empty &&
             (NETWORK_MODE === 'mainnet'
               ? `This wallet has no USDC on ${starter ? chainName(starter.chainId) : 'Base'} yet. In Canada, buy with Interac or a card — it lands in this wallet, not with Openhand.`
-              : 'Practice mode uses test USDC, not a card purchase. Fund this wallet on the test network, then deposit.')}
+              : 'Practice mode. Buy USDC opens Transak’s sandbox if staging keys are set; otherwise use a Base Sepolia USDC faucet.')}
           {funded &&
             'Your USDC is in this wallet. Browse the collection and deposit into any card you choose.'}
         </p>
@@ -62,7 +62,7 @@ export function FirstRunHero({
             onClick={() => setBuyOpen(true)}
             className="rounded-xl bg-accent text-paper font-medium text-sm px-4 py-2 hover:bg-accent/90 transition-colors"
           >
-            {NETWORK_MODE === 'mainnet' ? 'Buy USDC' : 'How to get test USDC'}
+            Buy USDC
           </button>
         )}
       </div>

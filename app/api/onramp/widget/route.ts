@@ -7,7 +7,8 @@ import {
   transakConfigured,
   transakGateway,
   transakNetwork,
-  transakReferrerDomain,
+  transakReferrerDomainFromRequest,
+  transakStaging,
 } from '@/lib/config/transak';
 import {
   getTransakAccessToken,
@@ -28,7 +29,8 @@ export const dynamic = 'force-dynamic';
  * fresh session on every open.
  */
 export async function POST(request: Request) {
-  if (NETWORK_MODE !== 'mainnet' || !transakConfigured()) {
+  const staging = transakStaging();
+  if (!transakConfigured() || (NETWORK_MODE !== 'mainnet' && !staging)) {
     return NextResponse.json({ error: 'Onramp is not configured' }, { status: 503 });
   }
 
@@ -58,8 +60,14 @@ export async function POST(request: Request) {
   const userIp = requestClientIp(request);
 
   try {
-    const url = await createWidgetSession({ apiKey, address, network, userIp });
-    return NextResponse.json({ url });
+    const url = await createWidgetSession({
+      apiKey,
+      address,
+      network,
+      userIp,
+      referrerDomain: transakReferrerDomainFromRequest(request),
+    });
+    return NextResponse.json({ url, staging });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Transak unreachable';
     const status = message === 'Onramp is not configured' ? 503 : 502;
@@ -72,17 +80,19 @@ async function createWidgetSession({
   address,
   network,
   userIp,
+  referrerDomain,
 }: {
   apiKey: string;
   address: string;
   network: string;
   userIp?: string;
+  referrerDomain: string;
 }): Promise<string> {
-  const first = await postSession({ apiKey, address, network, userIp });
+  const first = await postSession({ apiKey, address, network, userIp, referrerDomain });
   if (first.ok && first.url) return first.url;
   if (first.status === 401) {
     invalidateTransakAccessToken();
-    const retry = await postSession({ apiKey, address, network, userIp });
+    const retry = await postSession({ apiKey, address, network, userIp, referrerDomain });
     if (retry.ok && retry.url) return retry.url;
     throw new Error(retry.message || 'Transak session failed');
   }
@@ -94,11 +104,13 @@ async function postSession({
   address,
   network,
   userIp,
+  referrerDomain,
 }: {
   apiKey: string;
   address: string;
   network: string;
   userIp?: string;
+  referrerDomain: string;
 }): Promise<{ ok: boolean; status: number; url?: string; message?: string }> {
   const accessToken = await getTransakAccessToken(userIp);
   const headers: Record<string, string> = {
@@ -117,13 +129,14 @@ async function postSession({
       body: JSON.stringify({
         widgetParams: {
           apiKey,
-          referrerDomain: transakReferrerDomain(),
+          referrerDomain,
           productsAvailed: 'BUY',
           cryptoCurrencyCode: 'USDC',
           network,
           walletAddress: address,
           disableWalletAddressForm: true,
           defaultFiatCurrency: 'CAD',
+          countryCode: 'CA',
           colorMode: 'DARK',
           themeColor: '3ecf8e',
           exchangeScreenTitle: 'Buy USDC',

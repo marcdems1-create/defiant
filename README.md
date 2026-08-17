@@ -128,12 +128,37 @@ Do not add a second onramp “just in case Transak is down” until Transak has 
 2. Allowlist `openhand.online` and `www.openhand.online`.
 3. On Vercel, set `TRANSAK_API_KEY` and `TRANSAK_API_SECRET` (server-only — never
    `NEXT_PUBLIC_*`). Optional `TRANSAK_STAGING=true` for Transak sandbox keys.
-4. The app must be `NEXT_PUBLIC_NETWORK_MODE=mainnet`. Testnet cannot receive real USDC.
+4. The app must be `NEXT_PUBLIC_NETWORK_MODE=mainnet` for **production** keys (real USDC).
+   Staging keys (`TRANSAK_STAGING=true`) work while the app stays on testnet — see below.
+
+This is Transak’s [Widget with API Customization](https://docs.transak.com/guides/widget-with-api-customization):
+the backend calls Create Widget URL (`POST /api/v2/auth/session`) and the modal loads the
+one-shot `widgetUrl` in an iframe. Prefills: CAD, country `CA`, USDC, network, connected
+wallet (`disableWalletAddressForm`). We do **not** pass `userData` to skip Lite KYC — that
+would mean Openhand collecting identity data. We do **not** set `hideExchangeScreen` — the
+user still picks amount and Interac vs card. OTP, Standard KYC, payment, and confirm stay
+inside Transak.
 
 `POST /api/onramp/widget` mints a Partner Access Token from the secret (cached in
 memory; Transak tokens last ~7 days) and then a **single-use widget URL** (~5 minutes).
 The modal fetches a fresh session on every open. Transak requires the end-user IP as
-`x-user-ip` for KYC/geo; Openhand forwards it and does not store it.
+`x-user-ip` for KYC/geo; Openhand forwards it and does not store it. `referrerDomain`
+matches the page host (`localhost` locally, `www.openhand.online` in production) so
+Transak’s Referer check passes. Allowlist those hosts in the Transak dashboard.
+
+**Test (staging — no production KYB):**
+
+1. Dashboard → Environment **Staging** → copy API key and secret.
+2. Allowlist `localhost` (and `127.0.0.1`) plus the production hosts.
+3. In `.env.local`: `TRANSAK_API_KEY`, `TRANSAK_API_SECRET`, `TRANSAK_STAGING=true`.
+   Keep `NEXT_PUBLIC_NETWORK_MODE=testnet`.
+4. `npm run dev`, connect a wallet, Buy USDC. Sandbox KYC always approves. CAD card:
+   `4242424242424242`, expiry `10/33`, CVV `100`. 3DS password `Checkout1!`.
+   Docs: [sandbox credentials](https://docs.transak.com/guides/sandbox-credentials).
+5. Staging sends **TRNSK** (Transak test token) on Base Sepolia, not Circle USDC. Do not
+   expect that balance to deposit into Aave in this app. Widget + checkout is the test.
+
+Production keys + KYB are still required before real CAD hits a real wallet.
 
 ## Protocols integrated
 
