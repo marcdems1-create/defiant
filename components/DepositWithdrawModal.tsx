@@ -602,7 +602,7 @@ export function DepositWithdrawModal({
               Get a wallet first — email or a passkey. Then you can deposit. Openhand never holds
               your keys.
             </p>
-            <ConnectButtonClient label="Get started" />
+            <ConnectButtonClient label="Deposit" />
           </div>
         ) : (
           <>
@@ -732,7 +732,7 @@ export function DepositWithdrawModal({
                 className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {!address
-                  ? 'Get started'
+                  ? 'Deposit'
                   : switching || waitingOnSwitch
                     ? `Switching to ${chainName(opportunity.chainId)}…`
                     : step === 'sendingFee'
