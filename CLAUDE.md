@@ -29,8 +29,12 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    Openhand must not persist keys or the email Privy collects. Privy's allowed origins
    must include **both** `https://openhand.online` and `https://www.openhand.online`.
    Vercel currently 308s apex → www; a missing www origin white-screens the public
-   app (`Application error: a client-side exception`). `app/providers.tsx` falls
-   back to RainbowKit if Privy throws — do not remove that boundary.
+   app (`Application error: a client-side exception`). `NEXT_PUBLIC_PRIVY_APP_ID`
+   must be the dashboard **App ID** (starts with `cl`/`cm`), never the App Secret
+   (`privy_app_secret_…`). A secret in that env var is inlined into public JS and
+   Privy throws "invalid Privy app ID". `app/providers.tsx` falls back to RainbowKit
+   if Privy throws — do not remove that boundary. `privyAppId()` rejects secret-shaped
+   values and uses the known public App ID instead.
 2. **Never approve `type(uint256).max` / unbounded allowances.** Every ERC-20 `approve` call
    scopes to the exact amount being deposited. See `components/DepositWithdrawModal.tsx`.
 3. **Never fabricate an APY.** If a protocol's API/on-chain read doesn't return a value we can
