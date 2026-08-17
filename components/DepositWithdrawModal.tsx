@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { parseUnits, formatUnits } from 'viem';
+import { parseUnits, formatUnits, encodeFunctionData } from 'viem';
 import { useAccount, useBalance, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi';
 import { readContract, sendTransaction, waitForTransactionReceipt } from 'wagmi/actions';
 import { useQuery } from '@tanstack/react-query';
@@ -19,9 +19,10 @@ import { compoundCometAbi } from '@/lib/abi/compoundComet';
 import { moonwellMTokenAbi } from '@/lib/abi/moonwell';
 import { LIDO } from '@/lib/config/addresses';
 import { getWagmiConfig } from '@/lib/wagmi';
-import { computeFee, feeBpsFor, feesEnabled, STANDARD_FEE_BPS } from '@/lib/config/fees';
+import { computeFee, feeBpsFor, feesEnabled, getTreasuryAddress, STANDARD_FEE_BPS } from '@/lib/config/fees';
 import { useSendFee } from '@/lib/hooks/useSendFee';
 import { reportReferralFeePaid, useReferralFee } from '@/lib/hooks/useReferralFee';
+import { supportsAtomicBatch, sendCallsAndWait, type BatchCall } from '@/lib/tx/batch';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
 import { chainName, formatApy } from '@/lib/format';
 import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
@@ -320,6 +321,111 @@ export function DepositWithdrawModal({
     }
   }
 
+  // --- EIP-5792 batching helpers -------------------------------------------
+  // Encode the protocol deposit of `amount` of opportunity.asset as one call,
+  // so it can be bundled with its approve (and fee) into a single wallet
+  // confirmation on smart-account wallets. Mirrors the sequential switch below.
+  function buildDepositCall(amount: bigint): BatchCall {
+    const to = opportunity.depositTarget;
+    if (opportunity.protocol === 'aave-v3') {
+      return { to, data: encodeFunctionData({ abi: aavePoolAbi, functionName: 'supply', args: [opportunity.asset.address, amount, address!, 0] }) };
+    }
+    if (opportunity.protocol === 'compound-v3') {
+      return { to, data: encodeFunctionData({ abi: compoundCometAbi, functionName: 'supply', args: [opportunity.asset.address, amount] }) };
+    }
+    if (opportunity.protocol === 'moonwell') {
+      return { to, data: encodeFunctionData({ abi: moonwellMTokenAbi, functionName: 'mint', args: [amount] }) };
+    }
+    if (isSpark) {
+      const minOut = curveMinOut(sparkDepositPreview.data as bigint | undefined);
+      return { to, data: encodeFunctionData({ abi: sparkPsmAbi, functionName: 'swapExactIn', args: [opportunity.asset.address, opportunity.positionToken!, amount, minOut, address!, 0n] }) };
+    }
+    if (isCurve) {
+      const minMint = curveMinOut(curveDepositPreviewData);
+      if (curveDynamic) return { to, data: encodeFunctionData({ abi: curvePoolAbiNg, functionName: 'add_liquidity', args: [curveAmountsDynamic(amount), minMint] }) };
+      if (curveNumCoins === 3) return { to, data: encodeFunctionData({ abi: curvePoolAbi3Coin, functionName: 'add_liquidity', args: [curveAmounts3(amount), minMint] }) };
+      return { to, data: encodeFunctionData({ abi: curvePoolAbi2Coin, functionName: 'add_liquidity', args: [curveAmounts2(amount), minMint] }) };
+    }
+    if (isConvex) {
+      return { to, data: encodeFunctionData({ abi: crvDepositorAbi, functionName: 'deposit', args: [amount, false, opportunity.positionToken!] }) };
+    }
+    return { to, data: encodeFunctionData({ abi: erc4626Abi, functionName: 'deposit', args: [amount, address!] }) };
+  }
+
+  function approveCall(token: `0x${string}`, spenderAddr: `0x${string}`, amount: bigint): BatchCall {
+    return { to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [spenderAddr, amount] }) };
+  }
+
+  function erc20FeeCall(token: `0x${string}`, amount: bigint): BatchCall | null {
+    const treasury = getTreasuryAddress();
+    if (!treasury || amount === 0n) return null;
+    return { to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [treasury, amount] }) };
+  }
+
+  // Standard deposit as a single batched confirmation (fee + approve + deposit).
+  async function handleBatchedDeposit(cfg: ReturnType<typeof getWagmiConfig>) {
+    setErrorMsg(null);
+    try {
+      const calls: BatchCall[] = [];
+      const fee = feeAppliesHere ? erc20FeeCall(opportunity.asset.address, feeAmount) : null;
+      if (fee) calls.push(fee);
+      if (allowanceValue < netAmount) calls.push(approveCall(opportunity.asset.address, spender, netAmount));
+      calls.push(buildDepositCall(netAmount));
+      setStep('acting');
+      const txHash = await sendCallsAndWait(cfg, opportunity.chainId, calls);
+      if (txHash && feeAmount > 0n && address && refFee.isReferee) {
+        reportReferralFeePaid(address, opportunity.chainId, txHash);
+      }
+      setStep('done');
+      await refreshBalances();
+    } catch (e) {
+      setStep('error');
+      setErrorMsg(e instanceof Error ? e.message : 'Transaction failed');
+    }
+  }
+
+  // Zap as a single batched confirmation. Deposits the swap's guaranteed
+  // minimum (quote.minBuyAmount) since the calls are pre-encoded atomically;
+  // any positive slippage lands as dust in the wallet.
+  async function handleBatchedZap(cfg: ReturnType<typeof getWagmiConfig>) {
+    setErrorMsg(null);
+    try {
+      if (!convertible) return;
+      const netUsdc = amountBig - (feeAppliesHere ? feeAmount : 0n);
+      const quote =
+        zapQuote.data ??
+        (await fetchSwapQuote({
+          chainId: opportunity.chainId,
+          sellToken: convertible.address,
+          buyToken: opportunity.asset.address,
+          sellAmount: netUsdc,
+          taker: address!,
+          slippageBps: 100,
+        }));
+      if (!quote) throw new Error(`No swap route for ${convertible.symbol} → ${opportunity.asset.symbol}`);
+      const minReceived = quote.minBuyAmount;
+      const calls: BatchCall[] = [];
+      if (feeAppliesHere) {
+        const fee = erc20FeeCall(convertible.address, feeAmount);
+        if (fee) calls.push(fee);
+      }
+      calls.push(approveCall(convertible.address, quote.allowanceTarget, netUsdc));
+      calls.push({ to: quote.to, data: quote.data, value: quote.value });
+      calls.push(approveCall(opportunity.asset.address, opportunity.depositTarget, minReceived));
+      calls.push(buildDepositCall(minReceived));
+      setStep('acting');
+      const txHash = await sendCallsAndWait(cfg, opportunity.chainId, calls);
+      if (txHash && feeAmount > 0n && address && refFee.isReferee) {
+        reportReferralFeePaid(address, opportunity.chainId, txHash);
+      }
+      setStep('done');
+      await refreshBalances();
+    } catch (e) {
+      setStep('error');
+      setErrorMsg(e instanceof Error ? e.message : 'Zap failed');
+    }
+  }
+
   // One-tap zap: pay with USDC, swap to the deposit asset via 0x, then deposit
   // — all wallet-signed, no router contract (non-custodial). Only Convex/Frax
   // set `convertibleFrom`, so the final deposit step handles just those two.
@@ -330,6 +436,11 @@ export function DepositWithdrawModal({
     setErrorMsg(null);
     const cfg = getWagmiConfig();
     const chainId = opportunity.chainId;
+    // Smart-account wallets: bundle the whole zap into one confirmation.
+    if (await supportsAtomicBatch(cfg, chainId)) {
+      await handleBatchedZap(cfg);
+      return;
+    }
     try {
       // 1) optional app fee on the USDC you put in
       let netUsdc = amountBig;
@@ -456,6 +567,15 @@ export function DepositWithdrawModal({
     if (zapping) {
       await handleZapDeposit();
       return;
+    }
+    // Smart-account wallets: fee + approve + deposit in one confirmation.
+    // Lido (native submit + withdrawal queue) keeps its own sequential path.
+    if (!isNativeDeposit) {
+      const cfg = getWagmiConfig();
+      if (await supportsAtomicBatch(cfg, opportunity.chainId)) {
+        await handleBatchedDeposit(cfg);
+        return;
+      }
     }
     setErrorMsg(null);
     try {
@@ -951,6 +1071,12 @@ export function DepositWithdrawModal({
                             ? 'Request withdrawal'
                             : `Withdraw ${opportunity.asset.symbol}`}
             </button>
+
+            {tab === 'deposit' && !isNativeDeposit && (
+              <p className="text-[11px] text-ink/40 mt-2 text-center">
+                Smart-account wallets (incl. email/social) confirm every step in one approval.
+              </p>
+            )}
 
             {opportunity.protocol === 'lido' && tab === 'withdraw' && (
               <LidoWithdrawalRequests chainId={opportunity.chainId} />
