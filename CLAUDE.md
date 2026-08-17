@@ -65,34 +65,44 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    (three answers + wallet address + timestamp, nothing else) and what's still missing before
    this can face real users (privacy policy, retention policy, deletion mechanism).
 
-## ⛔ RainbowKit/wagmi config must stay lazy — do not regress
+## ⛔ Wallet layer = Reown AppKit; its config must stay lazy — do not regress
+
+The wallet layer is **Reown AppKit** (`@reown/appkit` + `@reown/appkit-adapter-wagmi`) on top
+of wagmi, chosen over Privy purely on cost — AppKit's email/social/passkey embedded wallets are
+free (Privy was ~$300/mo). It reuses the WalletConnect project ID and stays non-custodial. It
+replaced RainbowKit; all app code still uses plain wagmi hooks, so protocol/deposit/swap/referral
+code was unaffected by the swap.
 
 `lib/wagmi.ts` exports `getWagmiConfig()`, a lazy singleton — **not** an eagerly-evaluated
-`export const wagmiConfig = getDefaultConfig(...)`. This is load-bearing, not a style choice.
+top-level config. This is load-bearing, not a style choice.
 
-RainbowKit's `getDefaultConfig()` constructs every default wallet connector (WalletConnect,
-MetaMask SDK, Coinbase Smart Wallet) and touches browser-only APIs (`indexedDB`, `WebSocket`)
-at call time. If it runs at **module-import time** (a top-level `const`), it crashes Next's
-Node-side "Collecting page data" build step — `TypeError: (0 , x.y) is not a function` — for
-*any* page that transitively imports the file, even client components wrapped in
-`next/dynamic(..., { ssr: false })`. `ssr:false` only skips rendering; Next still has to
-`require()` the module graph in Node to collect page metadata, and that require alone was
-enough to execute `getDefaultConfig()` and crash.
+`new WagmiAdapter(...)` and `createAppKit(...)` construct wallet connectors that touch
+browser-only APIs (`indexedDB`, `WebSocket`) at call time (same hazard RainbowKit's
+`getDefaultConfig()` had). If that runs at **module-import time**, it crashes Next's Node-side
+"Collecting page data" build step for *any* page that transitively imports the file — even
+client components wrapped in `next/dynamic(..., { ssr: false })`, because Next still has to
+`require()` the module graph in Node to collect page metadata. `createAppKit` also registers
+AppKit's modal + `<appkit-button>` web components as a side effect, so it must run exactly once.
 
 Rules:
 - `chains`, `NETWORK_MODE`, `SupportedChainId` in `lib/wagmi.ts` are safe to import anywhere
-  (no RainbowKit dependency) — keep it that way.
+  (no `@reown/appkit*` dependency) — keep it that way. The AppKit libs are `require`d LAZILY
+  inside `getWagmiConfig()`, never imported at the top of any module a page statically imports.
 - Only ever call `getWagmiConfig()` from code that executes in the browser: inside
-  `app/providers.tsx` (itself loaded via `dynamic(() => import('./providers'), { ssr: false })`
-  in `app/layout.tsx`), or inside a client event handler (`components/DepositWithdrawModal.tsx`,
-  `components/LidoWithdrawalRequests.tsx`). Never at module scope.
-- `ConnectButton` from `@rainbow-me/rainbowkit` is never imported directly — use
-  `components/ConnectButtonClient.tsx`, which isolates it behind its own
-  `dynamic(..., { ssr: false })` so no page's static import graph pulls RainbowKit into a
-  server-evaluated chunk.
-- If a future change reintroduces `export const wagmiConfig = getDefaultConfig(...)` at
-  module scope, `npm run build` will fail on `/opportunities` (or wherever imports it) with
-  the exact error above. Re-apply the lazy-singleton pattern rather than special-casing routes.
+  `app/providers.tsx` (loaded via `dynamic(() => import('./providers'), { ssr: false })` in
+  `app/layout.tsx`), or inside a client event handler (`components/DepositWithdrawModal.tsx`,
+  `components/SwapCard.tsx`, `components/LidoWithdrawalRequests.tsx`). Never at module scope.
+  It both builds the wagmi config AND initializes AppKit once (guarded by the singleton).
+- The connect UI is `components/ConnectButtonClient.tsx`, which renders AppKit's
+  `<appkit-button>` web component (registered by `createAppKit`). It deliberately imports
+  **nothing** from `@reown/appkit*`, so no page's static import graph pulls the wallet stack
+  into a server-evaluated chunk.
+- Email/social/passkey login needs a REAL Reown project ID (`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`)
+  created at dashboard.reown.com with Email + Socials enabled. With the dev placeholder the modal
+  renders but those methods don't function.
+- If a future change moves the AppKit/adapter construction to module scope (a top-level
+  `const`/import), `npm run build` will fail during page-data collection. Re-apply the
+  lazy-singleton pattern rather than special-casing routes.
 
 ## Current state (2026-08-13, initial build + fees/questionnaire + data collection + Curve same day)
 

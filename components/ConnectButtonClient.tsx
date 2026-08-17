@@ -1,17 +1,32 @@
 'use client';
 
-import dynamic from 'next/dynamic';
+import type { DetailedHTMLProps, HTMLAttributes } from 'react';
 
-// RainbowKit/wagmi touch browser-only APIs at module-eval time (indexedDB,
-// WebSocket) which crashes Next's Node-side static page-data collection if
-// this ends up in any server-evaluated module graph. Isolating it behind its
-// own ssr:false dynamic import keeps that entirely out of server chunks,
-// independent of how the importing component is itself rendered.
-const RainbowConnectButton = dynamic(
-  () => import('@rainbow-me/rainbowkit').then((m) => m.ConnectButton),
-  { ssr: false },
-);
+/**
+ * Reown AppKit connect button. `<appkit-button>` is a web component registered
+ * by createAppKit() (see lib/wagmi.ts), so there's nothing to import here — it
+ * just needs AppKit to have initialized, which the ssr:false Providers tree
+ * guarantees before this ever renders. Keeping zero @reown/appkit imports in
+ * this module is deliberate: it means no page's static import graph can pull
+ * the wallet stack into a server-evaluated chunk.
+ *
+ * The props mirror the old RainbowKit wrapper so callers don't change; only
+ * `showBalance` is meaningful for AppKit (it maps to the `balance` attribute).
+ */
+export function ConnectButtonClient(props: {
+  showBalance?: boolean;
+  chainStatus?: 'icon' | 'full' | 'none';
+}) {
+  return <appkit-button balance={props.showBalance ? 'show' : 'hide'} />;
+}
 
-export function ConnectButtonClient(props: { showBalance?: boolean; chainStatus?: 'icon' | 'full' | 'none' }) {
-  return <RainbowConnectButton {...props} />;
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'appkit-button': DetailedHTMLProps<
+        HTMLAttributes<HTMLElement> & { balance?: string; size?: string; label?: string },
+        HTMLElement
+      >;
+    }
+  }
 }
