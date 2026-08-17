@@ -26,7 +26,11 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    sponsor wallet, no server-side signer holding user assets — that's the entire non-custodial
    premise and it's the whole reason this doesn't need FINTRAC/CSA registration on day one.
    Optional Privy email/passkey wallets are third-party infra (`NEXT_PUBLIC_PRIVY_APP_ID`);
-   Openhand must not persist keys or the email Privy collects.
+   Openhand must not persist keys or the email Privy collects. Privy's allowed origins
+   must include **both** `https://openhand.online` and `https://www.openhand.online`.
+   Vercel currently 308s apex → www; a missing www origin white-screens the public
+   app (`Application error: a client-side exception`). `app/providers.tsx` falls
+   back to RainbowKit if Privy throws — do not remove that boundary.
 2. **Never approve `type(uint256).max` / unbounded allowances.** Every ERC-20 `approve` call
    scopes to the exact amount being deposited. See `components/DepositWithdrawModal.tsx`.
 3. **Never fabricate an APY.** If a protocol's API/on-chain read doesn't return a value we can
