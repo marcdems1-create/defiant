@@ -310,3 +310,18 @@ live. This makes mainnet Curve actually show up for the first time, too.
 pools; the actual on-chain `add_liquidity`/`remove_liquidity_one_coin` **writes** are still
 untested with real funds — same caveat as every other transaction flow in this app, plus mind
 the small L2 TVL vs. the modal's 1% min-out (large deposits will revert safely).
+
+## Referral fee mesh (2026-08-17)
+
+The referral program discounts the fee (`feeBpsFor()` in `lib/config/fees.ts`): referees pay a
+reduced fee, referrers earn their OWN lower fee by rank, and rank is gated on QUALIFIED referees
+(who actually paid a fee, verified on-chain from the treasury transfer in
+`app/api/referrals/qualify`). **Discount-only, no payouts** → non-custodial by construction and
+un-farmable (rewards are bounded fee reductions, always < the fee), so the rewards-<-fees
+invariant holds automatically. All of it no-ops while `feesEnabled()` is false. Fee bps live in
+`fees.ts` (`STANDARD_FEE_BPS`/`REFEREE_FEE_BPS`/`RANK_FEE_BPS`) — **note the fee schedule was
+bumped so the referee's 0.50% is a real discount** (`STANDARD_FEE_BPS = 100` / 1.00%); these are
+placeholders to confirm/retune, and `STANDARD_FEE_BPS` must stay above `REFEREE_FEE_BPS`. Not
+transaction-tested (needs fees enabled + a treasury); the qualify endpoint verifies a real fee
+tx receipt so it can't be spoofed. Lido claim-time fee in `LidoWithdrawalRequests.tsx` still uses
+the standard rate (no referral discount there yet) — minor follow-up.

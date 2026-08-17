@@ -116,9 +116,10 @@ export function ReferralPanel() {
           {/* Reward perk (fees held off for now) */}
           <div className="border border-border rounded-lg p-4 mb-5 flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-medium">Perk: fee-free deposits</div>
+              <div className="text-sm font-medium">Perk: cheaper fees</div>
               <div className="text-xs text-ink/50">
-                Referred crew skip Openhand&apos;s deposit fee. Activates when fees launch —
+                Friends you invite pay a reduced fee, and your own fee drops as you rank up
+                (each rank needs friends who actually deposit). Activates when fees launch —
                 your rank is banking progress in the meantime.
               </div>
             </div>

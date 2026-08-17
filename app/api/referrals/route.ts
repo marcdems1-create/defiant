@@ -92,9 +92,14 @@ export async function GET(request: Request) {
 
   try {
     const db = getDb();
-    const [{ rows: countRows }, { rows: refRows }] = await Promise.all([
+    const [{ rows: countRows }, { rows: qualRows }, { rows: refRows }] = await Promise.all([
       db.query(
         `SELECT COUNT(*)::int AS n FROM referrals WHERE referrer_address = LOWER($1)`,
+        [address],
+      ),
+      db.query(
+        `SELECT COUNT(*)::int AS n FROM referrals
+           WHERE referrer_address = LOWER($1) AND qualified_at IS NOT NULL`,
         [address],
       ),
       db.query(`SELECT referrer_address FROM referrals WHERE referee_address = LOWER($1)`, [
@@ -104,6 +109,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       address: address.toLowerCase(),
       referrals: countRows[0]?.n ?? 0,
+      qualifiedReferrals: qualRows[0]?.n ?? 0,
       referredBy: refRows[0]?.referrer_address ?? null,
     });
   } catch (e) {

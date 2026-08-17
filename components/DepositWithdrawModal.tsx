@@ -16,8 +16,9 @@ import { compoundCometAbi } from '@/lib/abi/compoundComet';
 import { moonwellMTokenAbi } from '@/lib/abi/moonwell';
 import { LIDO } from '@/lib/config/addresses';
 import { getWagmiConfig } from '@/lib/wagmi';
-import { computeFee, DEPOSIT_FEE_BPS, feesEnabled, WITHDRAW_FEE_BPS } from '@/lib/config/fees';
+import { computeFee, feeBpsFor, feesEnabled, STANDARD_FEE_BPS } from '@/lib/config/fees';
 import { useSendFee } from '@/lib/hooks/useSendFee';
+import { reportReferralFeePaid, useReferralFee } from '@/lib/hooks/useReferralFee';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
 import { chainName, formatApy } from '@/lib/format';
 import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
@@ -40,6 +41,7 @@ export function DepositWithdrawModal({
   const { switchChainAsync, isPending: switching } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const { sendFee } = useSendFee();
+  const refFee = useReferralFee(address);
 
   const [tab, setTab] = useState<Tab>('deposit');
   const [amount, setAmount] = useState('');
@@ -179,7 +181,13 @@ export function DepositWithdrawModal({
     opportunity.chainId,
   );
 
-  const feeBps = tab === 'deposit' ? DEPOSIT_FEE_BPS : WITHDRAW_FEE_BPS;
+  // Effective fee bps after any referral discount (referee coupon and/or the
+  // wallet's own referrer rank discount). Same schedule for deposit + withdraw.
+  const feeBps = feeBpsFor({
+    isReferee: refFee.isReferee,
+    referrerRankIndex: refFee.referrerRankIndex,
+  });
+  const feeDiscounted = feeBps < STANDARD_FEE_BPS;
   // For a Curve withdrawal, amountBig is LP shares (18 decimals, not 1:1
   // with USDC) — the fee must be computed on the previewed USDC output
   // instead, or it comes out wildly wrong (off by orders of magnitude).
@@ -274,12 +282,17 @@ export function DepositWithdrawModal({
     try {
       if (feeAmount > 0n) {
         setStep('sendingFee');
-        await sendFee({
+        const feeHash = await sendFee({
           isNative: isNativeDeposit,
           tokenAddress: isNativeDeposit ? undefined : opportunity.asset.address,
           amount: feeAmount,
           chainId: opportunity.chainId,
         });
+        // A referee who just paid a fee qualifies their referrer's rank —
+        // verified server-side from this tx. Fire-and-forget, never blocks.
+        if (feeHash && address && refFee.isReferee) {
+          reportReferralFeePaid(address, opportunity.chainId, feeHash);
+        }
       }
 
       if (opportunity.protocol === 'lido') {
@@ -558,12 +571,15 @@ export function DepositWithdrawModal({
       // Fee comes out of what just landed, as its own transfer.
       if (feeAmount > 0n) {
         setStep('sendingFee');
-        await sendFee({
+        const feeHash = await sendFee({
           isNative: false,
           tokenAddress: opportunity.asset.address,
           amount: feeAmount,
           chainId: opportunity.chainId,
         });
+        if (feeHash && address && refFee.isReferee) {
+          reportReferralFeePaid(address, opportunity.chainId, feeHash);
+        }
       }
 
       setStep('done');
@@ -656,8 +672,18 @@ export function DepositWithdrawModal({
             {feeAppliesHere && amountBig > 0n && (
               <div className="text-xs text-ink/50 border border-border rounded px-3 py-2 mb-3 flex flex-col gap-1">
                 <div className="flex justify-between">
-                  <span>Fee ({(feeBps / 100).toFixed(2)}%)</span>
                   <span>
+                    Fee ({(feeBps / 100).toFixed(2)}%)
+                    {feeDiscounted && (
+                      <span className="ml-1 text-accent">· referral discount</span>
+                    )}
+                  </span>
+                  <span>
+                    {feeDiscounted && (
+                      <span className="text-ink/40 line-through mr-1">
+                        {(STANDARD_FEE_BPS / 100).toFixed(2)}%
+                      </span>
+                    )}
                     {formatUnits(feeAmount, opportunity.asset.decimals)} {opportunity.asset.symbol}
                   </span>
                 </div>
@@ -671,7 +697,7 @@ export function DepositWithdrawModal({
             )}
             {opportunity.protocol === 'lido' && tab === 'withdraw' && feesEnabled() && (
               <div className="text-xs text-ink/50 mb-3">
-                Withdrawal fee ({(WITHDRAW_FEE_BPS / 100).toFixed(2)}%) is taken when you claim
+                Withdrawal fee ({(feeBps / 100).toFixed(2)}%) is taken when you claim
                 below, not now.
               </div>
             )}

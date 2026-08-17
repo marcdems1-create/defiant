@@ -128,8 +128,14 @@ export function setSeenTierIndex(index: number) {
 
 export interface ReferralStats {
   address: string;
-  /** Number of referees who joined via this address's link. */
+  /** Number of referees who joined (signature-bound) via this address's link. */
   referrals: number;
+  /**
+   * Referees who additionally *qualified* by paying a real fee (observable
+   * treasury inflow) — see app/api/referrals/qualify. This is the count that
+   * gates the referrer's rank-based fee discount, so free signups can't farm it.
+   */
+  qualifiedReferrals: number;
   /** The address that referred this wallet, if any. */
   referredBy: string | null;
 }

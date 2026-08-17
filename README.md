@@ -116,6 +116,31 @@ extra signature per deposit/withdrawal when fees are enabled.
 a real address. There is no fallback address; an unset or malformed value disables fees
 entirely rather than sending anywhere unintended.
 
+## Referral fee mesh
+
+The referral program is wired to the fee — the *effective* bps a wallet pays is discounted by
+its referral status (`feeBpsFor()` in `lib/config/fees.ts`). It's **discount-only, no payouts**,
+which keeps it non-custodial by construction (a discount moves no funds) and un-farmable (the
+only "reward" is a bounded reduction of your own fee — always less than the fee itself, so
+there's nothing to profit from):
+
+- **Referred users pay less.** A signature-bound referee gets a reduced fee (`REFEREE_FEE_BPS`,
+  a coupon vs `STANDARD_FEE_BPS`). Being referred is verified by the same opt-in + wallet
+  signature as the rest of the referral data (`/api/referrals`).
+- **Referrers earn their OWN discount by rank.** As a referrer climbs Starter → Connector →
+  Builder → Luminary (`RANK_FEE_BPS`), their own deposit/withdraw fee drops. No cash, no
+  rev-share, no payout wallet.
+- **Rank is gated on fee-event qualification.** A referee only counts toward a referrer's rank
+  once they've actually **paid a fee** — verified on-chain from the fee transfer to the treasury
+  (`/api/referrals/qualify` checks the tx receipt: a transfer from the referee to the treasury).
+  Free wallet signups stay "joined" but unqualified, so ranks can't be farmed with throwaways.
+- **All of it is dark until fees turn on.** Every discount and the qualification check no-op
+  while `feesEnabled()` is false (no treasury configured), exactly like the base fee.
+
+The exact bps (`STANDARD_FEE_BPS` / `REFEREE_FEE_BPS` / `RANK_FEE_BPS`) are the single source of
+truth in `lib/config/fees.ts` and are meant to be retuned there; `STANDARD_FEE_BPS` must stay
+above `REFEREE_FEE_BPS` for the referee number to be a genuine discount.
+
 ## Investment-style filter (not advice)
 
 `/opportunities` shows a short questionnaire on first visit (`InvestmentStyleQuestionnaire`,
