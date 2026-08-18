@@ -250,6 +250,30 @@ suitability or recommend a product or allocation.
 pushes an interface toward investment-adviser-registration territory. Keep filters as
 filters.
 
+## Tokenized stocks (LI.FI)
+
+The dashboard includes a browse-only tape of tokenized stocks and ETFs routed by
+[LI.FI](https://li.fi) (`components/StockDesk.tsx`). This is **not** a yield card, not a
+brokerage, and not a recommendation. Filters hide/reorder the catalog. Rows are
+alphabetical. Nothing is featured.
+
+- **Issuers shown:** xStocks, Ondo Tokenized, Backed — classified from LI.FI's catalog
+  names (LI.FI has no public `stock` tag; only `stablecoin` is documented). Ambiguous
+  names are skipped, not guessed. A row without a parseable `priceUSD` is skipped.
+- **Swap:** USDC ↔ the selected token on the same chain. `POST /api/lifi/quote` calls
+  LI.FI `/v1/quote`; the wallet signs `approve` (exact amount, never unlimited) then the
+  returned `transactionRequest`. Openhand never holds the tokens. Addresses are
+  checksummed with `getAddress` — LI.FI rejects the unchecksummed catalog address.
+- **Mainnet only** to execute. Testnet still shows the live tape, buy/sell disabled.
+- **Fees:** Openhand does not take an integrator cut. LI.FI may charge its own protocol
+  fee inside the swap; the modal shows it when the quote reports `feeCosts`.
+- **Regulatory:** tokenized stocks are securities-adjacent in many readings, often
+  unavailable to US retail, and are not the listed share. Do not add a “best stock”,
+  allocation, or suitability flow. Get a compliance read before marketing this as a
+  stock product.
+
+Optional `LIFI_API_KEY` (server-only) raises LI.FI rate limits. Catalog works without it.
+
 ## Site analytics
 
 The only optional server-side store is first-party anonymous event counts. There is no
@@ -385,5 +409,11 @@ npm run dev
 | `components/DepositWithdrawModal.tsx` | The actual transaction flow — fee transfer + approve/deposit/withdraw per protocol |
 | `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim + fee-on-claim |
 | `components/RiskDisclaimer.tsx` | Short on-page risk disclosure (not a questionnaire) |
+| `lib/config/lifi.ts` | LI.FI API host, integrator name, stock chain IDs, Circle USDC lookup |
+| `lib/lifi/stocks.ts` | Catalog filter + quote parser. Skip on parse failure — never guess a price. |
+| `app/api/lifi/stocks/route.ts` | Cached stock catalog for the dashboard tape |
+| `app/api/lifi/quote/route.ts` | USDC ↔ catalogued stock quote. Wallet signs the tx. |
+| `components/StockDesk.tsx` | Dashboard browse + holdings-in-view |
+| `components/StockSwapModal.tsx` | Approve + LI.FI swap, exact allowance |
 | `app/page.tsx` | Collection browse (first-run hero when disconnected / no positions) |
 | `app/opportunities/[id]/page.tsx` | Card detail |

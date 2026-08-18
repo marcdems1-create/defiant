@@ -463,3 +463,18 @@ or renting a registered onramp and doing KYB/tax for businesses. Openhand stays
 ahead by not touching the money. Paperwork still due before a real Canadian launch:
 entity, terms, privacy, risk page, partner map, counsel on FINTRAC/CARF/fees.
 Not legal advice.
+
+## Session update (2026-08-18) — LI.FI tokenized stocks on the dashboard
+
+Dashboard tape of tokenized stocks/ETFs via LI.FI (xStocks, Ondo, Backed). Browse
+filters only — alphabetical, no featured ticker, not added to the yield collection.
+
+- Catalog: `GET /v1/tokens` then classify by issuer naming (LI.FI's only public tag is
+  `stablecoin`). Skip unparseable `priceUSD` and ambiguous names. Checksum addresses
+  with `getAddress` before `/v1/quote` or LI.FI returns 1003.
+- Swap is wallet-signed approve (exact amount) + `transactionRequest`. Same-chain USDC
+  only. Mainnet to execute. No Openhand integrator fee; disclose LI.FI's own fee when
+  quoted. Optional server-only `LIFI_API_KEY`.
+- **Securities-adjacent.** Not a broker, not the listed share, issuers often exclude US
+  retail. Do not add recommendations, allocations, or a suitability questionnaire.
+  Flag for compliance review before this is marketed as a stock product.
