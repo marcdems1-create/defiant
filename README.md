@@ -171,6 +171,7 @@ Production keys + KYB are still required before real CAD hits a real wallet.
 | Sky (sUSDS) | Base, Arbitrum (Spark PSM3; no testnet) | USDC ↔ sUSDS | `PSM.swapExactIn` | Same swap back to USDC — instant, subject to PSM liquidity |
 | Maple (syrupUSDC) | Ethereum only | USDC | `SyrupRouter.deposit` (Maple lender auth required once) | `Pool.requestRedeem` — FIFO queue; USDC is pushed when processed |
 | Panoptic (Unicorn USDC) | Ethereum only | USDC | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
+| Pendle PT (sUSDS, sUSDe, wstETH) | Ethereum only (no testnet books) | USDC or ETH → PT | Hosted SDK Convert (`swapExactTokenForPt`) | Same convert: sell PT on the AMM, or redeem at expiry |
 
 Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
 `lib/protocols/curve.ts` turns each configured entry into its own opportunity:
@@ -216,6 +217,15 @@ market-neutral or a recommendation. If `asset()` is not native USDC, or DeFiLlam
 no parseable Unicorn APY, the card is skipped rather than guessed. PLP WETH is not
 listed (USDC-in only).
 
+Pendle is **PT only**, and only on the long-running books: sUSDS (Sky), sUSDe (Ethena),
+wstETH (Lido). Market addresses come from Pendle's official
+[`GET /v2/markets/all`](https://docs.pendle.finance/pendle-v2-dev/Backend/ApiOverview)
+at fetch time — they expire, so they are not snapshotted in `addresses.ts`. Deposit and
+withdraw are wallet-signed txs built by Pendle's Hosted SDK Convert
+(`POST /v3/sdk/{chainId}/convert`); we always use `tx.to` from that response (Router V4
+is upgradeable). Implied APY is the discount to maturity, not a lending rate. Early
+exit is an AMM swap with a 1% slippage bound. YT and Pendle LP are not listed.
+
 ## Move USDC (Circle CCTP)
 
 `/move` is a **tool**, not a yield opportunity and not a recommendation. It moves
@@ -245,10 +255,11 @@ and there is **no Openhand fee** on this path.
 you choose what percent of *just-claimed* tokens to sell to USDC via 0x (default 100% sell,
 0% = hold). There is no backend seller or keeper — that would be custody.
 
-**Not built (on purpose):** Uniswap V3 / Aerodrome concentrated LP, GMX, Pendle, and
-one-click looping of stablecoin lending markets. Those are different products (impermanent
-loss, trader PnL, maturity locks, or leverage). Looping in particular multiplies oracle,
-rate, and liquidation risk — see "Looping" under Known simplifications.
+**Not built (on purpose):** Uniswap V3 / Aerodrome concentrated LP, GMX, Pendle YT/LP,
+and one-click looping of stablecoin lending markets. Those are different products
+(impermanent loss, leveraged yield, or leverage). Looping in particular multiplies oracle,
+rate, and liquidation risk — see "Looping" under Known simplifications. Pendle **PT** on
+sUSDS / sUSDe / wstETH is in the catalog; the rest of Pendle is not.
 
 ## Fees
 
@@ -414,6 +425,9 @@ npm run dev
   itself has not been deposit-tested from this app.
 - **Circle Fast Transfer is not built.** It would take a fee from the bridged amount.
   Standard Transfer is fee-free at Circle's layer and slower.
+- **Pendle is PT-only on an allowlist.** Points-farm markets, YT, and LP are skipped even
+  when they show a higher implied APY. A missing implied APY skips the card. Convert
+  quotes have not been signed against a live wallet from this app.
 
 ## File map
 
@@ -437,7 +451,10 @@ npm run dev
 | `app/api/cctp/attestation/route.ts` | Same-origin Iris pass-through. No wallet, no store. |
 | `components/CctpMove.tsx` | User-signed burn → wait → mint. Pending list in localStorage. |
 | `app/(public)/move/page.tsx` | Move USDC tool (not a strategy page) |
-| `lib/protocols/{aave,lido,yearn,curve,sky,maple,panoptic}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
+| `lib/protocols/{aave,lido,yearn,curve,sky,maple,panoptic,pendle}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
+| `lib/config/pendle.ts` | Allowlisted PT names, slippage, min TVL / days-to-expiry |
+| `lib/pendle/convert.ts` | Hosted SDK Convert parse (skip if tx/output missing) |
+| `app/api/pendle/convert/route.ts` | Same-origin Convert pass-through. No wallet store. |
 | `lib/protocols/aggregate.ts` | Combines protocol fetchers into one sorted list |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |

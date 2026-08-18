@@ -12,6 +12,7 @@ import { fetchMoonwellOpportunities } from './moonwell';
 import { fetchSkyOpportunities } from './sky';
 import { fetchMapleOpportunities } from './maple';
 import { fetchPanopticOpportunities } from './panoptic';
+import { fetchPendleOpportunities } from './pendle';
 import type { Opportunity } from './types';
 
 export async function fetchAllOpportunities(): Promise<Opportunity[]> {
@@ -31,6 +32,7 @@ export async function fetchAllOpportunities(): Promise<Opportunity[]> {
         sky,
         maple,
         panoptic,
+        pendle,
       ] = await Promise.all([
         fetchAaveOpportunities(chain.id).catch(() => []),
         fetchLidoOpportunities(chain.id).catch(() => []),
@@ -45,6 +47,7 @@ export async function fetchAllOpportunities(): Promise<Opportunity[]> {
         fetchSkyOpportunities(chain.id).catch(() => []),
         fetchMapleOpportunities(chain.id).catch(() => []),
         fetchPanopticOpportunities(chain.id).catch(() => []),
+        fetchPendleOpportunities(chain.id).catch(() => []),
       ]);
       return [
         ...aave,
@@ -60,6 +63,7 @@ export async function fetchAllOpportunities(): Promise<Opportunity[]> {
         ...sky,
         ...maple,
         ...panoptic,
+        ...pendle,
       ];
     }),
   );

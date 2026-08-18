@@ -38,6 +38,30 @@ export async function estimateCappedGas(params: {
   }
 }
 
+/** Same cap/pad for already-encoded txs (Pendle Hosted SDK / 0x). */
+export async function estimateCappedCall(params: {
+  account: `0x${string}`;
+  chainId: number;
+  to: `0x${string}`;
+  data: `0x${string}`;
+  value?: bigint;
+}): Promise<bigint> {
+  try {
+    const client = getPublicClient(getWagmiConfig(), { chainId: params.chainId });
+    if (!client) return FALLBACK_GAS;
+    const estimated = await client.estimateGas({
+      account: params.account,
+      to: params.to,
+      data: params.data,
+      ...(params.value !== undefined ? { value: params.value } : {}),
+    });
+    const padded = (estimated * 125n) / 100n;
+    return padded > MAX_TX_GAS ? MAX_TX_GAS : padded < 21_000n ? FALLBACK_GAS : padded;
+  } catch {
+    return FALLBACK_GAS;
+  }
+}
+
 export function formatTxError(error: unknown): string {
   const msg = error instanceof Error ? error.message : 'Transaction failed';
   if (/exceeds max transaction gas limit/i.test(msg)) {

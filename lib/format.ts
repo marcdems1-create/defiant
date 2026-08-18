@@ -7,7 +7,12 @@ export function formatApy(apy: number): string {
 
 /** Caption under the big rate — call out compounding when we actually compounded it. */
 export function apyCaption(opportunity: Opportunity, prefix?: string): string {
-  const kind = opportunity.apyCompounded ? 'compounded APY' : 'APY';
+  const kind =
+    opportunity.protocol === 'pendle'
+      ? 'implied APY to maturity'
+      : opportunity.apyCompounded
+        ? 'compounded APY'
+        : 'APY';
   return prefix ? `${prefix} ${kind}` : kind;
 }
 

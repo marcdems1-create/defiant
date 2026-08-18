@@ -39,7 +39,9 @@ function cardRiskLevel(opportunity: Opportunity): RiskLevel {
     opportunity.protocol === 'convex-cvxcrv' ||
     opportunity.protocol === 'frax-sfrxusd' ||
     opportunity.protocol === 'maple' ||
-    opportunity.protocol === 'panoptic'
+    opportunity.protocol === 'panoptic' ||
+    (opportunity.protocol === 'pendle' &&
+      (opportunity.pendle?.name === 'sUSDe' || opportunity.pendle?.name === 'USDe'))
   ) {
     return 'higher';
   }
@@ -52,6 +54,7 @@ function cardRiskLevel(opportunity: Opportunity): RiskLevel {
   if (
     opportunity.protocol === 'moonwell' ||
     opportunity.protocol === 'fluid' ||
+    opportunity.protocol === 'pendle' ||
     (opportunity.protocol === 'morpho' && opportunity.riskTier === 'emerging')
   ) {
     return 'medium';
@@ -70,6 +73,7 @@ export function getCardBadges(opportunity: Opportunity): CardBadges {
     opportunity.protocol === 'lido' ||
     opportunity.protocol === 'curve' ||
     opportunity.protocol === 'sky' ||
+    opportunity.protocol === 'pendle' ||
     (opportunity.protocol === 'morpho' &&
       !opportunity.protocolLabel.toLowerCase().includes('high yield'));
 
@@ -111,15 +115,20 @@ export function getCardBadges(opportunity: Opportunity): CardBadges {
           };
 
   const liquidity: CardBadge =
-    opportunity.liquidity === 'delayed'
+    opportunity.protocol === 'pendle'
       ? {
-          label: 'Delayed exit',
-          hint: 'Withdrawals wait in a queue — Lido is typically a few days then a claim; Maple sends USDC when the FIFO queue processes (hours to days, up to 30 days documented).',
+          label: 'Fixed to maturity',
+          hint: 'Implied APY assumes you hold PT until expiry. Selling early is a Pendle AMM swap with slippage, not a 1:1 redeem.',
         }
-      : {
-          label: 'Instant exit',
-          hint: 'You can withdraw in one transaction, if the pool has enough liquidity.',
-        };
+      : opportunity.liquidity === 'delayed'
+        ? {
+            label: 'Delayed exit',
+            hint: 'Withdrawals wait in a queue — Lido is typically a few days then a claim; Maple sends USDC when the FIFO queue processes (hours to days, up to 30 days documented).',
+          }
+        : {
+            label: 'Instant exit',
+            hint: 'You can withdraw in one transaction, if the pool has enough liquidity.',
+          };
 
   return { risk, battle, fee, liquidity };
 }

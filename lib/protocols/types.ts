@@ -13,7 +13,8 @@ export type ProtocolId =
   | 'moonwell'
   | 'sky'
   | 'maple'
-  | 'panoptic';
+  | 'panoptic'
+  | 'pendle';
 
 export interface Opportunity {
   id: string;
@@ -41,6 +42,12 @@ export interface Opportunity {
     address: `0x${string}`;
     symbol: string;
     decimals: number;
+  };
+  pendle?: {
+    market: `0x${string}`;
+    pt: `0x${string}`;
+    expiryMs: number;
+    name: string;
   };
 }
 

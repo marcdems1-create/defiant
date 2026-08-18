@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseUnits, formatUnits } from 'viem';
-import { useAccount, useBalance, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi';
+import { useAccount, useBalance, useChainId, useReadContract, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
 import type { Opportunity } from '@/lib/protocols/types';
 import { erc20Abi } from '@/lib/abi/erc20';
@@ -23,7 +23,9 @@ import { useSendFee } from '@/lib/hooks/useSendFee';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
 import { apyCaption, chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ERC4626_PROTOCOLS, hasTokenEmissions } from '@/lib/protocols/types';
-import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
+import { estimateCappedCall, estimateCappedGas, formatTxError } from '@/lib/tx/gas';
+import { fetchPendleConvert } from '@/lib/pendle/convert';
+import { PENDLE_NATIVE_ETH } from '@/lib/config/pendle';
 import { track } from '@/lib/analytics/track';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 import { MapleWithdrawalStatus } from './MapleWithdrawalStatus';
@@ -52,6 +54,7 @@ export function DepositWithdrawModal({
   const [switchFailed, setSwitchFailed] = useState(false);
   const autoSwitchKey = useRef('');
   const { writeContractAsync } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
   const { sendFee } = useSendFee();
 
   async function writeTx(params: {
@@ -65,6 +68,64 @@ export function DepositWithdrawModal({
     if (!address) throw new Error('Connect a wallet first');
     const gas = await estimateCappedGas({ ...params, account: address });
     return writeContractAsync({ ...params, gas } as never);
+  }
+
+  async function executePendleConvert(opts: {
+    tokenIn: `0x${string}`;
+    amountIn: bigint;
+    tokenOut: `0x${string}`;
+    nativeValue: bigint;
+  }) {
+    if (!address || !opportunity.pendle) throw new Error('Pendle market missing');
+    const quote = await fetchPendleConvert({
+      chainId: opportunity.chainId,
+      receiver: address,
+      tokenIn: opts.tokenIn,
+      amountIn: opts.amountIn,
+      tokenOut: opts.tokenOut,
+      enableAggregator: true,
+    });
+    if (!quote) {
+      throw new Error('Could not build a Pendle quote. The implied APY is live; try again in a moment.');
+    }
+    const approvals =
+      quote.approvals.length > 0
+        ? quote.approvals
+        : opts.nativeValue === 0n
+          ? [{ token: opts.tokenIn, amount: opts.amountIn }]
+          : [];
+    for (const row of approvals) {
+      if (row.token.toLowerCase() === PENDLE_NATIVE_ETH.toLowerCase()) continue;
+      setStep('approving');
+      const approveHash = await writeTx({
+        address: row.token,
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [quote.to, row.amount],
+        chainId: opportunity.chainId,
+      });
+      await waitForTransactionReceipt(getWagmiConfig(), {
+        hash: approveHash,
+        chainId: opportunity.chainId,
+      });
+    }
+    setStep('acting');
+    const gas = await estimateCappedCall({
+      account: address,
+      chainId: opportunity.chainId,
+      to: quote.to,
+      data: quote.data,
+      value: quote.value > 0n ? quote.value : opts.nativeValue,
+    });
+    const hash = await sendTransactionAsync({
+      to: quote.to,
+      data: quote.data,
+      value: quote.value > 0n ? quote.value : opts.nativeValue,
+      gas,
+      chainId: opportunity.chainId,
+    });
+    await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+    return quote;
   }
 
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -108,20 +169,23 @@ export function DepositWithdrawModal({
   }, [step, tab, opportunity.id, opportunity.chainId]);
 
   const wrongNetwork = currentChainId !== opportunity.chainId;
-  const isNativeDeposit = opportunity.protocol === 'lido';
   const isCurve = opportunity.protocol === 'curve';
   const isConvex = opportunity.protocol === 'convex-cvxcrv';
   const isMoonwell = opportunity.protocol === 'moonwell';
   const isSky = opportunity.protocol === 'sky';
   const isMaple = opportunity.protocol === 'maple';
   const isPanoptic = opportunity.protocol === 'panoptic';
+  const isPendle = opportunity.protocol === 'pendle';
+  const isPendleNative = isPendle && opportunity.asset.symbol === 'ETH';
+  const isNativeDeposit = opportunity.protocol === 'lido' || isPendleNative;
   // Lido/Maple withdrawal fee is charged when funds actually land (Lido claim).
   // Maple's queue is push-based — no claim tx — so we skip the fee on request
   // rather than taking it from unrelated wallet funds.
   const feeAppliesHere =
     feesEnabled() &&
     !(opportunity.protocol === 'lido' && tab === 'withdraw') &&
-    !(isMaple && tab === 'withdraw');
+    !(isMaple && tab === 'withdraw') &&
+    !(isPendle && tab === 'withdraw');
 
   // Curve LP shares (and Morpho vault shares) aren't 1:1 with the underlying,
   // so those withdraw tabs enter an amount of positionToken. Moonwell's
@@ -405,6 +469,20 @@ export function DepositWithdrawModal({
         return;
       }
 
+      if (isPendle) {
+        const tokenOut = opportunity.pendle?.pt;
+        if (!tokenOut) throw new Error('Pendle PT token missing');
+        await executePendleConvert({
+          tokenIn: isPendleNative ? PENDLE_NATIVE_ETH : opportunity.asset.address,
+          amountIn: netAmount,
+          tokenOut,
+          nativeValue: isPendleNative ? netAmount : 0n,
+        });
+        setStep('done');
+        await refreshBalances();
+        return;
+      }
+
       // Aave, Yearn, and Curve: ERC-20 approve for the exact net deposit
       // amount, then act. Deliberately not an unbounded approval — scoped
       // to this deposit only, and scoped to the post-fee amount since
@@ -535,6 +613,31 @@ export function DepositWithdrawModal({
     setErrorMsg(null);
     try {
       await ensureChain();
+      if (isPendle) {
+        const tokenIn = opportunity.pendle?.pt ?? opportunity.positionToken;
+        if (!tokenIn) throw new Error('Pendle PT token missing');
+        const quote = await executePendleConvert({
+          tokenIn,
+          amountIn: amountBig,
+          tokenOut: isPendleNative ? PENDLE_NATIVE_ETH : opportunity.asset.address,
+          nativeValue: 0n,
+        });
+        if (feesEnabled() && quote.buyAmount > 0n) {
+          const cut = computeFee(quote.buyAmount, WITHDRAW_FEE_BPS);
+          if (cut > 0n) {
+            setStep('sendingFee');
+            await sendFee({
+              isNative: isPendleNative,
+              tokenAddress: isPendleNative ? undefined : opportunity.asset.address,
+              amount: cut,
+              chainId: opportunity.chainId,
+            });
+          }
+        }
+        setStep('done');
+        await refreshBalances();
+        return;
+      }
       if (opportunity.protocol === 'aave-v3') {
         setStep('acting');
         const hash = await writeTx({
@@ -780,6 +883,21 @@ export function DepositWithdrawModal({
             Panoptic Unicorn is a third-party automated options/volatility vault. You can lose
             USDC. Openhand does not pick strikes or run the strategy. This listing is catalog,
             not a recommendation.
+          </div>
+        )}
+        {isPendle && (
+          <div className="text-xs text-warn bg-warn/10 border border-warn/30 rounded px-3 py-2 mb-4 leading-relaxed">
+            Pendle PT is a fixed term. Implied APY is the discount if you hold until{' '}
+            {opportunity.pendle
+              ? new Date(opportunity.pendle.expiryMs).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  timeZone: 'UTC',
+                })
+              : 'expiry'}
+            . Selling early is an AMM swap with slippage (1% bound here), not a 1:1 withdraw.
+            This is not YT.
           </div>
         )}
         {address && hasTokenEmissions(opportunity.protocol) && (

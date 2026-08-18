@@ -106,6 +106,16 @@ function lookupFor(opportunity: Opportunity): LlamaLookup | null {
         matchesSymbol: (s) => s.includes('UNICORN'),
         preferBase: false,
       };
+    case 'pendle': {
+      const name = (opportunity.pendle?.name ?? '').toUpperCase();
+      if (!name) return null;
+      return {
+        projects: ['pendle'],
+        chain: 'Ethereum',
+        matchesSymbol: (s) => s.includes(name) && (s.includes('PT') || s.includes(name)),
+        preferBase: false,
+      };
+    }
     default:
       return null;
   }
