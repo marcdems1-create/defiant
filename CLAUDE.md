@@ -317,3 +317,19 @@ Constraint: in-app, non-custodial, CAD, Interac, USDC on Ethereum/Base/Arbitrum,
 User-side Transak fees are Transak’s (card ~3.5–5.5%, bank/Interac much lower). Openhand should not add a partner fee on top. Cheapest *user* path in Canada is still a local exchange + withdraw; cheapest *in-app* path that actually does Interac → USDC without a monthly bill is Transak’s hosted widget.
 
 **Do not wire a second onramp as “failover” until Transak is live and downtime is a real problem.** MoonPay / Privy `useFiatOnramp` / Coinbase Onramp / Reown AppKit onramp are not backups for this corridor (no CA USDC, or cards instead of Interac). Onramper is a paid aggregator ($199/mo) for the same job. Banxa is the only same-class Interac peer; adding it now is a second KYB, second iframe, and a second KYC for the user when Transak is down. The modal already falls back to “send USDC to this address” if the widget session fails. Revisit Banxa only after Transak has been used in production.
+
+## Session update (2026-08-18) — LI.FI tokenized stocks on the dashboard
+
+Dashboard tape of tokenized stocks/ETFs via LI.FI (xStocks, Ondo, Backed). Browse
+filters only — alphabetical, no featured ticker, not added to the yield collection.
+
+- Catalog: `GET /v1/tokens` then classify by issuer naming (LI.FI's only public tag is
+  `stablecoin`). Skip unparseable `priceUSD` and ambiguous names. Checksum addresses
+  with `getAddress` before `/v1/quote` or LI.FI returns 1003.
+- Swap is wallet-signed approve (exact amount) + `transactionRequest`. Same-chain USDC
+  only. Mainnet to execute. No Openhand integrator fee; disclose LI.FI's own fee when
+  quoted. Optional server-only `LIFI_API_KEY`.
+- **Securities-adjacent.** Not a broker, not the listed share, issuers often exclude US
+  retail. Do not add recommendations, allocations, or a suitability questionnaire.
+  Flag for compliance review before this is marketed as a stock product.
+
