@@ -25,7 +25,7 @@ import { useCrossChainUsdc } from '@/lib/hooks/useCrossChainUsdc';
 import { bridgeChainById } from '@/lib/config/bridgeChains';
 import { apyCaption, chainName, formatApy, formatTokenAmount, formatUsdcUsd } from '@/lib/format';
 import { ERC4626_PROTOCOLS, hasTokenEmissions } from '@/lib/protocols/types';
-import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
+import { estimateCappedGas, formatTxError, MIN_GAS_WEI } from '@/lib/tx/gas';
 import { track } from '@/lib/analytics/track';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 import { MapleWithdrawalStatus } from './MapleWithdrawalStatus';
@@ -146,8 +146,11 @@ export function DepositWithdrawModal({
   const nativeBalance = useBalance({
     address,
     chainId: opportunity.chainId,
-    query: { enabled: isNativeDeposit && Boolean(address) },
+    query: { enabled: Boolean(address) },
   });
+  const nativeWei = nativeBalance.data?.value ?? 0n;
+  const needsGasToken = !isNativeDeposit;
+  const missingGas = needsGasToken && Boolean(address) && nativeWei < MIN_GAS_WEI;
   const erc20WalletBalance = useErc20Balance(
     isNativeDeposit ? undefined : opportunity.asset.address,
     address,
@@ -418,6 +421,11 @@ export function DepositWithdrawModal({
     setErrorMsg(null);
     try {
       await ensureChain();
+      if (needsGasToken && nativeWei < MIN_GAS_WEI) {
+        throw new Error(
+          `This wallet needs a little ETH on ${chainName(opportunity.chainId)} to pay gas. USDC cannot pay the network fee.`,
+        );
+      }
       if (feeAmount > 0n) {
         setStep('sendingFee');
         await sendFee({
@@ -574,6 +582,11 @@ export function DepositWithdrawModal({
     setErrorMsg(null);
     try {
       await ensureChain();
+      if (needsGasToken && nativeWei < MIN_GAS_WEI) {
+        throw new Error(
+          `This wallet needs a little ETH on ${chainName(opportunity.chainId)} to pay gas.`,
+        );
+      }
       if (opportunity.protocol === 'aave-v3') {
         setStep('acting');
         const hash = await writeTx({
@@ -983,6 +996,13 @@ export function DepositWithdrawModal({
             )}
             {insufficientBalance && !shouldMoveUsdc && (
               <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
+            )}
+            {missingGas && tab === 'deposit' && (
+              <div className="text-xs text-warn bg-warn/10 border border-warn/30 rounded px-3 py-2 mb-3 leading-relaxed">
+                This wallet has {opportunity.asset.symbol} on {chainName(opportunity.chainId)} but
+                almost no ETH. Every deposit is a chain transaction — send a small amount of ETH
+                here for gas, then try again. Openhand cannot pay that fee.
+              </div>
             )}
             {errorMsg && <div className="text-xs text-danger mb-3 break-words">{errorMsg}</div>}
             {step === 'done' && (
