@@ -50,7 +50,7 @@ export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<Swap
   const apiKey = process.env.NEXT_PUBLIC_ZEROEX_API_KEY;
   const feeRecipient = process.env.NEXT_PUBLIC_SWAP_FEE_RECIPIENT;
   const feeBps = process.env.NEXT_PUBLIC_SWAP_FEE_BPS;
-  if (!apiKey || !feeRecipient) return null;
+  if (!apiKey) return null;
 
   const qs = new URLSearchParams({
     chainId: String(params.chainId),
@@ -58,10 +58,15 @@ export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<Swap
     buyToken: params.buyToken,
     sellAmount: params.sellAmount.toString(),
     taker: params.taker,
-    swapFeeToken: params.buyToken,
-    swapFeeRecipient: feeRecipient,
-    swapFeeBps: feeBps || '0',
   });
+  // Swap-fee params are optional so harvest-to-USDC still works when the
+  // conversion fee recipient is unset (deposit/withdraw fees are a separate
+  // NEXT_PUBLIC_TREASURY_ADDRESS path).
+  if (feeRecipient && /^0x[a-fA-F0-9]{40}$/.test(feeRecipient) && !/^0x0{40}$/i.test(feeRecipient)) {
+    qs.set('swapFeeToken', params.buyToken);
+    qs.set('swapFeeRecipient', feeRecipient);
+    qs.set('swapFeeBps', feeBps || '0');
+  }
 
   try {
     const res = await fetch(`${ZEROEX_QUOTE_ENDPOINT}?${qs.toString()}`, {

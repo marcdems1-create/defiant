@@ -317,3 +317,13 @@ Constraint: in-app, non-custodial, CAD, Interac, USDC on Ethereum/Base/Arbitrum,
 User-side Transak fees are Transak’s (card ~3.5–5.5%, bank/Interac much lower). Openhand should not add a partner fee on top. Cheapest *user* path in Canada is still a local exchange + withdraw; cheapest *in-app* path that actually does Interac → USDC without a monthly bill is Transak’s hosted widget.
 
 **Do not wire a second onramp as “failover” until Transak is live and downtime is a real problem.** MoonPay / Privy `useFiatOnramp` / Coinbase Onramp / Reown AppKit onramp are not backups for this corridor (no CA USDC, or cards instead of Interac). Onramper is a paid aggregator ($199/mo) for the same job. Banxa is the only same-class Interac peer; adding it now is a second KYB, second iframe, and a second KYC for the user when Transak is down. The modal already falls back to “send USDC to this address” if the widget session fails. Revisit Banxa only after Transak has been used in production.
+
+## Session update (2026-08-18) — Sky sUSDS, Maple syrupUSDC, harvest sell-%
+
+Added USDC-in / USDC-out adapters that stay non-custodial:
+
+- Sky sUSDS via Spark PSM3 on Base and Arbitrum (`lib/protocols/sky.ts`). Copy uses “Sky protocol rate,” never “savings.” Token addresses are read from the PSM.
+- Maple syrupUSDC on Ethereum (`lib/protocols/maple.ts`). Deposit via SyrupRouter; exit is `requestRedeem` (FIFO, push payout). First-time wallets must authorize on syrup.fi — Openhand cannot sign Maple’s allowlist.
+- Harvest + sell-% of *just-claimed* WELL / CRV / CVX to USDC (`components/HarvestRewards.tsx`). Default 100% sell, slider to hold a percent. Wallet-signed only — no keeper. 0x quote still needs `NEXT_PUBLIC_ZEROEX_API_KEY`.
+
+**Not added:** Uniswap V3 / Aerodrome LP, GMX, Pendle, or one-click looping. Looping is leverage (depeg/oracle/rate/liquidation risk stacked). Do not add it.

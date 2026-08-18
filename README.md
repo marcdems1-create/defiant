@@ -168,6 +168,8 @@ Production keys + KYB are still required before real CAD hits a real wallet.
 | Lido | Ethereum only (no L2 deployment) | ETH → stETH | `stETH.submit()` | Request queue, **1-5 days** to finalize, then `claimWithdrawal()` |
 | Yearn v3 | Ethereum, Base, Arbitrum | USDC vaults | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
 | Curve | Ethereum only (no testnet deployment) | USDC → LP (2 pools, see below) | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
+| Sky (sUSDS) | Base, Arbitrum (Spark PSM3; no testnet) | USDC ↔ sUSDS | `PSM.swapExactIn` | Same swap back to USDC — instant, subject to PSM liquidity |
+| Maple (syrupUSDC) | Ethereum only | USDC | `SyrupRouter.deposit` (Maple lender auth required once) | `Pool.requestRedeem` — FIFO queue; USDC is pushed when processed |
 
 Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
 `lib/protocols/curve.ts` turns each configured entry into its own opportunity:
@@ -196,6 +198,23 @@ against multiple independent third-party sources instead (see the `CURVE` commen
 `lib/config/addresses.ts` for exactly which ones and why that's an acceptable substitute).
 **Re-verify against those sources before any mainnet deploy** — don't assume addresses stay
 correct indefinitely.
+
+Sky sUSDS on L2 uses Spark's PSM3 (official addresses in `lib/config/addresses.ts`,
+[Spark PSM docs](https://docs.spark.fi/dev/savings/spark-psm)). Token addresses are read
+from the PSM at runtime. Copy calls this the Sky protocol rate — not a "savings" product.
+Maple syrupUSDC addresses and the `requestRedeem` flow come from
+[Maple's Ethereum integration docs](https://docs.maple.finance/integrate/ethereum-mainnet/smart-contract-integration).
+First-time Maple wallets must complete lender authorization on syrup.fi; Openhand cannot
+sign Maple's allowlist.
+
+**Token emissions (Moonwell WELL, Convex CRV/CVX):** claim is wallet-signed. After a claim,
+you choose what percent of *just-claimed* tokens to sell to USDC via 0x (default 100% sell,
+0% = hold). There is no backend seller or keeper — that would be custody.
+
+**Not built (on purpose):** Uniswap V3 / Aerodrome concentrated LP, GMX, Pendle, and
+one-click looping of stablecoin lending markets. Those are different products (impermanent
+loss, trader PnL, maturity locks, or leverage). Looping in particular multiplies oracle,
+rate, and liquidation risk — see "Looping" under Known simplifications.
 
 ## Fees
 
@@ -340,6 +359,18 @@ npm run dev
 - **No migration runner.** `migrations/002_site_analytics.sql` is applied by hand (psql, or
   your Postgres host's SQL console) — no tracking of which have run. Fine at this scale,
   revisit if the schema grows.
+- **Looping stablecoin pools is not a product here.** Recursive supply/borrow of the same
+  stable (deposit USDC, borrow USDC, deposit again) is leverage, not a dollar park. A depeg
+  or oracle miss can liquidate a "stable-stable" loop; borrow APY can exceed supply APY so
+  the loop loses money while the headline rate looks high; utilization spikes cascade; and
+  protocol-bug risk is multiplied by every loop layer. One-click looping would also look
+  like a recommendation. Do not add it.
+- **Maple first-time deposits need Maple's own lender authorization.** `authorizeAndDeposit`
+  requires a signature from Maple, not from Openhand. We detect `isSyrupLender` via Maple's
+  GraphQL API and send already-authorized wallets through `SyrupRouter.deposit`. Unauthorized
+  wallets are pointed at syrup.fi.
+- **Harvest sell-to-USDC needs `NEXT_PUBLIC_ZEROEX_API_KEY`.** Without it, Harvest still
+  claims WELL/CRV/CVX to the connected wallet; the sell step is skipped rather than guessed.
 
 ## File map
 
@@ -357,14 +388,16 @@ npm run dev
 | `app/api/analytics/event/route.ts` | First-party event ingest (no wallet/IP stored) |
 | `app/admin/page.tsx` | Password-gated analytics dashboard (not in public nav) |
 | `migrations/002_site_analytics.sql` | Anonymous site event schema. Applied by hand. |
-| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants) |
-| `lib/protocols/{aave,lido,yearn,curve}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
-| `lib/protocols/aggregate.ts` | Combines all four into one sorted list |
+| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants, Spark PSM, Maple router/pool, Moonwell comptroller) |
+| `lib/protocols/{aave,lido,yearn,curve,sky,maple}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
+| `lib/protocols/aggregate.ts` | Combines protocol fetchers into one sorted list |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |
 | `lib/hooks/useSendFee.ts` | Sends the fee transfer (native or ERC-20) to the treasury address, no-ops if unconfigured |
 | `components/DepositWithdrawModal.tsx` | The actual transaction flow — fee transfer + approve/deposit/withdraw per protocol |
+| `components/HarvestRewards.tsx` | Wallet-signed claim of WELL/CRV/CVX, then optional % sell to USDC via 0x |
 | `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim + fee-on-claim |
+| `components/MapleWithdrawalStatus.tsx` | Maple FIFO queue status (push payout, no claim tx) |
 | `components/RiskDisclaimer.tsx` | Short on-page risk disclosure (not a questionnaire) |
 | `app/page.tsx` | Collection browse (first-run hero when disconnected / no positions) |
 | `app/opportunities/[id]/page.tsx` | Card detail |

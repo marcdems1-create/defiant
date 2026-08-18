@@ -84,6 +84,20 @@ function lookupFor(opportunity: Opportunity): LlamaLookup | null {
         preferBase: false,
       };
     }
+    case 'sky':
+      return {
+        projects: ['sky-lending', 'makerdao', 'spark'],
+        chain,
+        matchesSymbol: (s) => s.includes('SUSDS') || s === 'USDS' || s.includes('SSR'),
+        preferBase: true,
+      };
+    case 'maple':
+      return {
+        projects: ['maple', 'syrup'],
+        chain: 'Ethereum',
+        matchesSymbol: (s) => s.includes('SYRUPUSDC') || s.includes('SYRUP'),
+        preferBase: false,
+      };
     default:
       return null;
   }

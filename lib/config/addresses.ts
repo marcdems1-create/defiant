@@ -158,6 +158,7 @@ export const CURVE: Partial<Record<number, CurvePoolConfig[]>> = {
 export const CONVEX = {
   [mainnet.id]: {
     crv: '0xd533a949740bb3306d119cc777fa900ba034cd52' as `0x${string}`,
+    cvx: '0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B' as `0x${string}`,
     cvxCrv: '0x62B9c7356A2Dc64a1969e19C23e4f579F9810Aa7' as `0x${string}`,
     crvDepositor: '0x8014595F2AB54cD7c604B00E9fb932176fDc86Ae' as `0x${string}`,
     cvxCrvRewards: '0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e' as `0x${string}`,
@@ -230,9 +231,40 @@ export const FLUID = {
   },
 } as const;
 
-/** Moonwell mUSDC — docs.moonwell.fi (2026-08-13). */
+/** Moonwell mUSDC — docs.moonwell.fi (2026-08-13). Comptroller + WELL token: docs.moonwell.fi protocol contracts / token pages, re-verified 2026-08-18. */
 export const MOONWELL = {
   [base.id]: {
     mUSDC: '0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22' as `0x${string}`,
+    comptroller: '0xfBb21d0380beE3312B33c4353c8936a0F13EF26C' as `0x${string}`,
+    well: '0xA88594D404727625A9437C3f886C7643872296AE' as `0x${string}`,
+  },
+} as const;
+
+/**
+ * Spark PSM3 — official Spark docs (https://docs.spark.fi/dev/savings/spark-psm),
+ * verified 2026-08-18. Swaps USDC ↔ sUSDS ↔ USDS on L2 with no protocol fee
+ * beyond gas. Token addresses are read from the PSM at runtime (`usdc()` /
+ * `susds()`), not hardcoded, so a token migration cannot silently point us
+ * at the wrong asset. Mainnet L2 only — Spark does not deploy PSM3 to testnets.
+ */
+export const SPARK_PSM: Partial<Record<number, `0x${string}`>> = {
+  [base.id]: '0x1601843c5E9bC251A3272907010AFa41Fa18347E',
+  [arbitrum.id]: '0x2B05F8e1cACC6974fD79A673a341Fe1f58d27266',
+};
+
+/**
+ * Maple syrupUSDC — official Maple Ethereum integration docs
+ * (https://docs.maple.finance/integrate/ethereum-mainnet/smart-contract-integration),
+ * verified 2026-08-18. Deposit via SyrupRouter (not PoolV2.deposit). Exit via
+ * PoolV2.requestRedeem into WithdrawalManagerQueue. Mainnet only here; Maple
+ * Sepolia exists but needs Maple-issued test tokens and a partnership auth
+ * signature, so it is not wired.
+ */
+export const MAPLE = {
+  [mainnet.id]: {
+    pool: '0x80ac24aA929eaF5013f6436cdA2a7ba190f5Cc0b' as `0x${string}`,
+    router: '0x134cCaaA4F1e4552eC8aEcb9E4A2360dDcF8df76' as `0x${string}`,
+    queue: '0x1bc47a0Dd0FdaB96E9eF982fdf1F34DC6207cfE3' as `0x${string}`,
+    usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as `0x${string}`,
   },
 } as const;
