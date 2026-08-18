@@ -66,8 +66,13 @@ used a wallet can still get an address:
 
 1. A Privy app ID is already in the client (`cmstzz2zb009k0el4fzr8x8jb`). Override
    with `NEXT_PUBLIC_PRIVY_APP_ID`, or set it to `off` for RainbowKit-only connect.
+   That env var must be the **App ID** from App settings → Basics, never the App Secret.
+   A secret there is inlined into public JS and crashes the site with “invalid Privy app ID”
+   (that was the 2026-08-17 white-screen). Redeploy after changing it.
 2. In the Privy dashboard: enable **Email**, **Passkeys**, and **embedded Ethereum wallets**.
-   Add `https://openhand.online` and `https://www.openhand.online` as allowed origins.
+   Add **both** `https://openhand.online` and `https://www.openhand.online` as allowed
+   origins. Vercel currently 308s the apex to `www`; if only the apex is allowlisted,
+   the public site white-screens (`Application error: a client-side exception`).
 3. Connect offers email or a passkey first. Privy creates an embedded wallet for users
    who do not already have one. MetaMask / Rainbow / Rabby / WalletConnect remain available.
    Coinbase is not featured.
@@ -124,7 +129,9 @@ Do not add a second onramp “just in case Transak is down” until Transak has 
    Gmail / Hotmail / Outlook / iCloud are rejected — you do **not** need to email sales
    for the hosted widget. Copy the API key and API secret. Staging keys are available
    immediately. Production also needs partner KYB (`https://forms.transak.com/kyb`)
-   using the same email. Leave the dashboard partner fee at 0%.
+   using the same email. After KYB, the dashboard **partner fee on the buy** is how
+   Openhand monetizes (start ~0.5–1%; see "Fees"). Do not also turn on the deposit
+   treasury cut.
 2. Allowlist `openhand.online` and `www.openhand.online`.
 3. On Vercel, set `TRANSAK_API_KEY` and `TRANSAK_API_SECRET` (server-only — never
    `NEXT_PUBLIC_*`). Optional `TRANSAK_STAGING=true` for Transak sandbox keys.
@@ -252,27 +259,38 @@ rate, and liquidation risk — see "Looping" under Known simplifications.
 
 ## Fees
 
-A flat basis-point fee on deposit and withdrawal — 0.25% each way by default
-(`lib/config/fees.ts`). Mechanically it is a **separate wallet-signed transfer to a treasury
-address**, never a cut taken inside the deposit/withdraw call itself:
+**Do not enable the deposit/withdraw treasury fee.** The code path exists
+(`lib/config/fees.ts`, 0.25% each way as a separate wallet-signed transfer, never skimmed
+inside `supply()`/`deposit()`/`submit()`), but a cut on every protocol tx is
+money-transmitter-adjacent and a tax on putting dollars to work. Leave
+`NEXT_PUBLIC_TREASURY_ADDRESS` unset. `getTreasuryAddress()` must keep returning `undefined`
+on anything other than a valid, non-zero configured address — never add a hardcoded fallback.
 
-- **Deposit**: the fee is sent to the treasury first, then the *remaining* amount is what
-  actually gets approved and deposited into the protocol.
-- **Withdraw (Aave/Yearn)**: the full gross amount is withdrawn from the protocol into the
-  wallet first, then the fee is sent to the treasury out of what just landed.
-- **Withdraw (Lido)**: fee is charged at *claim* time, not request time — the requested ETH
-  isn't in the wallet yet when a withdrawal is only requested, so charging a fee then would
-  come out of unrelated funds. `LidoWithdrawalRequests.tsx` takes the fee right after
-  `claimWithdrawal()` lands ETH in the wallet.
+**How Openhand monetizes (2026-08-17):**
 
-This keeps the non-custodial claim intact — the fee transaction is a plain transfer the user
-signs, not something a contract deducts from funds passing through it. The cost is UX: an
-extra signature per deposit/withdrawal when fees are enabled.
+1. **Transak partner fee on Buy USDC** (first dollar). Transak is the licensed onramp; they
+   take CAD, run KYC, and send USDC to the user's wallet. After partner KYB, set a small
+   partner fee in the Transak dashboard (start ~0.5–1% of the *buy*, not of later deposits).
+   Openhand never receives the USDC. Repeat Aave/Yearn deposits stay fee-free. Confirm the
+   split and payout with Transak — do not add a second treasury transfer for this.
+2. **Bridge / convert trades — fee to a cold wallet.** Opt-in 0x `swapFeeBps` on
+   convert-then-deposit (CRV / Frax / Convex) is already wired in `lib/swap/zeroex.ts`.
+   Set `NEXT_PUBLIC_SWAP_FEE_RECIPIENT` to a **cold wallet** you do not use as an
+   operating key. Do not put a swap in front of plain USDC → Aave. If a cross-chain
+   bridge ships later: same pattern — user signs, fee is collected atomically to that
+   cold wallet, Openhand never holds the bridged assets. Do not build a custodial
+   bridge or send proceeds to a hot treasury (`NEXT_PUBLIC_TREASURY_ADDRESS` stays unset).
+3. **CAD subscription later** (Stripe) for extras that are not yield: tax-lot export, alerts,
+   history. No crypto through Openhand. Never a performance fee on yield.
 
-**Fees are off by default.** `getTreasuryAddress()` in `lib/config/fees.ts` returns
-`undefined` — and every fee code path no-ops — until `NEXT_PUBLIC_TREASURY_ADDRESS` is set to
-a real address. There is no fallback address; an unset or malformed value disables fees
-entirely rather than sending anywhere unintended.
+Do not add Openhand-operated vaults, a skim inside a protocol call, an Openhand Interac
+account, or a featured product with an affiliate.
+
+The unused two-step treasury mechanism (documented here so it is not re-invented): fee
+transfer first on deposit, then the remainder is approved and deposited; on Aave/Yearn
+withdraw the gross amount lands in the wallet then the fee is sent; on Lido the fee is
+taken at *claim* time, not request time (`LidoWithdrawalRequests.tsx`). Extra signature,
+partial-failure with no auto-refund. Keep it dark.
 
 ## Not advice
 
@@ -284,6 +302,30 @@ suitability or recommend a product or allocation.
 **Do not add a questionnaire, risk score, or “best option for you.”** That pattern is what
 pushes an interface toward investment-adviser-registration territory. Keep filters as
 filters.
+
+## Tokenized stocks (LI.FI)
+
+The dashboard includes a browse-only tape of tokenized stocks and ETFs routed by
+[LI.FI](https://li.fi) (`components/StockDesk.tsx`). This is **not** a yield card, not a
+brokerage, and not a recommendation. Filters hide/reorder the catalog. Rows are
+alphabetical. Nothing is featured.
+
+- **Issuers shown:** xStocks, Ondo Tokenized, Backed — classified from LI.FI's catalog
+  names (LI.FI has no public `stock` tag; only `stablecoin` is documented). Ambiguous
+  names are skipped, not guessed. A row without a parseable `priceUSD` is skipped.
+- **Swap:** USDC ↔ the selected token on the same chain. `POST /api/lifi/quote` calls
+  LI.FI `/v1/quote`; the wallet signs `approve` (exact amount, never unlimited) then the
+  returned `transactionRequest`. Openhand never holds the tokens. Addresses are
+  checksummed with `getAddress` — LI.FI rejects the unchecksummed catalog address.
+- **Mainnet only** to execute. Testnet still shows the live tape, buy/sell disabled.
+- **Fees:** Openhand does not take an integrator cut. LI.FI may charge its own protocol
+  fee inside the swap; the modal shows it when the quote reports `feeCosts`.
+- **Regulatory:** tokenized stocks are securities-adjacent in many readings, often
+  unavailable to US retail, and are not the listed share. Do not add a “best stock”,
+  allocation, or suitability flow. Get a compliance read before marketing this as a
+  stock product.
+
+Optional `LIFI_API_KEY` (server-only) raises LI.FI rate limits. Catalog works without it.
 
 ## Site analytics
 
@@ -335,7 +377,8 @@ same as the fee model and the custody architecture above.
 npm install
 cp .env.example .env.local
 # Fill in NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID at minimum (free at https://cloud.reown.com)
-# NEXT_PUBLIC_TREASURY_ADDRESS is optional — fees stay disabled until it's set (see "Fees")
+# NEXT_PUBLIC_TREASURY_ADDRESS stays blank — do not enable the deposit/withdraw
+# treasury fee (see "Fees"). Monetize via Transak partner fee on Buy USDC.
 # DATABASE_URL is optional — site analytics stays off until it's set AND
 # migrations/002_site_analytics.sql has been run (see "Site analytics").
 # ADMIN_PASSWORD is optional — /admin stays disabled until set.
@@ -447,5 +490,11 @@ npm run dev
 | `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim + fee-on-claim |
 | `components/MapleWithdrawalStatus.tsx` | Maple FIFO queue status (push payout, no claim tx) |
 | `components/RiskDisclaimer.tsx` | Short on-page risk disclosure (not a questionnaire) |
+| `lib/config/lifi.ts` | LI.FI API host, integrator name, stock chain IDs, Circle USDC lookup |
+| `lib/lifi/stocks.ts` | Catalog filter + quote parser. Skip on parse failure — never guess a price. |
+| `app/api/lifi/stocks/route.ts` | Cached stock catalog for the dashboard tape |
+| `app/api/lifi/quote/route.ts` | USDC ↔ catalogued stock quote. Wallet signs the tx. |
+| `components/StockDesk.tsx` | Dashboard browse + holdings-in-view |
+| `components/StockSwapModal.tsx` | Approve + LI.FI swap, exact allowance |
 | `app/page.tsx` | Collection browse (first-run hero when disconnected / no positions) |
 | `app/opportunities/[id]/page.tsx` | Card detail |
