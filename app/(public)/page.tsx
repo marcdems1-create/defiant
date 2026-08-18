@@ -119,7 +119,7 @@ export default function CollectionPage() {
         )}
         {!isLoading && !isError && filtered.length === 0 && (
           <div className="text-ink/50 text-sm">
-            No cards match these filters. Try another chain or asset.
+            No cards match these filters. Try another chain, asset, risk, or type.
           </div>
         )}
 

@@ -880,9 +880,9 @@ export function DepositWithdrawModal({
         )}
         {isPanoptic && (
           <div className="text-xs text-warn bg-warn/10 border border-warn/30 rounded px-3 py-2 mb-4 leading-relaxed">
-            Panoptic Unicorn is a third-party automated options/volatility vault. You can lose
-            USDC. Openhand does not pick strikes or run the strategy. This listing is catalog,
-            not a recommendation.
+            {opportunity.panoptic?.vault === 'plp-weth'
+              ? 'Panoptic PLP is a third-party WETH vault that lends and market-makes on Panoptic. You can lose WETH. Relatively more conservative among Panoptic\'s community vaults — still not a cash park. Openhand does not pick strikes or run the strategy. This listing is catalog, not a recommendation.'
+              : 'Panoptic Unicorn is a third-party automated options/volatility vault. You can lose USDC. Openhand does not pick strikes or run the strategy. This listing is catalog, not a recommendation.'}
           </div>
         )}
         {isPendle && (

@@ -270,14 +270,24 @@ export const MAPLE = {
 } as const;
 
 /**
- * Panoptic Unicorn USDC vault — official Panoptic deployment docs
- * (https://panoptic.xyz/docs/contracts/deployment-addresses), verified 2026-08-18.
- * Ethereum mainnet community vault. Automated third-party options/vol strategy;
- * Openhand does not pick strikes. Confirm `asset()` is native USDC at fetch time.
+ * Panoptic community vaults — official deployment docs
+ * (https://panoptic.xyz/docs/contracts/deployment-addresses) and vault docs
+ * (https://panoptic.xyz/docs/getting-started/vaults), verified 2026-08-18.
+ * Ethereum mainnet. Catalog listings only — Openhand does not pick strikes or
+ * run either strategy. Confirm each vault's `asset()` at fetch time.
+ *
+ *   Unicorn USDC  0x236d0558f06cd60780b232d4Ec4c92d2cb7e4D18  (USDC in)
+ *   PLP WETH      0xD4e2c720A760049cc4151bcf61e3A9348Db9Cd92  (WETH in)
+ *
+ * Canonical WETH9 on Ethereum (same address DeFi uses everywhere):
+ *   0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+ *   https://etherscan.io/token/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
  */
 export const PANOPTIC = {
   [mainnet.id]: {
     unicornUsdc: '0x236d0558f06cd60780b232d4Ec4c92d2cb7e4D18' as `0x${string}`,
+    plpWeth: '0xD4e2c720A760049cc4151bcf61e3A9348Db9Cd92' as `0x${string}`,
+    weth: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as `0x${string}`,
   },
 } as const;
 

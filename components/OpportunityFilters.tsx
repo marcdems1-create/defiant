@@ -6,10 +6,14 @@ import {
   chainFilterOptions,
   DEFAULT_OPPORTUNITY_FILTERS,
   hasActiveOpportunityFilters,
+  kindFilterOptions,
+  riskFilterOptions,
   SORT_FILTER_OPTIONS,
   type AssetFilter,
   type ChainFilter,
+  type KindFilter,
   type OpportunityFilterState,
+  type RiskFilter,
   type SortFilter,
 } from '@/lib/opportunityFilters';
 
@@ -73,6 +77,8 @@ export function OpportunityFilters({
 }: OpportunityFiltersProps) {
   const chains = chainFilterOptions(opportunities);
   const assets = assetFilterOptions(opportunities);
+  const risks = riskFilterOptions(opportunities);
+  const kinds = kindFilterOptions(opportunities);
   const showCount =
     hasActiveOpportunityFilters(filters) || visibleCount !== totalCount;
 
@@ -121,6 +127,34 @@ export function OpportunityFilters({
                 onClick={() => patch({ asset: symbol as AssetFilter })}
               >
                 {symbol}
+              </FilterPill>
+            ))}
+          </FilterGroup>
+        )}
+
+        {risks.length > 0 && (
+          <FilterGroup label="Risk">
+            {risks.map((option) => (
+              <FilterPill
+                key={option.id}
+                active={filters.risk === option.id}
+                onClick={() => patch({ risk: option.id as RiskFilter })}
+              >
+                {option.label}
+              </FilterPill>
+            ))}
+          </FilterGroup>
+        )}
+
+        {kinds.length > 0 && (
+          <FilterGroup label="Type">
+            {kinds.map((option) => (
+              <FilterPill
+                key={option.id}
+                active={filters.kind === option.id}
+                onClick={() => patch({ kind: option.id as KindFilter })}
+              >
+                {option.label}
               </FilterPill>
             ))}
           </FilterGroup>
