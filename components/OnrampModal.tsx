@@ -57,9 +57,7 @@ export function OnrampModal({
           <div>
             <h2 className="text-lg font-medium">Add USDC</h2>
             <p className="text-xs text-ink/50 mt-1">
-              In Canada, Interac e-Transfer is the usual way. USDC goes to your wallet on{' '}
-              {chainName(chainId)}. Openhand never holds the funds. Transak handles the buy and
-              KYC.
+              Buy USDC to this wallet on {chainName(chainId)}.
             </p>
           </div>
           <button onClick={onClose} className="text-ink/50 hover:text-ink" aria-label="Close">
@@ -79,9 +77,9 @@ export function OnrampModal({
         {error && (
           <p className="text-sm text-ink/65 leading-relaxed">
             {notConfigured && NETWORK_MODE === 'testnet'
-              ? 'This app is in practice mode. Set TRANSAK_STAGING with staging keys to try the Transak sandbox, or use a Base Sepolia USDC faucet.'
+              ? 'Buy USDC is unavailable in practice mode. Use a Base Sepolia USDC faucet.'
               : notConfigured
-                ? `Interac / card purchase is not configured yet. Send USDC to this wallet on ${chainName(chainId)}, then come back to deposit.`
+                ? `Buy USDC is not configured yet. Send USDC to this wallet on ${chainName(chainId)}.`
                 : error}
             <span className="block font-mono text-xs text-ink/45 mt-2 break-all">{address}</span>
           </p>
