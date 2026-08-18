@@ -14,17 +14,20 @@ import { crvDepositorAbi, cvxCrvRewardsAbi } from '@/lib/abi/convex';
 import { compoundCometAbi } from '@/lib/abi/compoundComet';
 import { moonwellMTokenAbi } from '@/lib/abi/moonwell';
 import { LIDO } from '@/lib/config/addresses';
-import { getWagmiConfig } from '@/lib/wagmi';
+import { getWagmiConfig, NETWORK_MODE } from '@/lib/wagmi';
 import { computeFee, DEPOSIT_FEE_BPS, feesEnabled, WITHDRAW_FEE_BPS } from '@/lib/config/fees';
 import { useSendFee } from '@/lib/hooks/useSendFee';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
-import { apyCaption, chainName, formatApy, formatTokenAmount } from '@/lib/format';
+import { useCrossChainUsdc } from '@/lib/hooks/useCrossChainUsdc';
+import { bridgeChainById } from '@/lib/config/bridgeChains';
+import { apyCaption, chainName, formatApy, formatTokenAmount, formatUsdcUsd } from '@/lib/format';
 import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
 import { track } from '@/lib/analytics/track';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 import { OnrampModal } from './OnrampModal';
 import { ConnectButtonClient } from './ConnectButtonClient';
+import { MoveUsdcButton } from './MoveUsdcButton';
 import { isStableDollarAsset } from '@/lib/firstRun';
 
 type Tab = 'deposit' | 'withdraw';
@@ -67,7 +70,10 @@ export function DepositWithdrawModal({
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [awaitingMove, setAwaitingMove] = useState(false);
   const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
+  const isUsdc = opportunity.asset.symbol.toUpperCase() === 'USDC';
 
   useEffect(() => {
     track(tab === 'withdraw' ? 'withdraw_open' : 'deposit_open', {
@@ -123,6 +129,19 @@ export function DepositWithdrawModal({
   const walletBalance = isNativeDeposit
     ? nativeBalance.data?.value ?? 0n
     : ((erc20WalletBalance.data as bigint | undefined) ?? 0n);
+
+  const canSeeOtherChains =
+    NETWORK_MODE === 'mainnet' && isUsdc && Boolean(bridgeChainById(opportunity.chainId));
+  const crossChain = useCrossChainUsdc(canSeeOtherChains ? address : undefined);
+  const bestOtherChainUsdc = useMemo(
+    () =>
+      crossChain.balances
+        .filter((b) => b.chainId !== opportunity.chainId && b.balance > 0n)
+        .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0))[0],
+    [crossChain.balances, opportunity.chainId],
+  );
+  const sourcingFromOtherChain =
+    tab === 'deposit' && walletBalance === 0n && Boolean(bestOtherChainUsdc);
 
   const positionBalance = useErc20Balance(opportunity.positionToken, address, opportunity.chainId);
   const positionBalanceValue = (positionBalance.data as bigint | undefined) ?? 0n;
@@ -246,6 +265,10 @@ export function DepositWithdrawModal({
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
   function setMax() {
+    if (tab === 'deposit' && walletBalance === 0n && bestOtherChainUsdc) {
+      setAmount(formatUnits(bestOtherChainUsdc.balance, amountDecimals));
+      return;
+    }
     setAmount(formatUnits(maxAmount, amountDecimals));
   }
 
@@ -255,6 +278,7 @@ export function DepositWithdrawModal({
       erc20WalletBalance.refetch(),
       positionBalance.refetch(),
       allowance.refetch(),
+      crossChain.refetch(),
     ]);
   }
 
@@ -269,6 +293,9 @@ export function DepositWithdrawModal({
       setSwitchFailed(false);
       return;
     }
+    // Stay on the source chain while USDC still lives there — auto-switching
+    // to Ethereum would fight the move-from-Base signatures.
+    if (moving || sourcingFromOtherChain) return;
     const key = `${address}:${opportunity.chainId}`;
     if (autoSwitchKey.current === key) return;
     autoSwitchKey.current = key;
@@ -276,7 +303,18 @@ export function DepositWithdrawModal({
     switchChainAsync({ chainId: opportunity.chainId }).catch(() => {
       setSwitchFailed(true);
     });
-  }, [address, currentChainId, opportunity.chainId, switchChainAsync]);
+  }, [
+    address,
+    currentChainId,
+    opportunity.chainId,
+    switchChainAsync,
+    moving,
+    sourcingFromOtherChain,
+  ]);
+
+  useEffect(() => {
+    if (walletBalance > 0n) setAwaitingMove(false);
+  }, [walletBalance]);
 
   async function handleDeposit() {
     if (!address || amountBig === 0n) return;
@@ -546,8 +584,17 @@ export function DepositWithdrawModal({
     }
   }
 
-  const busy = step === 'sendingFee' || step === 'approving' || step === 'acting' || switching;
-  const waitingOnSwitch = wrongNetwork && !switchFailed;
+  const busy =
+    step === 'sendingFee' || step === 'approving' || step === 'acting' || switching || moving;
+  const pauseNetworkNudge = moving || sourcingFromOtherChain;
+  const waitingOnSwitch = wrongNetwork && !switchFailed && !pauseNetworkNudge;
+  const shouldMoveUsdc =
+    tab === 'deposit' &&
+    isUsdc &&
+    Boolean(address && bestOtherChainUsdc) &&
+    (walletBalance === 0n || insufficientBalance);
+  const stillCheckingOtherChains =
+    tab === 'deposit' && isUsdc && canSeeOtherChains && crossChain.isLoading && walletBalance === 0n;
 
   return (
     <>
@@ -606,20 +653,33 @@ export function DepositWithdrawModal({
           </div>
         ) : (
           <>
-            {wrongNetwork && (
+            {wrongNetwork && !pauseNetworkNudge && (
               <div className="text-xs text-ink/50 mb-3">
                 {switching || !switchFailed
                   ? `Switching to ${chainName(opportunity.chainId)}…`
                   : `Confirm ${chainName(opportunity.chainId)} in your wallet to continue.`}
               </div>
             )}
-            <div className="flex justify-between text-xs text-ink/50 mb-1">
+            <div className="flex justify-between text-xs text-ink/50 mb-1 gap-3">
               <span>Amount{dollarInput && tab === 'deposit' ? ' (USD)' : ''}</span>
-              <span>
-                {tab === 'deposit' ? 'Wallet' : 'Deposited'}:{' '}
-                {dollarInput && tab === 'deposit' ? '$' : ''}
-                {formatUnits(maxAmount, amountDecimals)}{' '}
-                {dollarInput && tab === 'deposit' ? 'USDC' : amountSymbol}
+              <span className="text-right leading-relaxed">
+                {tab === 'deposit' && dollarInput ? (
+                  <>
+                    <span className="block">
+                      ${formatUsdcUsd(walletBalance)} on {chainName(opportunity.chainId)}
+                    </span>
+                    {bestOtherChainUsdc && (
+                      <span className="block text-ink/70">
+                        ${formatUsdcUsd(bestOtherChainUsdc.balance)} on {bestOtherChainUsdc.label}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {tab === 'deposit' ? 'Wallet' : 'Deposited'}:{' '}
+                    {formatUnits(maxAmount, amountDecimals)} {amountSymbol}
+                  </>
+                )}
               </span>
             </div>
             <div className="flex gap-2 mb-3">
@@ -701,7 +761,7 @@ export function DepositWithdrawModal({
               </div>
             )}
 
-            {insufficientBalance && (
+            {insufficientBalance && !shouldMoveUsdc && (
               <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
             )}
             {errorMsg && <div className="text-xs text-danger mb-3 break-words">{errorMsg}</div>}
@@ -717,13 +777,39 @@ export function DepositWithdrawModal({
               </div>
             )}
 
-            {tab === 'deposit' && address && walletBalance === 0n ? (
+            {stillCheckingOtherChains ? (
+              <button
+                type="button"
+                disabled
+                className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30"
+              >
+                Checking wallet…
+              </button>
+            ) : awaitingMove && walletBalance === 0n ? (
+              <p className="text-xs text-accent text-center py-2">
+                USDC is on the way to {chainName(opportunity.chainId)}.
+              </p>
+            ) : shouldMoveUsdc && address && bestOtherChainUsdc ? (
+              <MoveUsdcButton
+                address={address}
+                destChainId={opportunity.chainId}
+                destLabel={chainName(opportunity.chainId)}
+                source={bestOtherChainUsdc}
+                requestedAmount={amountBig}
+                disabled={busy && !moving}
+                onBusy={setMoving}
+                onMoved={() => {
+                  setAwaitingMove(true);
+                  void refreshBalances();
+                }}
+              />
+            ) : tab === 'deposit' && address && walletBalance === 0n ? (
               <button
                 type="button"
                 onClick={() => setBuyOpen(true)}
                 className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm"
               >
-                {dollarInput ? 'Buy USDC first' : `Get ${opportunity.asset.symbol} first`}
+                {dollarInput ? 'Buy USDC' : `Get ${opportunity.asset.symbol} first`}
               </button>
             ) : (
               <button

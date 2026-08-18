@@ -32,10 +32,36 @@ export async function estimateCappedGas(params: {
       ...(params.value !== undefined ? { value: params.value } : {}),
     } as never);
     const padded = (estimated * 125n) / 100n;
-    return padded > MAX_TX_GAS ? MAX_TX_GAS : padded < 21_000n ? FALLBACK_GAS : padded;
+    return clampGas(padded);
   } catch {
     return FALLBACK_GAS;
   }
+}
+
+export async function estimateCappedTxGas(params: {
+  account: `0x${string}`;
+  chainId: number;
+  to: `0x${string}`;
+  data?: `0x${string}`;
+  value?: bigint;
+}): Promise<bigint> {
+  try {
+    const client = getPublicClient(getWagmiConfig(), { chainId: params.chainId });
+    if (!client) return FALLBACK_GAS;
+    const estimated = await client.estimateGas({
+      account: params.account,
+      to: params.to,
+      ...(params.data ? { data: params.data } : {}),
+      ...(params.value !== undefined ? { value: params.value } : {}),
+    });
+    return clampGas((estimated * 125n) / 100n);
+  } catch {
+    return FALLBACK_GAS;
+  }
+}
+
+function clampGas(padded: bigint): bigint {
+  return padded > MAX_TX_GAS ? MAX_TX_GAS : padded < 21_000n ? FALLBACK_GAS : padded;
 }
 
 export function formatTxError(error: unknown): string {

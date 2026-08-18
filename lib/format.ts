@@ -33,6 +33,15 @@ export function assetMark(symbol: string): { mark: string; label: string } {
   return { mark: s.length > 5 ? s.slice(0, 4) : s, label: s };
 }
 
+/** USDC (6 decimals) → dollar string, e.g. 8009182n → "8.01". */
+export function formatUsdcUsd(amount: bigint): string {
+  const cents = (amount + 5_000n) / 10_000n;
+  const whole = cents / 100n;
+  const frac = cents % 100n;
+  if (frac === 0n) return whole.toString();
+  return `${whole}.${frac.toString().padStart(2, '0')}`;
+}
+
 export function formatTokenAmount(amount: bigint, decimals: number, maxFractionDigits = 4): string {
   const divisor = 10n ** BigInt(decimals);
   const whole = amount / divisor;
