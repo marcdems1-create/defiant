@@ -5,7 +5,13 @@ import { useAccount, useReadContracts } from 'wagmi';
 import { erc20Abi } from '@/lib/abi/erc20';
 import { erc4626Abi } from '@/lib/abi/erc4626';
 import { moonwellMTokenAbi } from '@/lib/abi/moonwell';
-import { ERC4626_PROTOCOLS, type Opportunity } from '@/lib/protocols/types';
+import { sparkPsmAbi } from '@/lib/abi/sparkPsm';
+import { maplePoolAbi } from '@/lib/abi/maple';
+import {
+  CONVERT_TO_ASSETS_PROTOCOLS,
+  ERC4626_PROTOCOLS,
+  type Opportunity,
+} from '@/lib/protocols/types';
 
 export interface Position {
   opportunity: Opportunity;
@@ -14,7 +20,11 @@ export interface Position {
 }
 
 function needsUnderlyingConversion(protocol: Opportunity['protocol']): boolean {
-  return ERC4626_PROTOCOLS.includes(protocol) || protocol === 'moonwell';
+  return (
+    CONVERT_TO_ASSETS_PROTOCOLS.includes(protocol) ||
+    protocol === 'moonwell' ||
+    protocol === 'sky'
+  );
 }
 
 function readAmount(
@@ -76,10 +86,10 @@ export function usePositions(
   const convertReads = useReadContracts({
     contracts: withPositionToken.map((o, i) => {
       const shares = shareBalances[i] ?? 0n;
-      if (ERC4626_PROTOCOLS.includes(o.protocol)) {
+      if (ERC4626_PROTOCOLS.includes(o.protocol) || o.protocol === 'maple') {
         return {
           address: o.positionToken as `0x${string}`,
-          abi: erc4626Abi,
+          abi: o.protocol === 'maple' ? maplePoolAbi : erc4626Abi,
           functionName: 'convertToAssets' as const,
           args: [shares] as const,
           chainId: o.chainId,
@@ -90,6 +100,17 @@ export function usePositions(
           address: o.positionToken as `0x${string}`,
           abi: moonwellMTokenAbi,
           functionName: 'exchangeRateStored' as const,
+          chainId: o.chainId,
+        };
+      }
+      if (o.protocol === 'sky' && o.positionToken) {
+        // previewSwapExactIn reverts on amountIn == 0; use 1 when empty and ignore later.
+        const amountIn = shares > 0n ? shares : 1n;
+        return {
+          address: o.depositTarget,
+          abi: sparkPsmAbi,
+          functionName: 'previewSwapExactIn' as const,
+          args: [o.positionToken, o.asset.address, amountIn] as const,
           chainId: o.chainId,
         };
       }
@@ -118,7 +139,7 @@ export function usePositions(
       const shares = shareBalances[i];
       if (shares === null || shares === 0n) return [];
 
-      if (ERC4626_PROTOCOLS.includes(opportunity.protocol)) {
+      if (CONVERT_TO_ASSETS_PROTOCOLS.includes(opportunity.protocol)) {
         const converted = readAmount(convertReads.data?.[i]);
         if (converted === null) return [];
         return converted > 0n ? [{ opportunity, balance: converted }] : [];
@@ -131,6 +152,12 @@ export function usePositions(
         if (rate <= 0n) return [];
         const balance = (shares * rate) / 10n ** 18n;
         return balance > 0n ? [{ opportunity, balance }] : [];
+      }
+
+      if (opportunity.protocol === 'sky') {
+        const converted = readAmount(convertReads.data?.[i]);
+        if (converted === null) return [];
+        return converted > 0n ? [{ opportunity, balance: converted }] : [];
       }
 
       return [{ opportunity, balance: shares }];

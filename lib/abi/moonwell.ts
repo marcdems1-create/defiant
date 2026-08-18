@@ -50,3 +50,14 @@ export const moonwellMTokenAbi = [
     outputs: [{ name: '', type: 'address' }],
   },
 ] as const;
+
+/** Moonwell Comptroller — claimReward() for msg.sender across all markets. docs.moonwell.fi 2026-08-18. */
+export const moonwellComptrollerAbi = [
+  {
+    type: 'function',
+    name: 'claimReward',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [],
+  },
+] as const;
