@@ -501,3 +501,23 @@ Built the two catalog/tool pieces that stay on the non-custodial, non-advice sid
 - **Panoptic Unicorn USDC** (`lib/protocols/panoptic.ts`) — Ethereum catalog card, ERC-4626. Higher-risk badge. Skip if `asset()` ≠ USDC or DeFiLlama has no Unicorn APY. Do not describe it as market-neutral or a featured strategy. No PLP WETH.
 
 **Still not added:** looping, Uniswap V3 / Aerodrome LP, GMX, Pendle, a strategy/allocation page, or any Openhand-run options vault.
+
+## Session update (2026-08-18) — installable PWA / app shell
+
+Openhand installs as a home-screen app (PWA). Not an App Store/Play binary, not
+Capacitor/Electron — those wrappers break WalletConnect return-to-app and Transak.
+
+- Manifest: `app/manifest.ts` (`display: standalone`, maskable icon, Collection/Dashboard
+  shortcuts). Icons regenerated from `public/icons/icon.svg` (Openhand “O”).
+- Service worker: `public/sw.js`, registered only in production
+  (`components/ServiceWorkerRegister.tsx`). Network-first navigations → `/offline.html`.
+  **Never cache `/api/*` or cross-origin RPC/protocol responses.** Do not swap in
+  `next-pwa` / Serwist default runtime caching — stale APY as “live” violates
+  non-negotiable #3.
+- Chrome: sticky header with safe-area inset, mobile tab bar is the phone nav
+  (desktop links stay in the top bar), deposit/onramp sheets full-bleed on small
+  screens. Install prompt is a dismissible toast (`oh.install.dismissedAt`, 14-day
+  snooze); iOS hint is Safari-only.
+- `sw.js` is served with `Cache-Control: no-cache` so updates apply. Bump the
+  `CACHE` constant in `public/sw.js` if the worker logic changes.
+

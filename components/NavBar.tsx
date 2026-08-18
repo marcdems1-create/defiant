@@ -14,7 +14,7 @@ export function NavBar() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex items-center justify-between px-6 py-4 border-b border-border">
+    <nav className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-border">
       <Link href="/" className="font-mono text-lg tracking-tight text-ink">
         openhand<span className="text-accent">.</span>
       </Link>
@@ -25,7 +25,7 @@ export function NavBar() {
             <Link
               key={link.href}
               href={link.href}
-              className={`transition-colors ${active ? 'text-ink' : 'text-ink/70 hover:text-ink'}`}
+              className={`hidden md:inline transition-colors ${active ? 'text-ink' : 'text-ink/70 hover:text-ink'}`}
             >
               {link.label}
             </Link>

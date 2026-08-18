@@ -779,8 +779,8 @@ export function DepositWithdrawModal({
 
   return (
     <>
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-md bg-paper border border-border rounded-lg p-6">
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 sm:px-4">
+      <div className="w-full max-w-md bg-paper border border-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-lg p-6 max-h-[min(92dvh,100%)] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="text-lg font-medium">{opportunity.protocolLabel}</div>

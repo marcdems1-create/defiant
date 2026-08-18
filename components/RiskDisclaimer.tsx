@@ -36,8 +36,8 @@ export function RiskDisclaimer({
 
 export function RiskFooter() {
   return (
-    <footer className="border-t border-border mt-16 mb-4 md:mb-0">
-      <div className="max-w-6xl mx-auto px-6 py-6 text-[11px] leading-relaxed text-ink/40">
+    <footer className="border-t border-border mt-10 mb-2 md:mt-16 md:mb-0">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-5 text-[11px] leading-relaxed text-ink/40">
         Openhand is a non-custodial interface. Yield is not a deposit, is not insured, and is not
         guaranteed. Capital is at risk, including from smart-contract failure. Not an offer of
         securities or investment advice.
