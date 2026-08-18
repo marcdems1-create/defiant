@@ -26,6 +26,8 @@ import { bridgeChainById } from '@/lib/config/bridgeChains';
 import { apyCaption, chainName, formatApy, formatTokenAmount, formatUsdcUsd } from '@/lib/format';
 import { ERC4626_PROTOCOLS, hasTokenEmissions } from '@/lib/protocols/types';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
+import { swapConfigured } from '@/lib/swap/zeroex';
+import { executeSameChainConvert } from '@/lib/swap/execute';
 import { track } from '@/lib/analytics/track';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 import { MapleWithdrawalStatus } from './MapleWithdrawalStatus';
@@ -36,7 +38,7 @@ import { MoveUsdcButton } from './MoveUsdcButton';
 import { isStableDollarAsset } from '@/lib/firstRun';
 
 type Tab = 'deposit' | 'withdraw';
-type Step = 'idle' | 'sendingFee' | 'approving' | 'acting' | 'done' | 'error';
+type Step = 'idle' | 'sendingFee' | 'approving' | 'converting' | 'acting' | 'done' | 'error';
 
 const NULL_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
 
@@ -78,8 +80,9 @@ export function DepositWithdrawModal({
   const [mapleLender, setMapleLender] = useState<MapleLenderStatus | null>(null);
   const [moving, setMoving] = useState(false);
   const [awaitingMove, setAwaitingMove] = useState(false);
-  const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
+  const assetIsDollar = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
   const isUsdc = opportunity.asset.symbol.toUpperCase() === 'USDC';
+  const convertFrom = opportunity.convertibleFrom;
 
   useEffect(() => {
     if (opportunity.protocol !== 'maple' || !address) {
@@ -138,10 +141,6 @@ export function DepositWithdrawModal({
   const positionDecimals = opportunity.positionDecimals ?? opportunity.asset.decimals;
   const positionSymbol = opportunity.positionSymbol ?? opportunity.asset.symbol;
   const withdrawInPositionUnits = tab === 'withdraw' && !isMoonwell && !isMaple;
-  const amountDecimals = withdrawInPositionUnits
-    ? positionDecimals
-    : opportunity.asset.decimals;
-  const amountSymbol = withdrawInPositionUnits ? positionSymbol : opportunity.asset.symbol;
 
   const nativeBalance = useBalance({
     address,
@@ -153,12 +152,20 @@ export function DepositWithdrawModal({
     address,
     opportunity.chainId,
   );
-  const walletBalance = isNativeDeposit
+  const assetWalletBalance = isNativeDeposit
     ? nativeBalance.data?.value ?? 0n
     : ((erc20WalletBalance.data as bigint | undefined) ?? 0n);
+  const convertWalletBalance = useErc20Balance(
+    convertFrom?.address,
+    address,
+    opportunity.chainId,
+  );
+  const convertBalance = (convertWalletBalance.data as bigint | undefined) ?? 0n;
 
   const canSeeOtherChains =
-    NETWORK_MODE === 'mainnet' && isUsdc && Boolean(bridgeChainById(opportunity.chainId));
+    NETWORK_MODE === 'mainnet' &&
+    Boolean(bridgeChainById(opportunity.chainId)) &&
+    (isUsdc || Boolean(convertFrom));
   const crossChain = useCrossChainUsdc(canSeeOtherChains ? address : undefined);
   const bestOtherChainUsdc = useMemo(
     () =>
@@ -167,6 +174,26 @@ export function DepositWithdrawModal({
         .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0))[0],
     [crossChain.balances, opportunity.chainId],
   );
+  // Pay with USDC in the background when this opportunity isn't USDC
+  // (Convex/Frax set convertibleFrom) and the wallet has none of the
+  // deposit asset — no extra page, no checkbox.
+  const payingUsdc =
+    tab === 'deposit' &&
+    Boolean(convertFrom) &&
+    swapConfigured() &&
+    assetWalletBalance === 0n;
+  const walletBalance = payingUsdc ? convertBalance : assetWalletBalance;
+  const dollarInput = assetIsDollar || payingUsdc;
+  const amountDecimals = withdrawInPositionUnits
+    ? positionDecimals
+    : payingUsdc && convertFrom
+      ? convertFrom.decimals
+      : opportunity.asset.decimals;
+  const amountSymbol = withdrawInPositionUnits
+    ? positionSymbol
+    : payingUsdc && convertFrom
+      ? convertFrom.symbol
+      : opportunity.asset.symbol;
   const sourcingFromOtherChain =
     tab === 'deposit' && walletBalance === 0n && Boolean(bestOtherChainUsdc);
 
@@ -371,6 +398,7 @@ export function DepositWithdrawModal({
     await Promise.all([
       nativeBalance.refetch(),
       erc20WalletBalance.refetch(),
+      convertWalletBalance.refetch(),
       positionBalance.refetch(),
       allowance.refetch(),
       allowance.refetch(),
@@ -422,10 +450,31 @@ export function DepositWithdrawModal({
         setStep('sendingFee');
         await sendFee({
           isNative: isNativeDeposit,
-          tokenAddress: isNativeDeposit ? undefined : opportunity.asset.address,
+          tokenAddress: isNativeDeposit
+            ? undefined
+            : payingUsdc && convertFrom
+              ? convertFrom.address
+              : opportunity.asset.address,
           amount: feeAmount,
           chainId: opportunity.chainId,
         });
+      }
+
+      let protocolAmount = netAmount;
+      if (payingUsdc && convertFrom) {
+        const converted = await executeSameChainConvert({
+          account: address,
+          chainId: opportunity.chainId,
+          sellToken: convertFrom.address,
+          buyToken: opportunity.asset.address,
+          sellAmount: netAmount,
+          onStep: (s) => {
+            if (s === 'approving') setStep('approving');
+            else setStep('converting');
+          },
+        });
+        if (!converted.ok) throw new Error(converted.error);
+        protocolAmount = converted.received;
       }
 
       if (opportunity.protocol === 'lido') {
@@ -435,7 +484,7 @@ export function DepositWithdrawModal({
           abi: stEthAbi,
           functionName: 'submit',
           args: [NULL_ADDRESS],
-          value: netAmount,
+          value: protocolAmount,
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -448,13 +497,13 @@ export function DepositWithdrawModal({
       // amount, then act. Deliberately not an unbounded approval — scoped
       // to this deposit only, and scoped to the post-fee amount since
       // that's all that actually reaches the protocol.
-      if (allowanceValue < netAmount) {
+      if (allowanceValue < protocolAmount) {
         setStep('approving');
         const approveHash = await writeTx({
           address: opportunity.asset.address,
           abi: erc20Abi,
           functionName: 'approve',
-          args: [spender, netAmount],
+          args: [spender, protocolAmount],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
@@ -467,7 +516,7 @@ export function DepositWithdrawModal({
           address: opportunity.depositTarget,
           abi: aavePoolAbi,
           functionName: 'supply',
-          args: [opportunity.asset.address, netAmount, address, 0],
+          args: [opportunity.asset.address, protocolAmount, address, 0],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -478,7 +527,7 @@ export function DepositWithdrawModal({
             address: opportunity.depositTarget,
             abi: curvePoolAbi3Coin,
             functionName: 'add_liquidity',
-            args: [curveAmounts3(netAmount), minMintAmount],
+            args: [curveAmounts3(protocolAmount), minMintAmount],
             chainId: opportunity.chainId,
           });
           await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -487,7 +536,7 @@ export function DepositWithdrawModal({
             address: opportunity.depositTarget,
             abi: curvePoolAbi2Coin,
             functionName: 'add_liquidity',
-            args: [curveAmounts2(netAmount), minMintAmount],
+            args: [curveAmounts2(protocolAmount), minMintAmount],
             chainId: opportunity.chainId,
           });
           await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -497,7 +546,7 @@ export function DepositWithdrawModal({
           address: opportunity.depositTarget,
           abi: compoundCometAbi,
           functionName: 'supply',
-          args: [opportunity.asset.address, netAmount],
+          args: [opportunity.asset.address, protocolAmount],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -506,7 +555,7 @@ export function DepositWithdrawModal({
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
           functionName: 'mint',
-          args: [netAmount],
+          args: [protocolAmount],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -520,7 +569,7 @@ export function DepositWithdrawModal({
           args: [
             opportunity.asset.address,
             opportunity.positionToken,
-            netAmount,
+            protocolAmount,
             minOut,
             address,
             0n,
@@ -538,7 +587,7 @@ export function DepositWithdrawModal({
           address: opportunity.depositTarget,
           abi: mapleSyrupRouterAbi,
           functionName: 'deposit',
-          args: [netAmount, MAPLE_DEPOSIT_DATA],
+          args: [protocolAmount, MAPLE_DEPOSIT_DATA],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -547,7 +596,7 @@ export function DepositWithdrawModal({
           address: opportunity.depositTarget,
           abi: crvDepositorAbi,
           functionName: 'deposit',
-          args: [netAmount, false, opportunity.positionToken!],
+          args: [protocolAmount, false, opportunity.positionToken!],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -556,7 +605,7 @@ export function DepositWithdrawModal({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'deposit',
-          args: [netAmount, address],
+          args: [protocolAmount, address],
           chainId: opportunity.chainId,
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
@@ -766,16 +815,25 @@ export function DepositWithdrawModal({
   }
 
   const busy =
-    step === 'sendingFee' || step === 'approving' || step === 'acting' || switching || moving;
+    step === 'sendingFee' ||
+    step === 'approving' ||
+    step === 'converting' ||
+    step === 'acting' ||
+    switching ||
+    moving;
   const pauseNetworkNudge = moving || sourcingFromOtherChain;
   const waitingOnSwitch = wrongNetwork && !switchFailed && !pauseNetworkNudge;
   const shouldMoveUsdc =
     tab === 'deposit' &&
-    isUsdc &&
+    (isUsdc || payingUsdc) &&
     Boolean(address && bestOtherChainUsdc) &&
     (walletBalance === 0n || insufficientBalance);
   const stillCheckingOtherChains =
-    tab === 'deposit' && isUsdc && canSeeOtherChains && crossChain.isLoading && walletBalance === 0n;
+    tab === 'deposit' &&
+    (isUsdc || Boolean(convertFrom)) &&
+    canSeeOtherChains &&
+    crossChain.isLoading &&
+    walletBalance === 0n;
 
   return (
     <>
@@ -937,13 +995,21 @@ export function DepositWithdrawModal({
                 <div className="flex justify-between">
                   <span>Fee ({(feeBps / 100).toFixed(2)}%)</span>
                   <span>
-                    {formatUnits(feeAmount, opportunity.asset.decimals)} {opportunity.asset.symbol}
+                    {formatUnits(
+                      feeAmount,
+                      payingUsdc && convertFrom ? convertFrom.decimals : opportunity.asset.decimals,
+                    )}{' '}
+                    {payingUsdc && convertFrom ? convertFrom.symbol : opportunity.asset.symbol}
                   </span>
                 </div>
                 <div className="flex justify-between text-ink/70">
                   <span>{tab === 'deposit' ? "You'll deposit" : "You'll receive"}</span>
                   <span>
-                    {formatUnits(netAmount, opportunity.asset.decimals)} {opportunity.asset.symbol}
+                    {formatUnits(
+                      netAmount,
+                      payingUsdc && convertFrom ? convertFrom.decimals : opportunity.asset.decimals,
+                    )}{' '}
+                    {payingUsdc && convertFrom ? convertFrom.symbol : opportunity.asset.symbol}
                   </span>
                 </div>
               </div>
@@ -1052,9 +1118,11 @@ export function DepositWithdrawModal({
                     ? `Switching to ${chainName(opportunity.chainId)}…`
                     : step === 'sendingFee'
                     ? 'Sending fee…'
+                    : step === 'converting'
+                      ? 'Depositing…'
                     : step === 'approving'
                       ? dollarInput && amount
-                        ? `Approve $${amount} ${opportunity.asset.symbol}`
+                        ? `Approve $${amount}`
                         : 'Approving…'
                       : step === 'acting'
                         ? 'Confirming…'

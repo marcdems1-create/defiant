@@ -42,7 +42,7 @@ export interface SwapQuote {
   minBuyAmount: bigint;
 }
 
-/** Default slippage (1%) for the /swap page. Harvest quotes omit this. */
+/** Default slippage (1%) for convert-on-deposit. Harvest quotes omit this. */
 export const DEFAULT_SWAP_SLIPPAGE_BPS = 100;
 
 export function swapConfigured(): boolean {

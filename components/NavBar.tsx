@@ -7,7 +7,6 @@ import { ConnectButtonClient } from './ConnectButtonClient';
 const links = [
   { href: '/', label: 'Collection' },
   { href: '/move', label: 'Move' },
-  { href: '/swap', label: 'Swap' },
   { href: '/dashboard', label: 'Dashboard' },
 ] as const;
 
