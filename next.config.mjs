@@ -1,6 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['@privy-io/react-auth', '@privy-io/wagmi'],
+  async redirects() {
+    return [{ source: '/opportunities', destination: '/', permanent: false }];
+  },
+  async headers() {
+    return [
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+      {
+        source: '/offline.html',
+        headers: [{ key: 'Cache-Control', value: 'no-cache' }],
+      },
+    ];
+  },
   webpack: (config) => {
     // pino-pretty/lokijs/encoding: optional WalletConnect logger deps.
     // @x402/*: optional Coinbase Smart Wallet payment-protocol deps pulled in

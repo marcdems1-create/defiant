@@ -16,6 +16,13 @@ export const moonwellMTokenAbi = [
   },
   {
     type: 'function',
+    name: 'redeem',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'redeemTokens', type: 'uint256' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
     name: 'balanceOf',
     stateMutability: 'view',
     inputs: [{ name: 'owner', type: 'address' }],
@@ -41,5 +48,16 @@ export const moonwellMTokenAbi = [
     stateMutability: 'view',
     inputs: [],
     outputs: [{ name: '', type: 'address' }],
+  },
+] as const;
+
+/** Moonwell Comptroller — claimReward() for msg.sender across all markets. docs.moonwell.fi 2026-08-18. */
+export const moonwellComptrollerAbi = [
+  {
+    type: 'function',
+    name: 'claimReward',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [],
   },
 ] as const;

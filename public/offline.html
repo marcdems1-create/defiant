@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0e11" />
+    <title>Offline — Openhand</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #0b0e11;
+        color: #f2f4f7;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+      }
+      main {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: calc(2rem + env(safe-area-inset-top)) 1.5rem
+          calc(2rem + env(safe-area-inset-bottom));
+        max-width: 28rem;
+        margin: 0 auto;
+      }
+      .brand {
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: 1.125rem;
+        letter-spacing: -0.02em;
+      }
+      .dot {
+        color: #3ecf8e;
+      }
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 500;
+        margin: 0;
+      }
+      p {
+        margin: 0;
+        color: rgba(242, 244, 247, 0.55);
+        font-size: 0.875rem;
+        line-height: 1.5;
+      }
+      button {
+        margin-top: 0.75rem;
+        align-self: flex-start;
+        background: #3ecf8e;
+        color: #0b0e11;
+        border: 0;
+        border-radius: 0.75rem;
+        padding: 0.6rem 1rem;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">openhand<span class="dot">.</span></div>
+      <h1>You're offline</h1>
+      <p>
+        Live yields and wallet actions need a connection. Openhand never holds your funds — when
+        you're back online, rates load from the chain again. Nothing here is cached as a live APY.
+      </p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

@@ -8,6 +8,7 @@ interface LlamaLookup {
   projects: string[];
   chain: string;
   matchesSymbol: (symbol: string) => boolean;
+  matchesMeta?: (meta: string) => boolean;
   preferBase: boolean;
 }
 
@@ -84,6 +85,27 @@ function lookupFor(opportunity: Opportunity): LlamaLookup | null {
         preferBase: false,
       };
     }
+    case 'sky':
+      return {
+        projects: ['sky-lending', 'makerdao', 'spark'],
+        chain,
+        matchesSymbol: (s) => s.includes('SUSDS') || s === 'USDS' || s.includes('SSR'),
+        preferBase: true,
+      };
+    case 'maple':
+      return {
+        projects: ['maple', 'syrup'],
+        chain: 'Ethereum',
+        matchesSymbol: (s) => s.includes('SYRUPUSDC') || s.includes('SYRUP'),
+        preferBase: false,
+      };
+    case 'panoptic':
+      return {
+        projects: ['panoptic', 'panoptic-v2'],
+        chain: 'Ethereum',
+        matchesSymbol: (s) => s.includes('UNICORN'),
+        preferBase: false,
+      };
     default:
       return null;
   }
@@ -94,7 +116,12 @@ export async function fetchApyHistory(opportunity: Opportunity): Promise<ApyHist
   if (!lookup) return [];
 
   for (const project of lookup.projects) {
-    const pool = await findDefiLlamaPool(project, lookup.chain, lookup.matchesSymbol);
+    const pool = await findDefiLlamaPool(
+      project,
+      lookup.chain,
+      lookup.matchesSymbol,
+      lookup.matchesMeta,
+    );
     if (typeof pool?.pool !== 'string' || pool.pool.length === 0) continue;
     const points = await fetchDefiLlamaApyHistory(pool.pool, lookup.preferBase);
     if (points.length > 0) return points;

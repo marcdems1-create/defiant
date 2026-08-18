@@ -13,6 +13,8 @@ import {
 import { chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { GrowthChart } from '@/components/GrowthChart';
+import { PositionActions } from '@/components/PositionActions';
+import { StockDesk } from '@/components/StockDesk';
 
 function StatCard({
   label,
@@ -38,7 +40,9 @@ const PROJECTION_DISCLAIMER =
 export default function DashboardPage() {
   const { isConnected } = useAccount();
   const { data: opportunities, isLoading, isError } = useOpportunities();
-  const { positions, isLoading: positionsLoading } = usePositions(opportunities);
+  const { positions, isLoading: positionsLoading } = usePositions(opportunities, {
+    catalogLoading: isLoading,
+  });
 
   const analytics = useMemo(
     () => computePortfolioAnalytics(positions),
@@ -65,7 +69,8 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-medium tracking-tight">Dashboard</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
             Track where you stand and stay the course. Live on-chain reads only — Openhand never
-            holds your keys or funds.
+            holds your keys or funds. Tokenized stocks on this page are a separate LI.FI tape,
+            not yield.
           </p>
         </div>
       </header>
@@ -73,13 +78,13 @@ export default function DashboardPage() {
       {!isConnected && (
         <div className="rounded-2xl border border-border bg-gradient-to-br from-accent/10 via-transparent to-transparent p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
           <div>
-            <h2 className="text-lg font-medium mb-1">Connect to see your portfolio</h2>
+            <h2 className="text-lg font-medium mb-1">Deposit to see your portfolio</h2>
             <p className="text-sm text-ink/60 max-w-md">
-              Personal analytics and projections appear only for your connected wallet. Browse
-              market stats below until then.
+              Personal analytics appear only for your wallet. Email or a passkey creates one —
+              we never hold the key.
             </p>
           </div>
-          <ConnectButtonClient />
+          <ConnectButtonClient label="Deposit" />
         </div>
       )}
 
@@ -162,18 +167,21 @@ export default function DashboardPage() {
                 {analytics.nonStablePositions.map((p) => (
                   <li
                     key={p.opportunity.id}
-                    className="flex items-center justify-between text-sm font-mono"
+                    className="flex items-center justify-between gap-4 text-sm font-mono"
                   >
                     <span className="text-ink/70">
                       {p.opportunity.protocolLabel} · {chainName(p.opportunity.chainId)}
                     </span>
-                    <span>
-                      {formatTokenAmount(p.balance, p.opportunity.asset.decimals)}{' '}
-                      {p.opportunity.asset.symbol}{' '}
-                      <span className="text-ink/45 text-xs">
-                        @ {formatApy(p.opportunity.apy)}
+                    <div className="flex flex-col items-end gap-1">
+                      <span>
+                        {formatTokenAmount(p.balance, p.opportunity.asset.decimals)}{' '}
+                        {p.opportunity.asset.symbol}{' '}
+                        <span className="text-ink/45 text-xs">
+                          @ {formatApy(p.opportunity.apy)}
+                        </span>
                       </span>
-                    </span>
+                      <PositionActions opportunity={p.opportunity} />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -228,6 +236,9 @@ export default function DashboardPage() {
                           ≈ ${usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       )}
+                      <div className="mt-1.5">
+                        <PositionActions opportunity={p.opportunity} />
+                      </div>
                     </div>
                   </li>
                 );
@@ -236,6 +247,8 @@ export default function DashboardPage() {
           </section>
         </>
       )}
+
+      <StockDesk />
 
       <section className="rounded-2xl border border-border bg-white/[0.02] p-6">
         <h2 className="text-lg font-medium mb-1">

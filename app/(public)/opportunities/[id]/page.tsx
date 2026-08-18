@@ -30,8 +30,8 @@ export default function OpportunityDetailPage() {
         <p className="text-sm text-ink/55 mb-4">
           This yield card may have rotated off the live list, or the link is outdated.
         </p>
-        <Link href="/opportunities" className="text-sm text-accent hover:underline">
-          ← Browse all opportunities
+        <Link href="/" className="text-sm text-accent hover:underline">
+          ← Browse the collection
         </Link>
       </div>
     );
