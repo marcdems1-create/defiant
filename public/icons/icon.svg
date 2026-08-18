@@ -1,6 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Openhand tab icon: white 0.H on the app background. Shapes (not text) so it stays crisp at 16px. -->
   <rect width="512" height="512" rx="112" fill="#0b0e11"/>
-  <rect x="48" y="48" width="416" height="416" rx="88" stroke="#3ecf8e" stroke-width="24"/>
-  <text x="256" y="290" text-anchor="middle" font-family="ui-monospace, monospace" font-size="220" font-weight="700" fill="#3ecf8e">d</text>
-  <circle cx="380" cy="132" r="28" fill="#3ecf8e"/>
+  <!-- 0 — rounded rectangle so it reads as a zero, not a letter O -->
+  <path
+    fill="#ffffff"
+    fill-rule="evenodd"
+    d="M64 148c0-27.6 22.4-50 50-50h86c27.6 0 50 22.4 50 50v216c0 27.6-22.4 50-50 50h-86c-27.6 0-50-22.4-50-50V148zm44 10c0-8.8 7.2-16 16-16h66c8.8 0 16 7.2 16 16v196c0 8.8-7.2 16-16 16h-66c-8.8 0-16-7.2-16-16V158z"
+  />
+  <!-- . -->
+  <circle cx="282" cy="364" r="26" fill="#ffffff"/>
+  <!-- H -->
+  <path
+    fill="#ffffff"
+    d="M328 108h46v122h66V108h46v296h-46V286h-66v118h-46V108z"
+  />
 </svg>
