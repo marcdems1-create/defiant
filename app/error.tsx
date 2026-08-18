@@ -14,9 +14,10 @@ export default function AppError({
         <p className="font-mono text-xs break-words text-danger mb-4">{error.message}</p>
         <p className="text-xs text-ink/50 mb-4 leading-relaxed">
           If this mentions an origin or Privy, add both{' '}
-          <span className="font-mono">https://openhand.online</span> and{' '}
-          <span className="font-mono">https://www.openhand.online</span> in the Privy
-          dashboard allowed origins. Vercel currently sends visitors to www.
+          <span className="font-mono">https://openhand.money</span> and{' '}
+          <span className="font-mono">https://www.openhand.money</span> in the Privy
+          dashboard allowed origins. The app 308s www and the old .online host to the
+          apex.
         </p>
         <button
           type="button"

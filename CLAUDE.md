@@ -5,7 +5,7 @@
 ## What this is
 
 **Openhand (repo: Defiant) is a non-custodial DeFi yield interface for a global audience.**
-Public host is `https://openhand.online`. Connect your
+Public host is `https://openhand.money`. Connect your
 own wallet, compare live on-chain yield across Aave v3, Lido, and Yearn v3, deposit or
 withdraw with transactions you sign yourself. The app never holds funds — no pooled
 contract, no admin key, no custody. See `README.md` for the full rationale and regulatory
@@ -27,9 +27,9 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    premise and it's the whole reason this doesn't need FINTRAC/CSA registration on day one.
    Optional Privy email/passkey wallets are third-party infra (`NEXT_PUBLIC_PRIVY_APP_ID`);
    Openhand must not persist keys or the email Privy collects. Privy's allowed origins
-   must include **both** `https://openhand.online` and `https://www.openhand.online`.
-   Vercel currently 308s apex → www; a missing www origin white-screens the public
-   app (`Application error: a client-side exception`). `NEXT_PUBLIC_PRIVY_APP_ID`
+   must include **both** `https://openhand.money` and `https://www.openhand.money`.
+   The app 308s www (and the retired `openhand.online` host) to the apex; a missing
+   origin white-screens the public app (`Application error: a client-side exception`). `NEXT_PUBLIC_PRIVY_APP_ID`
    must be the dashboard **App ID** (starts with `cl`/`cm`), never the App Secret
    (`privy_app_secret_…`). A secret in that env var is inlined into public JS and
    Privy throws "invalid Privy app ID". `app/providers.tsx` falls back to RainbowKit
@@ -118,9 +118,10 @@ Rules:
 
 ## Agent record (2026-08-17) — do not re-litigate
 
-Owner is signing up **Canadian no-coiners** on `openhand.online` (repo `defiant`). Domain is
-on Namecheap; site is on Vercel (`temporary-instant-bugle-1rh5ndv`). Apex **308s to
-`https://www.openhand.online`**.
+Owner is signing up **Canadian no-coiners** on `openhand.money` (repo `defiant`). Domain is
+on Namecheap; site is on Vercel (`temporary-instant-bugle-1rh5ndv`). Canonical host is
+**`https://openhand.money`**. `www.openhand.money` and the old `openhand.online` /
+`www.openhand.online` hosts 308 to the apex.
 
 ### Wallet vs buy — three vendors, three jobs
 
@@ -160,17 +161,18 @@ single-use. `x-user-ip` is forwarded to Transak, not stored.
 Gmail / Hotmail / Outlook / iCloud are **rejected**. Do not email sales@ for the hosted
 widget. Self-serve:
 
-1. Inbox on the domain they already own: `hello@openhand.online`.
-2. Namecheap → **Domain List** → Manage `openhand.online`.
+1. Inbox on the domain they own: `hello@openhand.money` (keep `hello@openhand.online`
+   forwarding until that mailbox is retired).
+2. Namecheap → **Domain List** → Manage `openhand.money`.
 3. **Advanced DNS** → Mail Settings = **Email Forwarding** (SPF TXT for
    `spf.efwd.registrar-servers.com` means this step is done). Do **not** hunt for a Mail
    Settings box on that tab after it is already Email Forwarding.
 4. **Domain tab** (not Advanced DNS) → scroll to **Redirect Email** → **Add Forwarder**.
    Alias `hello` → forward to Gmail. Test from a **different** mailbox.
 5. Sign up at [dashboard.transak.com](https://dashboard.transak.com) with
-   `hello@openhand.online`. Staging keys are immediate under Developers. Production needs
+   `hello@openhand.money`. Staging keys are immediate under Developers. Production needs
    KYB with the **same** email.
-6. Allowlist `openhand.online` and `www.openhand.online` in Transak.
+6. Allowlist `openhand.money` and `www.openhand.money` in Transak (keep `.online` until retired).
 
 Privy’s dashboard is **not** where you create that inbox. **Wallets** in Privy is user
 wallets. Email forwarding is Namecheap only.
@@ -392,11 +394,11 @@ Replaced the unused Onramper iframe with Transak for Canadian no-coiners.
   without flipping the app to mainnet; it sends TRNSK, not Circle USDC.
 - **IP:** Transak requires `x-user-ip` for KYC/geo. Forwarded, never stored.
 
-`lib/config/onramper.ts` is deleted. Allowlist `openhand.online` in the Transak dashboard
+`lib/config/onramper.ts` is deleted. Allowlist `openhand.money` in the Transak dashboard
 and set the two env vars on Vercel before Buy USDC works in production. Transak
 production also needs partner KYB (`https://forms.transak.com/kyb`).
 Signup is self-serve at dashboard.transak.com with a **corporate email**
-(`hello@openhand.online`, not Gmail). Staging keys are immediate. Do not wait on
+(`hello@openhand.money`, not Gmail). Staging keys are immediate. Do not wait on
 sales@transak.com for the hosted widget. Partner fee on the **buy** is the
 monetization path (session update 2026-08-17) — not a deposit/withdraw treasury cut.
 
@@ -406,7 +408,7 @@ monetization path (session update 2026-08-17) — not a deposit/withdraw treasur
 
 | Piece | What it is | Env |
 |---|---|---|
-| **Reown** | WalletConnect Cloud. How MetaMask / Rainbow / Rabby / the WC QR connect. Privy uses the same project ID for `wallet_connect`. | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` from [cloud.reown.com](https://cloud.reown.com). Allowlist `openhand.online`. |
+| **Reown** | WalletConnect Cloud. How MetaMask / Rainbow / Rabby / the WC QR connect. Privy uses the same project ID for `wallet_connect`. | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` from [cloud.reown.com](https://cloud.reown.com). Allowlist `openhand.money`. |
 | **Privy** | Email / passkey embedded wallet for people with no wallet yet. | `NEXT_PUBLIC_PRIVY_APP_ID` (set to `off` for RainbowKit-only). |
 | **Transak** | CAD / Interac → USDC into the **already-connected** address. Does not create the wallet. | `TRANSAK_API_KEY` + `TRANSAK_API_SECRET` (server-only). |
 
@@ -520,4 +522,12 @@ Capacitor/Electron — those wrappers break WalletConnect return-to-app and Tran
   snooze); iOS hint is Safari-only.
 - `sw.js` is served with `Cache-Control: no-cache` so updates apply. Bump the
   `CACHE` constant in `public/sw.js` if the worker logic changes.
+
+## Session update (2026-08-18) — domain `openhand.money`
+
+Production host is **`https://openhand.money`**. `www.openhand.money`, `openhand.online`,
+and `www.openhand.online` 308 to the apex (`middleware.ts` + `vercel.json`). Set
+`NEXT_PUBLIC_SITE_URL=https://openhand.money` on Vercel and rebuild. Allowlist the
+new origin (and www) in Privy, Reown, and Transak before cutting DNS; leave `.online`
+listed until that host is dropped.
 
