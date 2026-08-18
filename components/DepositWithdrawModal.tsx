@@ -24,6 +24,10 @@ import { useSendFee } from '@/lib/hooks/useSendFee';
 import { reportReferralFeePaid, useReferralFee } from '@/lib/hooks/useReferralFee';
 import { supportsAtomicBatch, sendCallsAndWait, type BatchCall } from '@/lib/tx/batch';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
+import { useCrossChainUsdc } from '@/lib/hooks/useCrossChainUsdc';
+import { bridgeConfigured } from '@/lib/bridge/lifi';
+import { bridgeChainById } from '@/lib/config/bridgeChains';
+import { NETWORK_MODE } from '@/lib/wagmi';
 import { chainName, formatApy } from '@/lib/format';
 import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
@@ -102,6 +106,27 @@ export function DepositWithdrawModal({
   const walletBalance = isNativeDeposit
     ? nativeBalance.data?.value ?? 0n
     : ((erc20WalletBalance.data as bigint | undefined) ?? 0n);
+
+  // Seamless cross-chain sourcing: if the deposit is USDC-denominated (a USDC
+  // opportunity, or a zap paying with USDC) and the user is short on this chain
+  // but holds USDC elsewhere, surface a one-tap "move it here" that routes
+  // through /bridge behind the scenes. Only relevant on mainnet with the router
+  // configured; the read is gated off otherwise so it costs nothing.
+  const canBridgeSource =
+    bridgeConfigured() &&
+    NETWORK_MODE === 'mainnet' &&
+    tab === 'deposit' &&
+    !isNativeDeposit &&
+    depositInputToken.symbol === 'USDC' &&
+    Boolean(bridgeChainById(opportunity.chainId));
+  const crossChain = useCrossChainUsdc(canBridgeSource ? address : undefined);
+  const bestOtherChainUsdc = useMemo(
+    () =>
+      crossChain.balances
+        .filter((b) => b.chainId !== opportunity.chainId && b.balance > 0n)
+        .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0))[0],
+    [crossChain.balances, opportunity.chainId],
+  );
 
   const positionBalance = useErc20Balance(opportunity.positionToken, address, opportunity.chainId);
   const positionBalanceValue = (positionBalance.data as bigint | undefined) ?? 0n;
@@ -1107,6 +1132,15 @@ export function DepositWithdrawModal({
 
             {insufficientBalance && (
               <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
+            )}
+            {canBridgeSource && insufficientBalance && bestOtherChainUsdc && (
+              <Link
+                href="/bridge"
+                className="block text-xs text-accent border border-accent/30 bg-accent/5 rounded px-3 py-2 mb-3 hover:bg-accent/10"
+              >
+                You have {formatUnits(bestOtherChainUsdc.balance, 6)} USDC on{' '}
+                {bestOtherChainUsdc.label}. Move it to {chainName(opportunity.chainId)} →
+              </Link>
             )}
             {errorMsg && <div className="text-xs text-danger mb-3 break-words">{errorMsg}</div>}
             {step === 'done' && (

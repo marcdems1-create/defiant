@@ -19,6 +19,9 @@ export function NavBar() {
         <Link href="/swap" className="text-ink/70 hover:text-ink transition-colors">
           Swap
         </Link>
+        <Link href="/bridge" className="text-ink/70 hover:text-ink transition-colors">
+          Bridge
+        </Link>
         <Link href="/refer" className="text-ink/70 hover:text-ink transition-colors">
           Refer
         </Link>
