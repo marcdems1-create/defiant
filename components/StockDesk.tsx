@@ -56,7 +56,7 @@ function Pill({
 export function StockDesk() {
   const { address, isConnected } = useAccount();
   const { data, isLoading, isError } = useStockCatalog();
-  const tokens = data ?? [];
+  const tokens = useMemo(() => data ?? [], [data]);
   const mainnet = NETWORK_MODE === 'mainnet';
 
   const [query, setQuery] = useState('');
