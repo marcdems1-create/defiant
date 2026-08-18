@@ -59,6 +59,28 @@ every market this reaches; it does not eliminate it in any of them.
 - Optional Postgres for first-party site analytics. Everything else reads directly
   on-chain or from each protocol's public read-only API.
 
+## Install as an app
+
+Openhand is a **Progressive Web App**, not an App Store / Play Store binary. Adding it
+to the home screen opens a standalone window (no browser chrome) while staying
+non-custodial: the same Privy / RainbowKit wallet still signs every transaction.
+There is no Capacitor/Electron wrapper — those break WalletConnect return-to-app
+and the Transak iframe, and they are not needed for a home-screen icon.
+
+- **Android / desktop Chrome:** the Install prompt appears when Chrome considers the
+  site installable (HTTPS, manifest, service worker). “Later” snoozes it for two weeks.
+- **iPhone / iPad (Safari):** Share → Add to Home Screen. Chrome/Firefox on iOS cannot
+  install PWAs; the hint only shows in Safari.
+- **Standalone + wallets:** email / passkey (Privy) works inside the installed app.
+  WalletConnect to an external wallet (MetaMask etc.) may bounce through Safari and
+  not return — that is an iOS PWA limitation, not a custody change.
+
+The service worker (`public/sw.js`) is an offline *shell* only. It does **not** cache
+`/api/*`, HTML as live rates, or cross-origin RPC/protocol APIs. Stale APY must never
+be shown as if it were live. Precache is `/offline.html` plus icons. Content-hashed
+`/_next/static/*` is cache-first. Do not replace this with `next-pwa` / Serwist
+defaults — those cache too much for a yield product.
+
 ## First-time wallets (Privy)
 
 Openhand does **not** generate or store private keys. A brand-new user who has never
@@ -366,5 +388,10 @@ npm run dev
 | `components/DepositWithdrawModal.tsx` | The actual transaction flow — fee transfer + approve/deposit/withdraw per protocol |
 | `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim + fee-on-claim |
 | `components/RiskDisclaimer.tsx` | Short on-page risk disclosure (not a questionnaire) |
+| `app/manifest.ts` | PWA manifest (standalone, icons, home-screen shortcuts) |
+| `public/sw.js` | Installability + offline shell. Must not cache APY/API/HTML as live. |
+| `public/offline.html` | Offline fallback when a navigation fails |
+| `lib/pwa.ts` | Standalone / iOS Safari / install-snooze helpers (client only) |
+| `components/InstallAppBanner.tsx` | Home-screen install prompt (Chrome) / Safari hint |
 | `app/page.tsx` | Collection browse (first-run hero when disconnected / no positions) |
 | `app/opportunities/[id]/page.tsx` | Card detail |

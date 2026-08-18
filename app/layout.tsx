@@ -20,9 +20,15 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: SITE_NAME,
   },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
-    icon: '/icons/icon.svg',
-    apple: '/icons/icon-192.png',
+    icon: [
+      { url: '/icons/icon.svg', type: 'image/svg+xml' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
 };
 

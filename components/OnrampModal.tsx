@@ -51,8 +51,8 @@ export function OnrampModal({
   const notConfigured = error === 'Onramp is not configured';
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4">
-      <div className="bg-paper border border-border rounded-2xl w-full max-w-lg p-5">
+    <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/70 sm:p-4">
+      <div className="bg-paper border border-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 max-h-[min(96dvh,100%)] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
             <h2 className="text-lg font-medium">Add USDC</h2>
@@ -91,7 +91,7 @@ export function OnrampModal({
           <iframe
             src={src}
             title="Buy USDC"
-            className="w-full h-[630px] rounded-xl border border-border bg-paper"
+            className="w-full h-[min(630px,70dvh)] rounded-xl border border-border bg-paper"
             allow="clipboard-write; camera; microphone; payment"
             referrerPolicy="strict-origin-when-cross-origin"
           />

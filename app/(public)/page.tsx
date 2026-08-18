@@ -15,7 +15,6 @@ import { OpportunityCard } from '@/components/OpportunityCard';
 import { OpportunityFilters } from '@/components/OpportunityFilters';
 import { RiskDisclaimer } from '@/components/RiskDisclaimer';
 import { PositionCard } from '@/components/PositionCard';
-import { InstallAppBanner } from '@/components/InstallAppBanner';
 import { FirstRunHero } from '@/components/FirstRunHero';
 import { chains } from '@/lib/wagmi';
 
@@ -47,8 +46,6 @@ export default function CollectionPage() {
 
   return (
     <div className="flex flex-col gap-10">
-      {hasPosition && <InstallAppBanner />}
-
       {firstRun ? (
         <>
           <FirstRunHero

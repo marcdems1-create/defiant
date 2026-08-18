@@ -317,3 +317,23 @@ Constraint: in-app, non-custodial, CAD, Interac, USDC on Ethereum/Base/Arbitrum,
 User-side Transak fees are Transak’s (card ~3.5–5.5%, bank/Interac much lower). Openhand should not add a partner fee on top. Cheapest *user* path in Canada is still a local exchange + withdraw; cheapest *in-app* path that actually does Interac → USDC without a monthly bill is Transak’s hosted widget.
 
 **Do not wire a second onramp as “failover” until Transak is live and downtime is a real problem.** MoonPay / Privy `useFiatOnramp` / Coinbase Onramp / Reown AppKit onramp are not backups for this corridor (no CA USDC, or cards instead of Interac). Onramper is a paid aggregator ($199/mo) for the same job. Banxa is the only same-class Interac peer; adding it now is a second KYB, second iframe, and a second KYC for the user when Transak is down. The modal already falls back to “send USDC to this address” if the widget session fails. Revisit Banxa only after Transak has been used in production.
+
+## Session update (2026-08-18) — installable PWA / app shell
+
+Openhand installs as a home-screen app (PWA). Not an App Store/Play binary, not
+Capacitor/Electron — those wrappers break WalletConnect return-to-app and Transak.
+
+- Manifest: `app/manifest.ts` (`display: standalone`, maskable icon, Collection/Dashboard
+  shortcuts). Icons regenerated from `public/icons/icon.svg` (Openhand “O”).
+- Service worker: `public/sw.js`, registered only in production
+  (`components/ServiceWorkerRegister.tsx`). Network-first navigations → `/offline.html`.
+  **Never cache `/api/*` or cross-origin RPC/protocol responses.** Do not swap in
+  `next-pwa` / Serwist default runtime caching — stale APY as “live” violates
+  non-negotiable #3.
+- Chrome: sticky header with safe-area inset, mobile tab bar is the phone nav
+  (desktop links stay in the top bar), deposit/onramp sheets full-bleed on small
+  screens. Install prompt is a dismissible toast (`oh.install.dismissedAt`, 14-day
+  snooze); iOS hint is Safari-only.
+- `sw.js` is served with `Cache-Control: no-cache` so updates apply. Bump the
+  `CACHE` constant in `public/sw.js` if the worker logic changes.
+
