@@ -75,7 +75,6 @@ export function DepositWithdrawModal({
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
-  const [buyOpen, setBuyOpen] = useState(false);
   const [mapleLender, setMapleLender] = useState<MapleLenderStatus | null>(null);
   const [moving, setMoving] = useState(false);
   const [awaitingMove, setAwaitingMove] = useState(false);
