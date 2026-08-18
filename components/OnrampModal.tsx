@@ -54,14 +54,7 @@ export function OnrampModal({
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4">
       <div className="bg-paper border border-border rounded-2xl w-full max-w-lg p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
-          <div>
-            <h2 className="text-lg font-medium">Add USDC</h2>
-            <p className="text-xs text-ink/50 mt-1">
-              In Canada, Interac e-Transfer is the usual way. USDC goes to your wallet on{' '}
-              {chainName(chainId)}. Openhand never holds the funds. Transak handles the buy and
-              KYC.
-            </p>
-          </div>
+          <h2 className="text-lg font-medium">Add USDC</h2>
           <button onClick={onClose} className="text-ink/50 hover:text-ink" aria-label="Close">
             ✕
           </button>
@@ -74,14 +67,14 @@ export function OnrampModal({
           </p>
         )}
 
-        {!src && !error && <p className="text-sm text-ink/50 py-8 text-center">Opening Transak…</p>}
+        {!src && !error && <p className="text-sm text-ink/50 py-8 text-center">Opening…</p>}
 
         {error && (
           <p className="text-sm text-ink/65 leading-relaxed">
             {notConfigured && NETWORK_MODE === 'testnet'
-              ? 'This app is in practice mode. Set TRANSAK_STAGING with staging keys to try the Transak sandbox, or use a Base Sepolia USDC faucet.'
+              ? 'Practice mode. Send test USDC to this wallet, or use a Base Sepolia faucet.'
               : notConfigured
-                ? `Interac / card purchase is not configured yet. Send USDC to this wallet on ${chainName(chainId)}, then come back to deposit.`
+                ? `Send USDC to this wallet on ${chainName(chainId)}.`
                 : error}
             <span className="block font-mono text-xs text-ink/45 mt-2 break-all">{address}</span>
           </p>
