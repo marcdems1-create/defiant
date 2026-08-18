@@ -23,6 +23,7 @@ export const PROTOCOL_TINT: Record<ProtocolId, string> = {
   moonwell: 'from-lime-500/20 via-lime-500/5 to-transparent',
   sky: 'from-yellow-500/20 via-yellow-500/5 to-transparent',
   maple: 'from-orange-500/20 via-orange-500/5 to-transparent',
+  panoptic: 'from-violet-500/20 via-violet-500/5 to-transparent',
 };
 
 const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
@@ -209,6 +210,22 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
     docsLabel: 'Maple integration docs',
     withdrawalNote:
       'Call requestRedeem to enter the queue. USDC is sent to your wallet when processed — no extra claim transaction. Typical wait is hours to a couple of days; up to 30 days is documented.',
+  },
+  panoptic: {
+    howYieldWorks:
+      'You deposit USDC into Panoptic\'s Unicorn vault. A third-party curator supplies that USDC to lending markets and runs an automated options/volatility strategy. Openhand does not pick strikes, hedge, or operate the vault. Yield is not a money-market rate.',
+    risks: [
+      'Options and volatility risk — trades can lose USDC. This is not a cash park and is not "market-neutral" just because the strategy tries to hedge.',
+      'Smart contract risk in the vault, Panoptic markets, lending venues, and Uniswap infrastructure underneath.',
+      'Liquidity risk — ERC-4626 redeem depends on vault liquidity being available.',
+      'Newer / emerging protocol — shorter track record than Aave or Lido.',
+      'If DeFiLlama has no parseable Unicorn APY, this card is hidden rather than showing a guessed number.',
+    ],
+    coolDetail:
+      'Unicorn is a Panoptic community vault from their own docs. Listing it in the catalog is not a recommendation and not a "start here."',
+    docsUrl: 'https://panoptic.xyz/docs/getting-started/vaults',
+    docsLabel: 'Panoptic vault docs',
+    withdrawalNote: 'Redeem vault shares anytime via ERC-4626, subject to vault liquidity.',
   },
 };
 

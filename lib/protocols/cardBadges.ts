@@ -35,7 +35,12 @@ const RISK_BADGE: Record<RiskLevel, CardBadge> = {
 };
 
 function cardRiskLevel(opportunity: Opportunity): RiskLevel {
-  if (opportunity.protocol === 'convex-cvxcrv' || opportunity.protocol === 'frax-sfrxusd' || opportunity.protocol === 'maple') {
+  if (
+    opportunity.protocol === 'convex-cvxcrv' ||
+    opportunity.protocol === 'frax-sfrxusd' ||
+    opportunity.protocol === 'maple' ||
+    opportunity.protocol === 'panoptic'
+  ) {
     return 'higher';
   }
   if (

@@ -170,6 +170,7 @@ Production keys + KYB are still required before real CAD hits a real wallet.
 | Curve | Ethereum only (no testnet deployment) | USDC → LP (2 pools, see below) | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
 | Sky (sUSDS) | Base, Arbitrum (Spark PSM3; no testnet) | USDC ↔ sUSDS | `PSM.swapExactIn` | Same swap back to USDC — instant, subject to PSM liquidity |
 | Maple (syrupUSDC) | Ethereum only | USDC | `SyrupRouter.deposit` (Maple lender auth required once) | `Pool.requestRedeem` — FIFO queue; USDC is pushed when processed |
+| Panoptic (Unicorn USDC) | Ethereum only | USDC | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
 
 Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
 `lib/protocols/curve.ts` turns each configured entry into its own opportunity:
@@ -206,6 +207,39 @@ Maple syrupUSDC addresses and the `requestRedeem` flow come from
 [Maple's Ethereum integration docs](https://docs.maple.finance/integrate/ethereum-mainnet/smart-contract-integration).
 First-time Maple wallets must complete lender authorization on syrup.fi; Openhand cannot
 sign Maple's allowlist.
+
+Panoptic Unicorn USDC is a **catalog card**, not a featured strategy. Address from
+[Panoptic deployment docs](https://panoptic.xyz/docs/contracts/deployment-addresses)
+(2026-08-18). It is a third-party automated options/volatility vault: you sign an
+ERC-4626 deposit; Panoptic's curator runs the trades. Copy does not call it
+market-neutral or a recommendation. If `asset()` is not native USDC, or DeFiLlama has
+no parseable Unicorn APY, the card is skipped rather than guessed. PLP WETH is not
+listed (USDC-in only).
+
+## Move USDC (Circle CCTP)
+
+`/move` is a **tool**, not a yield opportunity and not a recommendation. It moves
+native USDC you already hold across Ethereum, Base, and Arbitrum using Circle CCTP
+**V2** (V1 is in wind-down). Flow: exact-amount `approve` → `depositForBurn` on the
+source TokenMessenger → poll Circle's public Iris attestation → `receiveMessage` on
+the destination MessageTransmitter. You sign both legs. Openhand never holds the
+tokens, there is no Circle signup/KYB (that is Circle Mint, a different product),
+and there is **no Openhand fee** on this path.
+
+- Addresses: [Circle CCTP contract addresses](https://developers.circle.com/cctp/references/contract-addresses)
+  (verified 2026-08-18). TokenMessengerV2 `0x28b5a0e9…cf5d` / MessageTransmitterV2
+  `0x81D40F21…4B64` on Ethereum, Arbitrum, and Base (same bytes, domain IDs 0 / 3 / 6).
+  Testnet uses the Sepolia counterparts on Circle's table.
+- Burn token is **Circle-issued USDC**
+  ([USDC contract addresses](https://developers.circle.com/stablecoins/usdc-contract-addresses)).
+  Bridged USDC.e and Aave's Sepolia faucet token cannot be burned.
+- Standard Transfer only (`minFinalityThreshold = 2000`, `maxFee = 0`). Fast Transfer
+  (Circle fee taken from the amount) is not wired.
+- One burn is capped at $10 million (Circle). Pending burns are stored in **this
+  browser's localStorage only** (`openhand.cctp.pending.v1`) — not the database.
+- Iris is fetched server-side (`/api/cctp/attestation`) so the browser does not
+  depend on Circle CORS. No API key. Missing attestation → wait / retry, never a
+  guessed message.
 
 **Token emissions (Moonwell WELL, Convex CRV/CVX):** claim is wallet-signed. After a claim,
 you choose what percent of *just-claimed* tokens to sell to USDC via 0x (default 100% sell,
@@ -371,6 +405,15 @@ npm run dev
   wallets are pointed at syrup.fi.
 - **Harvest sell-to-USDC needs `NEXT_PUBLIC_ZEROEX_API_KEY`.** Without it, Harvest still
   claims WELL/CRV/CVX to the connected wallet; the sell step is skipped rather than guessed.
+- **CCTP Move has not been transaction-tested** against a live wallet/RPC. Standard
+  Transfer attestation from Ethereum or L2s is often 15–19 minutes. If the mint
+  signature is rejected after a successful burn, the burn stays in this browser's
+  pending list for a manual mint — there is no server-side resume.
+- **Panoptic Unicorn is hidden if DeFiLlama has no parseable Unicorn APY**, or if
+  `asset()` is not native USDC. Do not substitute another pool's number. The vault
+  itself has not been deposit-tested from this app.
+- **Circle Fast Transfer is not built.** It would take a fee from the bridged amount.
+  Standard Transfer is fee-free at Circle's layer and slower.
 
 ## File map
 
@@ -388,8 +431,13 @@ npm run dev
 | `app/api/analytics/event/route.ts` | First-party event ingest (no wallet/IP stored) |
 | `app/admin/page.tsx` | Password-gated analytics dashboard (not in public nav) |
 | `migrations/002_site_analytics.sql` | Anonymous site event schema. Applied by hand. |
-| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants, Spark PSM, Maple router/pool, Moonwell comptroller) |
-| `lib/protocols/{aave,lido,yearn,curve,sky,maple}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
+| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants, Spark PSM, Maple router/pool, Moonwell comptroller, CCTP V2 TokenMessenger/MessageTransmitter) |
+| `lib/config/cctp.ts` | CCTP V2 domains, messengers, native USDC per chain |
+| `lib/cctp/attestation.ts` | bytes32 mint recipient + Iris parse (skip if attestation missing) |
+| `app/api/cctp/attestation/route.ts` | Same-origin Iris pass-through. No wallet, no store. |
+| `components/CctpMove.tsx` | User-signed burn → wait → mint. Pending list in localStorage. |
+| `app/(public)/move/page.tsx` | Move USDC tool (not a strategy page) |
+| `lib/protocols/{aave,lido,yearn,curve,sky,maple,panoptic}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
 | `lib/protocols/aggregate.ts` | Combines protocol fetchers into one sorted list |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |

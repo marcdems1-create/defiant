@@ -257,6 +257,10 @@ browser, no real wallet, no RPC in this sandbox.
 6. Real compliance review before any mainnet/public launch — unchanged from the original
    list, and now more relevant given the fee-on-conversion feature touches money movement
    even though it stays non-custodial.
+7. Smoke-test CCTP V2 (`/move`) on testnet with Circle-native USDC (not Aave’s faucet
+   token on Sepolia/Base Sepolia), both the happy path and “reject the mint after a
+   successful burn.” Smoke-test Panoptic Unicorn `asset()` + DeFiLlama Unicorn field
+   names before a mainnet deposit.
 
 ## Session update (2026-08-16) — Transak CAD / Interac onramp
 
@@ -327,3 +331,12 @@ Added USDC-in / USDC-out adapters that stay non-custodial:
 - Harvest + sell-% of *just-claimed* WELL / CRV / CVX to USDC (`components/HarvestRewards.tsx`). Default 100% sell, slider to hold a percent. Wallet-signed only — no keeper. 0x quote still needs `NEXT_PUBLIC_ZEROEX_API_KEY`.
 
 **Not added:** Uniswap V3 / Aerodrome LP, GMX, Pendle, or one-click looping. Looping is leverage (depeg/oracle/rate/liquidation risk stacked). Do not add it.
+
+## Session update (2026-08-18) — CCTP V2 Move + Panoptic Unicorn
+
+Built the two catalog/tool pieces that stay on the non-custodial, non-advice side of the line:
+
+- **Move USDC** (`/move`, `components/CctpMove.tsx`) — user-signed Circle CCTP **V2**. Exact approve → burn → Iris attestation (server proxy `/api/cctp/attestation`) → mint on destination. No Circle KYB, no Openhand fee, pending burns in localStorage only. Native Circle USDC addresses (not Aave test tokens). Standard Transfer (`minFinalityThreshold = 2000`).
+- **Panoptic Unicorn USDC** (`lib/protocols/panoptic.ts`) — Ethereum catalog card, ERC-4626. Higher-risk badge. Skip if `asset()` ≠ USDC or DeFiLlama has no Unicorn APY. Do not describe it as market-neutral or a featured strategy. No PLP WETH.
+
+**Still not added:** looping, Uniswap V3 / Aerodrome LP, GMX, Pendle, a strategy/allocation page, or any Openhand-run options vault.
