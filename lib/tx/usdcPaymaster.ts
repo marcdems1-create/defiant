@@ -21,7 +21,7 @@ import {
   circleUsdcAddress,
   gasPermitAmount,
   SIMPLE_7702_IMPLEMENTATION,
-  STUB_ECDSA_SIGNATURE,
+  isSimple7702Delegated,
 } from '@/lib/config/paymaster';
 import { chains } from '@/lib/wagmi';
 import { sign7702Authorization, type Sign7702Fn } from '@/lib/tx/sign7702';
@@ -122,7 +122,7 @@ async function signUsdcPermit(params: {
   };
 
   const wrapped = await params.walletClient.signTypedData({
-    account: params.owner,
+    account: params.walletClient.account ?? params.owner,
     ...typedData,
   });
   return parseErc6492Signature(wrapped).signature;
@@ -158,6 +158,8 @@ export async function sendUsdcGasCalls(params: {
   if (!paymasterAddress || !usdc) {
     throw new Error('USDC gas is not available on this network.');
   }
+  const pmAddr: `0x${string}` = paymasterAddress;
+  const usdcAddr: `0x${string}` = usdc;
   if (params.calls.length === 0) {
     throw new Error('Nothing to send');
   }
@@ -169,11 +171,14 @@ export async function sendUsdcGasCalls(params: {
   const ownerAccount = toAccount({
     address: params.owner,
     async signMessage({ message }) {
-      return params.walletClient.signMessage({ account: params.owner, message });
+      return params.walletClient.signMessage({
+        account: params.walletClient.account ?? params.owner,
+        message,
+      });
     },
     async signTypedData(typedData) {
       return params.walletClient.signTypedData({
-        account: params.owner,
+        account: params.walletClient.account ?? params.owner,
         domain: typedData.domain,
         types: typedData.types,
         primaryType: typedData.primaryType,
@@ -202,41 +207,37 @@ export async function sendUsdcGasCalls(params: {
     implementation: SIMPLE_7702_IMPLEMENTATION,
   });
 
-  const paymaster = {
-    async getPaymasterStubData() {
-      return {
-        paymaster: paymasterAddress,
-        paymasterData: packPaymasterData({
-          usdc,
-          permitAmount,
-          signature: STUB_ECDSA_SIGNATURE,
-        }),
-        paymasterVerificationGasLimit: 200_000n,
-        paymasterPostOpGasLimit: 15_000n,
-        isFinal: false,
-      };
-    },
-    async getPaymasterData() {
-      const permitSignature = await signUsdcPermit({
+  let permitSignature: `0x${string}` | undefined;
+  async function packedPaymaster() {
+    if (!permitSignature) {
+      permitSignature = await signUsdcPermit({
         walletClient: params.walletClient,
         owner: params.owner,
         chainId: params.chainId,
-        usdc,
-        spender: paymasterAddress,
+        usdc: usdcAddr,
+        spender: pmAddr,
         permitAmount,
-        publicClient: params.publicClient as never,
+        publicClient: params.publicClient,
       });
-      return {
-        paymaster: paymasterAddress,
-        paymasterData: packPaymasterData({
-          usdc,
-          permitAmount,
-          signature: permitSignature,
-        }),
-        paymasterVerificationGasLimit: 200_000n,
-        paymasterPostOpGasLimit: 15_000n,
-      };
-    },
+    }
+    return {
+      paymaster: pmAddr,
+      paymasterData: packPaymasterData({
+        usdc: usdcAddr,
+        permitAmount,
+        signature: permitSignature,
+      }),
+      paymasterVerificationGasLimit: 200_000n,
+      paymasterPostOpGasLimit: 15_000n,
+      // Real permit must be present during gas estimation — Circle rejects
+      // dummy signatures (AA23). isFinal skips a second prompt after estimate.
+      isFinal: true as const,
+    };
+  }
+
+  const paymaster = {
+    getPaymasterStubData: packedPaymaster,
+    getPaymasterData: packedPaymaster,
   };
 
   const bundlerClient = createBundlerClient({
@@ -271,8 +272,10 @@ export async function sendUsdcGasCalls(params: {
     },
   });
 
-  const delegated = await account.isDeployed();
-  const authorization = delegated
+  const delegatedToSimple = isSimple7702Delegated(
+    await params.publicClient.getCode({ address: params.owner }),
+  );
+  const authorization = delegatedToSimple
     ? undefined
     : await sign7702Authorization({
         walletClient: params.walletClient,
@@ -290,7 +293,9 @@ export async function sendUsdcGasCalls(params: {
   const userOpHash = await bundlerClient.sendUserOperation({
     account,
     calls: toBundlerCalls(params.calls),
-    ...(authorization ? { authorization } : {}),
+    ...(authorization
+      ? { authorization, factory: '0x7702' as const, factoryData: '0x' as const }
+      : {}),
   });
 
   const receipt = await bundlerClient.waitForUserOperationReceipt({

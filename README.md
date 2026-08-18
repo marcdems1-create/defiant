@@ -479,14 +479,14 @@ npm run dev
   itself has not been deposit-tested from this app.
 - **Circle Fast Transfer is not built.** It would take a fee from the bridged amount.
   Standard Transfer is fee-free at Circle's layer and slower.
-- **USDC-as-gas (Circle Paymaster) is untested against a live bundler.** When the
-  wallet has dust ETH and enough USDC, deposits go out as an EIP-7702 UserOp and
-  Circle fronts ETH against a scoped USDC permit (`lib/tx/usdcPaymaster.ts`). This
-  is not an Openhand relayer. Pimlico's public bundler may rate-limit — set
-  `NEXT_PUBLIC_BUNDLER_URL` if it does. Wallets that cannot sign EIP-7702 (many
-  injected EOAs) still need ETH. Withdraw also needs leftover USDC or ETH because
-  the paymaster pulls USDC *before* the withdraw executes. Max on USDC deposits
-  leaves that reserve on purpose. Circle takes a 10% surcharge on Base/Arbitrum.
+- **USDC-as-gas (Circle Paymaster) was live-tested on Arbitrum Sepolia** (2026-08-18):
+  a 0-ETH wallet paid gas in USDC for a self-transfer and a batched Aave
+  `approve`+`supply`. Pimlico public bundler + Paymaster v0.8. Circle's 10%
+  surcharge on Base/Arbitrum applies. Wallets that cannot sign EIP-7702 still
+  need ETH. Withdraw also needs leftover USDC or ETH because the paymaster
+  pulls USDC *before* the withdraw executes. Max on USDC deposits leaves that
+  reserve on purpose. Not yet run from the production UI against a Privy
+  embedded wallet.
 
 ## File map
 

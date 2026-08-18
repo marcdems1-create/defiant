@@ -31,10 +31,6 @@ export const CIRCLE_PAYMASTER_V08 = {
 export const SIMPLE_7702_IMPLEMENTATION =
   '0xe6Cae83BdE06E4c305530e199D7217f42808555B' as const;
 
-/** Dummy 65-byte ECDSA signature for paymaster gas estimation (never broadcast). */
-export const STUB_ECDSA_SIGNATURE =
-  '0xfffffffffffffffffffffffffffffff0000000000000000000000000000000007aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1c' as const;
-
 /**
  * USDC the paymaster is allowed to pull for one UserOp. Unused is refunded in
  * `_postOp`. Not `uint256.max` — non-negotiable #2. Circle still requires the
@@ -64,4 +60,19 @@ export function bundlerUrl(chainId: number): string {
 
 export function paymasterConfigured(chainId: number): boolean {
   return Boolean(circlePaymasterAddress(chainId) && circleUsdcAddress(chainId));
+}
+
+/** EIP-7702 delegated implementation, or null if the address is still a plain EOA. */
+export function parseEip7702Implementation(
+  code: string | undefined | null,
+): `0x${string}` | null {
+  if (!code || code === '0x' || code === '0x0') return null;
+  const normalized = code.toLowerCase();
+  if (!normalized.startsWith('0xef0100') || normalized.length < 48) return null;
+  return `0x${normalized.slice(8, 48)}` as `0x${string}`;
+}
+
+export function isSimple7702Delegated(code: string | undefined | null): boolean {
+  const impl = parseEip7702Implementation(code);
+  return Boolean(impl && impl.toLowerCase() === SIMPLE_7702_IMPLEMENTATION.toLowerCase());
 }

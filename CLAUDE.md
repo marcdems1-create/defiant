@@ -538,7 +538,11 @@ defaults to Pimlico public; override `NEXT_PUBLIC_BUNDLER_URL`. Privy embedded
 wallets sign 7702 via `useSign7702Authorization`. Injected wallets that cannot
 sign 7702 still need ETH.
 
-Not transaction-tested. Max on a USDC deposit leaves the permit amount in the
-wallet so a later withdraw can also pay gas in USDC.
+Live-tested 2026-08-18 on Arbitrum Sepolia with a 0-ETH wallet: USDC self-transfer
+and batched Aave `approve`+`supply` both landed. Dummy paymaster permits fail
+Circle simulation (AA23) — always sign the real scoped permit before estimate.
+`isDeployed()` is not enough for 7702: only skip authorization when the EOA is
+already delegated to Simple7702 (`0xe6Cae83B…`). Max on a USDC deposit leaves the
+permit amount in the wallet so a later withdraw can also pay gas in USDC.
 
 
