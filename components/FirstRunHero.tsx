@@ -41,8 +41,8 @@ export function FirstRunHero({
             'Email or a passkey creates a wallet. You sign every move. Openhand never holds your keys or funds.'}
           {empty &&
             (NETWORK_MODE === 'mainnet'
-              ? `This wallet has no USDC on ${starter ? chainName(starter.chainId) : 'Base'} yet. In Canada, buy with Interac or a card — it lands in this wallet, not with Openhand.`
-              : 'Practice mode. Buy USDC opens Transak’s sandbox if staging keys are set; otherwise use a Base Sepolia USDC faucet.')}
+              ? `This wallet has no USDC on ${starter ? chainName(starter.chainId) : 'Base'} yet. Add USDC to continue.`
+              : 'Practice mode. Use a Base Sepolia USDC faucet.')}
           {funded &&
             'Your USDC is in this wallet. Browse the collection and deposit into any card you choose.'}
         </p>
@@ -50,7 +50,7 @@ export function FirstRunHero({
 
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <Step n={1} done={connected} label="Wallet" detail="Email or passkey" />
-        <Step n={2} done={funded} label="Add USDC" detail="Interac or card" />
+        <Step n={2} done={funded} label="Add USDC" detail="To this wallet" />
         <Step n={3} done={false} label="Deposit" detail="Pick a card" />
       </ol>
 
