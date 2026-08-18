@@ -12,7 +12,8 @@ export type ProtocolId =
   | 'fluid'
   | 'moonwell'
   | 'sky'
-  | 'maple';
+  | 'maple'
+  | 'panoptic';
 
 export interface Opportunity {
   id: string;
@@ -49,6 +50,7 @@ export const ERC4626_PROTOCOLS: ProtocolId[] = [
   'frax-sfrxusd',
   'morpho',
   'fluid',
+  'panoptic',
 ];
 
 /** Share tokens whose underlying value is convertToAssets (vault-style). */

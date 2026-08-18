@@ -268,3 +268,15 @@ export const MAPLE = {
     usdc: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as `0x${string}`,
   },
 } as const;
+
+/**
+ * Panoptic Unicorn USDC vault — official Panoptic deployment docs
+ * (https://panoptic.xyz/docs/contracts/deployment-addresses), verified 2026-08-18.
+ * Ethereum mainnet community vault. Automated third-party options/vol strategy;
+ * Openhand does not pick strikes. Confirm `asset()` is native USDC at fetch time.
+ */
+export const PANOPTIC = {
+  [mainnet.id]: {
+    unicornUsdc: '0x236d0558f06cd60780b232d4Ec4c92d2cb7e4D18' as `0x${string}`,
+  },
+} as const;

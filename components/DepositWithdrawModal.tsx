@@ -114,6 +114,7 @@ export function DepositWithdrawModal({
   const isMoonwell = opportunity.protocol === 'moonwell';
   const isSky = opportunity.protocol === 'sky';
   const isMaple = opportunity.protocol === 'maple';
+  const isPanoptic = opportunity.protocol === 'panoptic';
   // Lido/Maple withdrawal fee is charged when funds actually land (Lido claim).
   // Maple's queue is push-based — no claim tx — so we skip the fee on request
   // rather than taking it from unrelated wallet funds.
@@ -772,6 +773,13 @@ export function DepositWithdrawModal({
               syrup.fi
             </a>
             . Openhand cannot allowlist you.
+          </div>
+        )}
+        {isPanoptic && (
+          <div className="text-xs text-warn bg-warn/10 border border-warn/30 rounded px-3 py-2 mb-4 leading-relaxed">
+            Panoptic Unicorn is a third-party automated options/volatility vault. You can lose
+            USDC. Openhand does not pick strikes or run the strategy. This listing is catalog,
+            not a recommendation.
           </div>
         )}
         {address && hasTokenEmissions(opportunity.protocol) && (
