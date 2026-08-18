@@ -50,10 +50,14 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    non-zero configured address — never add a hardcoded fallback treasury.
    **Do not turn the deposit/withdraw treasury fee on.** A cut on every Aave/Yearn tx is
    money-transmitter-adjacent and a tax on putting dollars to work. Monetize on licensed
-   rails instead: Transak partner fee on Buy USDC, optional 0x `swapFeeBps` only on
-   opt-in convert-then-deposit, CAD subscription later for extras (tax export, alerts).
+   rails instead: Transak partner fee on Buy USDC, optional 0x `swapFeeBps` on
+   **bridge / convert trades only** (paid to a **cold wallet** via
+   `NEXT_PUBLIC_SWAP_FEE_RECIPIENT`), CAD subscription later for extras.
    Never a performance fee on yield. Leave `NEXT_PUBLIC_TREASURY_ADDRESS` unset until
    counsel says otherwise — see session update 2026-08-17.
+   Openhand must not run a custodial bridge. The user signs the swap/bridge tx; the
+   fee is collected atomically to the cold wallet. Do not send bridge proceeds to a
+   hot operating key.
 7. **Do not add a questionnaire, suitability score, “best option for you,” or a featured
    starter card.** Browse filters only hide/reorder the existing catalog. A single
    highlighted opportunity is still a recommendation even if the copy says it is not —
@@ -342,7 +346,11 @@ How Openhand gets paid, in order:
    receives the USDC. Repeat protocol deposits stay fee-free. Confirm split/payout
    with Transak — do not add a second Openhand treasury transfer for this.
 2. **Optional 0x `swapFeeBps`** only on opt-in convert-then-deposit (already in
-   `lib/swap/zeroex.ts`). Never in front of plain USDC → Aave.
+   `lib/swap/zeroex.ts`). Never in front of plain USDC → Aave. Recipient is a
+   **cold wallet** (`NEXT_PUBLIC_SWAP_FEE_RECIPIENT`), not a hot treasury and not
+   `NEXT_PUBLIC_TREASURY_ADDRESS`. Same rule if a cross-chain **bridge** is added
+   later: user-signed tx, fee collected to that cold wallet, Openhand never holds
+   the bridged funds.
 3. **CAD subscription later** (Stripe) for extras that are not yield (tax export,
    alerts). Never a performance fee on yield.
 

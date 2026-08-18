@@ -10,6 +10,8 @@
  * (NEXT_PUBLIC_SWAP_FEE_BPS, in basis points) is paid to NEXT_PUBLIC_SWAP_FEE_RECIPIENT
  * atomically inside that same swap transaction via 0x's swapFeeBps/swapFeeRecipient
  * parameters — see https://0x.org/docs/0x-swap-api/guides/monetize-your-app-using-swap.
+ * That recipient is a cold wallet (bridge / convert trades only). Do not point it at
+ * a hot operating key. Deposit/withdraw treasury fees stay off.
  *
  * VERIFIED 2026-08-13 against 0x's own documentation, official example repo
  * (github.com/0xProject/0x-examples/tree/main/swap-v2-allowance-holder-headless-example),
@@ -48,9 +50,11 @@ interface FetchSwapQuoteParams {
 
 export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<SwapQuote | null> {
   const apiKey = process.env.NEXT_PUBLIC_ZEROEX_API_KEY;
-  const feeRecipient = process.env.NEXT_PUBLIC_SWAP_FEE_RECIPIENT;
+  const feeRecipient = process.env.NEXT_PUBLIC_SWAP_FEE_RECIPIENT?.trim();
   const feeBps = process.env.NEXT_PUBLIC_SWAP_FEE_BPS;
   if (!apiKey || !feeRecipient) return null;
+  if (!/^0x[a-fA-F0-9]{40}$/.test(feeRecipient)) return null;
+  if (feeRecipient.toLowerCase() === '0x0000000000000000000000000000000000000000') return null;
 
   const qs = new URLSearchParams({
     chainId: String(params.chainId),

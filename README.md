@@ -215,8 +215,13 @@ on anything other than a valid, non-zero configured address — never add a hard
    partner fee in the Transak dashboard (start ~0.5–1% of the *buy*, not of later deposits).
    Openhand never receives the USDC. Repeat Aave/Yearn deposits stay fee-free. Confirm the
    split and payout with Transak — do not add a second treasury transfer for this.
-2. **Optional 0x `swapFeeBps`** only on opt-in convert-then-deposit (CRV / Frax / Convex).
-   Already wired in `lib/swap/zeroex.ts`. Do not put a swap in front of plain USDC → Aave.
+2. **Bridge / convert trades — fee to a cold wallet.** Opt-in 0x `swapFeeBps` on
+   convert-then-deposit (CRV / Frax / Convex) is already wired in `lib/swap/zeroex.ts`.
+   Set `NEXT_PUBLIC_SWAP_FEE_RECIPIENT` to a **cold wallet** you do not use as an
+   operating key. Do not put a swap in front of plain USDC → Aave. If a cross-chain
+   bridge ships later: same pattern — user signs, fee is collected atomically to that
+   cold wallet, Openhand never holds the bridged assets. Do not build a custodial
+   bridge or send proceeds to a hot treasury (`NEXT_PUBLIC_TREASURY_ADDRESS` stays unset).
 3. **CAD subscription later** (Stripe) for extras that are not yield: tax-lot export, alerts,
    history. No crypto through Openhand. Never a performance fee on yield.
 
