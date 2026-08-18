@@ -17,6 +17,12 @@ const tabs = [
     match: (path: string) => path.startsWith('/move'),
   },
   {
+    href: '/swap',
+    label: 'Swap',
+    icon: '↺',
+    match: (path: string) => path.startsWith('/swap'),
+  },
+  {
     href: '/dashboard',
     label: 'Dashboard',
     icon: '📈',

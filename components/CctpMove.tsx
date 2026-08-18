@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { formatUnits, parseUnits } from 'viem';
 import { useAccount, useChainId, useSwitchChain, useWriteContract } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
@@ -255,7 +256,12 @@ export function CctpMove() {
         <p className="text-ink/55 text-sm mt-2 leading-relaxed">
           Native USDC via Circle CCTP — burn on one network, mint the same USDC on another.
           Openhand never holds the tokens. You sign both transactions. This is not a yield
-          strategy and not a lockbox bridge. No Circle account.
+          strategy and not a lockbox bridge. No Circle account. To convert tokens on the same
+          chain,{' '}
+          <Link href="/swap" className="text-accent hover:underline">
+            use Swap
+          </Link>
+          .
         </p>
       </header>
 
