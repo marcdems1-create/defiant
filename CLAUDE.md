@@ -48,6 +48,16 @@ language, flag the regulatory/consumer-protection implication first — don't ju
    "Fees" for the full two-step mechanism. `lib/config/fees.ts`'s `getTreasuryAddress()` must
    keep returning `undefined` (disabling every fee code path) on anything other than a valid,
    non-zero configured address — never add a hardcoded fallback treasury.
+   **Do not turn the deposit/withdraw treasury fee on.** A cut on every Aave/Yearn tx is
+   money-transmitter-adjacent and a tax on putting dollars to work. Monetize on licensed
+   rails instead: Transak partner fee on Buy USDC, optional 0x `swapFeeBps` on
+   **bridge / convert trades only** (paid to a **cold wallet** via
+   `NEXT_PUBLIC_SWAP_FEE_RECIPIENT`), CAD subscription later for extras.
+   Never a performance fee on yield. Leave `NEXT_PUBLIC_TREASURY_ADDRESS` unset until
+   counsel says otherwise — see session update 2026-08-17.
+   Openhand must not run a custodial bridge. The user signs the swap/bridge tx; the
+   fee is collected atomically to the cold wallet. Do not send bridge proceeds to a
+   hot operating key.
 7. **Do not add a questionnaire, suitability score, “best option for you,” or a featured
    starter card.** Browse filters only hide/reorder the existing catalog. A single
    highlighted opportunity is still a recommendation even if the copy says it is not —
@@ -146,11 +156,10 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
   trading-fee yield only — it deliberately excludes gauge CRV rewards, since earning those
   requires staking the LP token and this app doesn't build that flow (showing the CRV-inclusive
   number would overstate what a depositor here actually earns).
-- **Fees default to off** — `NEXT_PUBLIC_TREASURY_ADDRESS` is unset, so `feesEnabled()` is
-  `false` and no fee UI/transfer appears anywhere until it's configured with a real address.
-- **The two-step fee flow has no partial-failure recovery** (fee transfer succeeds, main
-  action then fails, or vice versa) — surfaces the error, no auto-refund/resume. Untested
-  against a live RPC, same as everything else here.
+- **Deposit/withdraw treasury fee stays off** — `NEXT_PUBLIC_TREASURY_ADDRESS` is unset, so
+  `feesEnabled()` is `false`. Do not enable it. Monetize via Transak partner fee on Buy USDC
+  (session update 2026-08-17). The two-step treasury path has no partial-failure recovery
+  anyway — keep it dark.
 - **Site analytics defaults to off** — `DATABASE_URL` is unset, so first-party events no-op
   until it's configured and `migrations/002_site_analytics.sql` has been run. `/admin` stays
   disabled until `ADMIN_PASSWORD` is set.
@@ -168,9 +177,10 @@ Known gaps, detailed in `README.md`'s "Known simplifications" section:
 2. Smoke-test the Yearn API integration specifically — verify `apr.forwardAPR.netAPR` is the
    right field before trusting displayed Yearn APYs. Same for Curve's `api.curve.finance`
    response shape assumed in `lib/protocols/curve.ts`.
-3. Once a treasury address exists, smoke-test the fee flow specifically — both success and
-   partial-failure paths (reject the second signature after the first succeeds) — before
-   trusting it with real money.
+3. ~~Once a treasury address exists, smoke-test the deposit/withdraw fee flow~~ — do not
+   enable `NEXT_PUBLIC_TREASURY_ADDRESS`. After Transak KYB, set a partner fee on Buy USDC
+   in Transak's dashboard instead. Smoke-test that path (success + user-abort) before
+   relying on it.
 4. Real compliance review before any mainnet/public launch — see README's regulatory section.
    Do not add jurisdiction-specific marketing copy, "safe", "guaranteed", or any
    deposit-insurance-adjacent language (FDIC, CDIC, FSCS, etc.) anywhere without that review
@@ -255,14 +265,14 @@ browser, no real wallet, no RPC in this sandbox.
    `usePositions` instead of the current single-balance-per-opportunity assumption, since
    Booster positions can earn CRV + CVX + third-party bribe tokens simultaneously.
 6. Real compliance review before any mainnet/public launch — unchanged from the original
-   list, and now more relevant given the fee-on-conversion feature touches money movement
-   even though it stays non-custodial.
+   list. Deposit/withdraw treasury fees stay off; Transak partner fee and optional 0x
+   convert-then-deposit fee are the monetization paths (session update 2026-08-17).
 
 ## Session update (2026-08-16) — Transak CAD / Interac onramp
 
 Replaced the unused Onramper iframe with Transak for Canadian no-coiners.
 
-- **Why Transak:** FINTRAC-registered, CAD + Interac, no monthly partner fee. MoonPay
+- **Why Transak:** FINTRAC-registered, CAD + Interac, no monthly platform fee. MoonPay
   blocks Canada on every USDC listing we care about (ethereum / base / arbitrum —
   live `api.moonpay.com/v3/currencies`, `notAllowedCountries: ["CA"]`; MoonPay docs:
   “Customers in Canada cannot purchase Stablecoins”). Onramper Essentials is $199/mo
@@ -272,17 +282,18 @@ Replaced the unused Onramper iframe with Transak for Canadian no-coiners.
   touch Openhand. Deposit/swap/referral stay on wagmi.
 - **Secrets:** `TRANSAK_API_KEY` + `TRANSAK_API_SECRET` are server-only. The API secret
   mints a Partner Access Token (cached in memory, ~7 days). Do not put the secret in
-  `NEXT_PUBLIC_*`. Optional `TRANSAK_STAGING=true` for Transak sandbox.
-- **Mainnet only.** Testnet cannot receive real USDC; the modal shows faucet copy instead.
+  `NEXT_PUBLIC_*`. Optional `TRANSAK_STAGING=true` for Transak sandbox (works on testnet).
+- **Production buys need mainnet + production keys.** Staging sandbox can be tested
+  without flipping the app to mainnet; it sends TRNSK, not Circle USDC.
 - **IP:** Transak requires `x-user-ip` for KYC/geo. Forwarded, never stored.
 
 `lib/config/onramper.ts` is deleted. Allowlist `openhand.online` in the Transak dashboard
 and set the two env vars on Vercel before Buy USDC works in production. Transak
-production also needs partner KYB (`https://forms.transak.com/kyb`). Keep the Transak
-dashboard partner fee at 0% — do not stack a markup on Canadian first buys.
+production also needs partner KYB (`https://forms.transak.com/kyb`).
 Signup is self-serve at dashboard.transak.com with a **corporate email**
 (`hello@openhand.online`, not Gmail). Staging keys are immediate. Do not wait on
-sales@transak.com for the hosted widget.
+sales@transak.com for the hosted widget. Partner fee on the **buy** is the
+monetization path (session update 2026-08-17) — not a deposit/withdraw treasury cut.
 
 ## Reown vs Transak — both stay; they are not two onramps
 
@@ -314,6 +325,40 @@ Constraint: in-app, non-custodial, CAD, Interac, USDC on Ethereum/Base/Arbitrum,
 | Privy `useFiatOnramp` | $0 | Unreliable for CA USDC (MoonPay blocked; Stripe US/EU) | No (cards) | Simplest *code*, wrong *product*. |
 | “Go buy on Shakepay / NDAX / Newton, then withdraw” | $0 | Yes, often cheapest user fees | Yes | Not in-app. Kills no-coiner conversion. Do not make this the product. |
 
-User-side Transak fees are Transak’s (card ~3.5–5.5%, bank/Interac much lower). Openhand should not add a partner fee on top. Cheapest *user* path in Canada is still a local exchange + withdraw; cheapest *in-app* path that actually does Interac → USDC without a monthly bill is Transak’s hosted widget.
+User-side Transak fees are Transak’s (card ~3.5–5.5%, bank/Interac much lower). After KYB,
+a small Transak **partner fee on the buy** is the Openhand monetization path (session
+update 2026-08-17) — not a second cut on Aave/Yearn deposits. Cheapest *user* path in
+Canada is still a local exchange + withdraw; cheapest *in-app* Interac → USDC path
+without a monthly bill is Transak’s hosted widget.
 
 **Do not wire a second onramp as “failover” until Transak is live and downtime is a real problem.** MoonPay / Privy `useFiatOnramp` / Coinbase Onramp / Reown AppKit onramp are not backups for this corridor (no CA USDC, or cards instead of Interac). Onramper is a paid aggregator ($199/mo) for the same job. Banxa is the only same-class Interac peer; adding it now is a second KYB, second iframe, and a second KYC for the user when Transak is down. The modal already falls back to “send USDC to this address” if the widget session fails. Revisit Banxa only after Transak has been used in production.
+
+## Session update (2026-08-17) — Monetize the onramp, not the deposit
+
+Do **not** turn on `NEXT_PUBLIC_TREASURY_ADDRESS`. The 0.25%/0.25% deposit/withdraw
+treasury transfer is money-transmitter-adjacent and a tax on putting dollars to work.
+Leave it in the code, leave it dark.
+
+How Openhand gets paid, in order:
+
+1. **Transak partner fee on Buy USDC** after partner KYB. Start ~0.5–1% of the buy.
+   Transak takes CAD, runs KYC, sends USDC to the connected wallet. Openhand never
+   receives the USDC. Repeat protocol deposits stay fee-free. Confirm split/payout
+   with Transak — do not add a second Openhand treasury transfer for this.
+2. **Optional 0x `swapFeeBps`** only on opt-in convert-then-deposit (already in
+   `lib/swap/zeroex.ts`). Never in front of plain USDC → Aave. Recipient is a
+   **cold wallet** (`NEXT_PUBLIC_SWAP_FEE_RECIPIENT`), not a hot treasury and not
+   `NEXT_PUBLIC_TREASURY_ADDRESS`. Same rule if a cross-chain **bridge** is added
+   later: user-signed tx, fee collected to that cold wallet, Openhand never holds
+   the bridged funds.
+3. **CAD subscription later** (Stripe) for extras that are not yield (tax export,
+   alerts). Never a performance fee on yield.
+
+Do not add Openhand-operated vaults, a skim inside a protocol call, an Openhand
+Interac account, a co-signer, or a featured product with an affiliate.
+
+Lumenary/Coinchange stay compliant by registering for money they touch (FINTRAC MSB)
+or renting a registered onramp and doing KYB/tax for businesses. Openhand stays
+ahead by not touching the money. Paperwork still due before a real Canadian launch:
+entity, terms, privacy, risk page, partner map, counsel on FINTRAC/CARF/fees.
+Not legal advice.
