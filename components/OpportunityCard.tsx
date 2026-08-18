@@ -6,7 +6,6 @@ import type { Opportunity } from '@/lib/protocols/types';
 import { COMPOUNDED_BADGE, getCardBadges } from '@/lib/protocols/cardBadges';
 import { PROTOCOL_TINT } from '@/lib/protocols/opportunityDetails';
 import { apyCaption, assetMark, chainName, formatApy } from '@/lib/format';
-import { AssetMark } from './AssetMark';
 import { CardBadgeChip } from './CardBadgeChip';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 
@@ -20,7 +19,6 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
       <article
         className={`relative rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-5 flex flex-col gap-4 min-h-[260px] transition-transform hover:-translate-y-0.5 hover:border-accent/40`}
       >
-        <AssetMark symbol={opportunity.asset.symbol} />
         <Link
           href={`/opportunities/${opportunity.id}`}
           className="relative z-[1] flex flex-col gap-4 flex-1 group outline-none focus-visible:ring-2 focus-visible:ring-accent/50 rounded-xl -m-1 p-1"
