@@ -280,3 +280,11 @@ export const PANOPTIC = {
     unicornUsdc: '0x236d0558f06cd60780b232d4Ec4c92d2cb7e4D18' as `0x${string}`,
   },
 } as const;
+
+/**
+ * Pendle PT markets expire, so they are not snapshotted here. Live market/PT
+ * addresses come from Pendle's official `GET /v2/markets/all` in
+ * `lib/protocols/pendle.ts` (allowlist: sUSDS, sUSDe, USDe, wstETH). Always
+ * use Hosted SDK `tx.to` for the router — V4 is upgradeable
+ * (https://docs.pendle.finance/pendle-v2-dev/Contracts/PendleRouter/PendleRouterOverview).
+ */

@@ -261,6 +261,9 @@ browser, no real wallet, no RPC in this sandbox.
    token on Sepolia/Base Sepolia), both the happy path and “reject the mint after a
    successful burn.” Smoke-test Panoptic Unicorn `asset()` + DeFiLlama Unicorn field
    names before a mainnet deposit.
+8. Smoke-test Pendle Hosted SDK Convert against a small mainnet PT buy (sUSDS book)
+   and an early sell. Confirm `requiredApprovals` spender matches `tx.to`. Do not
+   expand to YT/LP without a separate product decision.
 
 ## Session update (2026-08-16) — Transak CAD / Interac onramp
 
@@ -339,4 +342,15 @@ Built the two catalog/tool pieces that stay on the non-custodial, non-advice sid
 - **Move USDC** (`/move`, `components/CctpMove.tsx`) — user-signed Circle CCTP **V2**. Exact approve → burn → Iris attestation (server proxy `/api/cctp/attestation`) → mint on destination. No Circle KYB, no Openhand fee, pending burns in localStorage only. Native Circle USDC addresses (not Aave test tokens). Standard Transfer (`minFinalityThreshold = 2000`).
 - **Panoptic Unicorn USDC** (`lib/protocols/panoptic.ts`) — Ethereum catalog card, ERC-4626. Higher-risk badge. Skip if `asset()` ≠ USDC or DeFiLlama has no Unicorn APY. Do not describe it as market-neutral or a featured strategy. No PLP WETH.
 
-**Still not added:** looping, Uniswap V3 / Aerodrome LP, GMX, Pendle, a strategy/allocation page, or any Openhand-run options vault.
+**Still not added:** looping, Uniswap V3 / Aerodrome LP, GMX, Pendle YT/LP, a strategy/allocation page, or any Openhand-run options vault.
+
+## Session update (2026-08-18) — Pendle PT (battle-tested markets)
+
+Catalog-only Principal Tokens from Pendle's official markets API, allowlisted to the books that have been on Pendle across many expiries:
+
+- sUSDS (Sky), sUSDe (Ethena), wstETH (Lido). USDe is allowlisted if a live market reappears.
+- Implied APY to maturity from Pendle (`details.impliedApy`). Skip if missing, expired, TVL under $1M, or fewer than 14 days to expiry.
+- User-signed Hosted SDK Convert (exact approve to `tx.to`, 1% slippage). No hardcoded router. No YT, no LP, no long-tail points markets.
+- Not a recommendation and not a rolling vault — each expiry is its own token.
+
+**Still not added:** Pendle YT/LP, looping, Uniswap V3 / Aerodrome, GMX, a strategy page.

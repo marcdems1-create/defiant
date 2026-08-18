@@ -24,6 +24,7 @@ export const PROTOCOL_TINT: Record<ProtocolId, string> = {
   sky: 'from-yellow-500/20 via-yellow-500/5 to-transparent',
   maple: 'from-orange-500/20 via-orange-500/5 to-transparent',
   panoptic: 'from-violet-500/20 via-violet-500/5 to-transparent',
+  pendle: 'from-fuchsia-500/20 via-fuchsia-500/5 to-transparent',
 };
 
 const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
@@ -227,7 +228,50 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
     docsLabel: 'Panoptic vault docs',
     withdrawalNote: 'Redeem vault shares anytime via ERC-4626, subject to vault liquidity.',
   },
+  pendle: {
+    howYieldWorks:
+      'You buy Pendle Principal Tokens (PT) with USDC or ETH. PT trades at a discount to the accounting asset and is redeemable 1:1 of that asset at expiry. The number on the card is implied APY — the discount annualized to maturity — not a lending utilization rate. Openhand does not list Yield Tokens (YT) or Pendle LP.',
+    risks: [
+      'You only earn the implied rate if you hold PT until expiry. Selling early is an AMM swap: price, depth, and slippage can all move against you.',
+      'Smart contract risk in Pendle markets, the SY wrapper, and the underlying protocol (Sky, Ethena, or Lido).',
+      'Underlying risk is not removed: sUSDe carries Ethena/USDe risk; wstETH carries LST/validator risk; sUSDS carries Sky/USDS risk.',
+      'Aggregator routing (USDC or ETH into SY) adds swap risk on the way in.',
+      'Markets expire. A new expiry is a different token — this card is not a rolling vault.',
+    ],
+    coolDetail:
+      'Pendle split yield-bearing tokens into PT and YT so the discount to maturity is a visible rate. Listing the long-running books (sUSDS, sUSDe, wstETH) is catalog, not a recommendation.',
+    docsUrl: 'https://docs.pendle.finance/pendle-v2-dev/Quickstart',
+    docsLabel: 'Pendle developer docs',
+    withdrawalNote:
+      'Before expiry, sell PT through Pendle\'s router (1% slippage bound). At expiry, redeem PT for the accounting asset via the same convert flow.',
+  },
 };
+
+function pendleOverrides(opportunity: Opportunity): Partial<OpportunityDetailContent> {
+  const name = opportunity.pendle?.name;
+  if (name === 'sUSDe' || name === 'USDe') {
+    return {
+      risks: [
+        'Ethena / USDe risk — the basis trade and stablecoin design can fail. PT does not remove that.',
+        'You only earn the implied rate if you hold PT until expiry. Selling early is an AMM swap.',
+        'Smart contract risk in Pendle, the SY wrapper, and Ethena.',
+        'Aggregator routing into the market adds swap risk on the way in.',
+      ],
+    };
+  }
+  if (name === 'wstETH') {
+    return {
+      howYieldWorks:
+        'You buy Pendle PT-wstETH with ETH. The token is redeemable for wstETH at expiry; implied APY is the discount to that date. Early exit is an AMM swap, not Lido\'s withdrawal queue.',
+      risks: [
+        'LST / validator risk in Lido wstETH is still there.',
+        'You only earn the implied rate if you hold PT until expiry. Selling early is an AMM swap with slippage.',
+        'Smart contract risk in Pendle markets and the SY wrapper.',
+      ],
+    };
+  }
+  return {};
+}
 
 function morphoOverrides(opportunity: Opportunity): Partial<OpportunityDetailContent> {
   const isHighYield = opportunity.protocolLabel.toLowerCase().includes('high yield');
@@ -266,7 +310,9 @@ export function getOpportunityDetails(opportunity: Opportunity): OpportunityDeta
       ? morphoOverrides(opportunity)
       : opportunity.protocol === 'curve'
         ? curveOverrides(opportunity)
-        : {};
+        : opportunity.protocol === 'pendle'
+          ? pendleOverrides(opportunity)
+          : {};
 
   return { ...base, ...overrides };
 }

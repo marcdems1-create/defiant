@@ -160,6 +160,19 @@ export function usePositions(
         return converted > 0n ? [{ opportunity, balance: converted }] : [];
       }
 
+      if (opportunity.protocol === 'pendle') {
+        const ptDecimals = opportunity.positionDecimals ?? 18;
+        const assetDecimals = opportunity.asset.decimals;
+        if (ptDecimals === assetDecimals) {
+          return [{ opportunity, balance: shares }];
+        }
+        if (ptDecimals > assetDecimals) {
+          const scaled = shares / 10n ** BigInt(ptDecimals - assetDecimals);
+          return scaled > 0n ? [{ opportunity, balance: scaled }] : [];
+        }
+        return [{ opportunity, balance: shares }];
+      }
+
       return [{ opportunity, balance: shares }];
     });
   }, [shareReads.data, convertReads.data, shareBalances, withPositionToken]);
