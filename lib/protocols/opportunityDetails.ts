@@ -214,16 +214,16 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
   },
   panoptic: {
     howYieldWorks:
-      'You deposit USDC into Panoptic\'s Unicorn vault. A third-party curator supplies that USDC to lending markets and runs an automated options/volatility strategy. Openhand does not pick strikes, hedge, or operate the vault. Yield is not a money-market rate.',
+      'You deposit into a Panoptic community vault. A third-party curator allocates that capital into Panoptic lending markets and an automated options strategy. Openhand does not pick strikes, hedge, or operate the vault. Yield is not a money-market rate.',
     risks: [
-      'Options and volatility risk — trades can lose USDC. This is not a cash park and is not "market-neutral" just because the strategy tries to hedge.',
+      'Options and volatility risk — trades can lose the deposited asset. This is not a cash park and is not "market-neutral" just because a strategy tries to hedge.',
       'Smart contract risk in the vault, Panoptic markets, lending venues, and Uniswap infrastructure underneath.',
       'Liquidity risk — ERC-4626 redeem depends on vault liquidity being available.',
       'Newer / emerging protocol — shorter track record than Aave or Lido.',
-      'If DeFiLlama has no parseable Unicorn APY, this card is hidden rather than showing a guessed number.',
+      'If DeFiLlama has no parseable APY for this exact vault, the card is hidden rather than showing a guessed number.',
     ],
     coolDetail:
-      'Unicorn is a Panoptic community vault from their own docs. Listing it in the catalog is not a recommendation and not a "start here."',
+      'Panoptic publishes two community vaults spanning different risk/return. Listing them in the catalog is not a recommendation and not a "start here."',
     docsUrl: 'https://panoptic.xyz/docs/getting-started/vaults',
     docsLabel: 'Panoptic vault docs',
     withdrawalNote: 'Redeem vault shares anytime via ERC-4626, subject to vault liquidity.',
@@ -246,6 +246,37 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
       'Before expiry, sell PT through Pendle\'s router (1% slippage bound). At expiry, redeem PT for the accounting asset via the same convert flow.',
   },
 };
+
+function panopticOverrides(opportunity: Opportunity): Partial<OpportunityDetailContent> {
+  if (opportunity.panoptic?.vault === 'plp-weth') {
+    return {
+      howYieldWorks:
+        'You deposit WETH into Panoptic\'s PLP vault. The curator lends WETH into Panoptic markets and market-makes options liquidity, accruing platform fees. Relatively more conservative among Panoptic\'s two community vaults — still options infrastructure, not Aave-like lending. Openhand does not pick strikes or run the vault.',
+      risks: [
+        'You can lose WETH. Lending + options market-making is not a cash park.',
+        'Smart contract risk in the vault, Panoptic markets, and Uniswap infrastructure underneath.',
+        'Liquidity risk — ERC-4626 redeem depends on vault liquidity being available.',
+        'Newer / emerging protocol — shorter track record than Aave or Lido.',
+        'If DeFiLlama has no parseable PLP APY, this card is hidden rather than showing Unicorn\'s number or a guess.',
+      ],
+      coolDetail:
+        'PLP is Panoptic\'s WETH community vault from their own docs. Medium risk on this catalog is relative to Unicorn, not a safety rating.',
+    };
+  }
+  return {
+    howYieldWorks:
+      'You deposit USDC into Panoptic\'s Unicorn vault. A third-party curator supplies that USDC to lending markets and runs an automated options/volatility strategy. Openhand does not pick strikes, hedge, or operate the vault. Yield is not a money-market rate.',
+    risks: [
+      'Options and volatility risk — trades can lose USDC. This is not a cash park and is not "market-neutral" just because the strategy tries to hedge.',
+      'Smart contract risk in the vault, Panoptic markets, lending venues, and Uniswap infrastructure underneath.',
+      'Liquidity risk — ERC-4626 redeem depends on vault liquidity being available.',
+      'Newer / emerging protocol — shorter track record than Aave or Lido.',
+      'If DeFiLlama has no parseable Unicorn APY, this card is hidden rather than showing a guessed number.',
+    ],
+    coolDetail:
+      'Unicorn is a Panoptic community vault from their own docs. Listing it in the catalog is not a recommendation and not a "start here."',
+  };
+}
 
 function pendleOverrides(opportunity: Opportunity): Partial<OpportunityDetailContent> {
   const name = opportunity.pendle?.name;
@@ -312,7 +343,9 @@ export function getOpportunityDetails(opportunity: Opportunity): OpportunityDeta
         ? curveOverrides(opportunity)
         : opportunity.protocol === 'pendle'
           ? pendleOverrides(opportunity)
-          : {};
+          : opportunity.protocol === 'panoptic'
+            ? panopticOverrides(opportunity)
+            : {};
 
   return { ...base, ...overrides };
 }

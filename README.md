@@ -171,6 +171,7 @@ Production keys + KYB are still required before real CAD hits a real wallet.
 | Sky (sUSDS) | Base, Arbitrum (Spark PSM3; no testnet) | USDC ↔ sUSDS | `PSM.swapExactIn` | Same swap back to USDC — instant, subject to PSM liquidity |
 | Maple (syrupUSDC) | Ethereum only | USDC | `SyrupRouter.deposit` (Maple lender auth required once) | `Pool.requestRedeem` — FIFO queue; USDC is pushed when processed |
 | Panoptic (Unicorn USDC) | Ethereum only | USDC | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
+| Panoptic (PLP WETH) | Ethereum only | WETH | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
 | Pendle PT (sUSDS, sUSDe, wstETH) | Ethereum only (no testnet books) | USDC or ETH → PT | Hosted SDK Convert (`swapExactTokenForPt`) | Same convert: sell PT on the AMM, or redeem at expiry |
 
 Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
@@ -209,13 +210,21 @@ Maple syrupUSDC addresses and the `requestRedeem` flow come from
 First-time Maple wallets must complete lender authorization on syrup.fi; Openhand cannot
 sign Maple's allowlist.
 
-Panoptic Unicorn USDC is a **catalog card**, not a featured strategy. Address from
+Panoptic community vaults are **catalog cards**, not a featured strategy or an
+Openhand-run options desk. Addresses from
 [Panoptic deployment docs](https://panoptic.xyz/docs/contracts/deployment-addresses)
-(2026-08-18). It is a third-party automated options/volatility vault: you sign an
-ERC-4626 deposit; Panoptic's curator runs the trades. Copy does not call it
-market-neutral or a recommendation. If `asset()` is not native USDC, or DeFiLlama has
-no parseable Unicorn APY, the card is skipped rather than guessed. PLP WETH is not
-listed (USDC-in only).
+(2026-08-18). You sign an ERC-4626 deposit; Panoptic's curator runs the trades.
+Copy does not call either vault market-neutral or a recommendation.
+
+| Vault | Asset | Risk badge | Skip if |
+|---|---|---|---|
+| Unicorn USDC | USDC | Higher | `asset()` ≠ native USDC, or DeFiLlama has no parseable Unicorn APY |
+| PLP WETH | WETH | Medium (relative to Unicorn, not Aave-like) | `asset()` ≠ WETH, or DeFiLlama has no parseable PLP APY |
+
+Do not reuse one vault's APY for the other. Thetanuts V4 (RFQ options), Ribbon weekly
+theta vaults, and Aevo are not listed — no simple non-custodial ERC-4626 deposit we
+can verify. Browse **Type: Options** plus **Risk** and **Yield: High to low** to look
+across this slice; that is a filter, not a ranking.
 
 Pendle is **PT only**, and only on the long-running books: sUSDS (Sky), sUSDe (Ethena),
 wstETH (Lido). Market addresses come from Pendle's official
@@ -289,7 +298,7 @@ entirely rather than sending anywhere unintended.
 
 Collection and card pages show a short risk disclosure (`RiskDisclaimer`): yield is not a
 bank deposit, is not insured, is not guaranteed, and Openhand never holds funds. Browse
-filters (yield, chain, asset) only hide/reorder the existing catalog. They never score
+filters (yield, chain, asset, risk, type) only hide/reorder the existing catalog. They never score
 suitability or recommend a product or allocation.
 
 **Do not add a questionnaire, risk score, or “best option for you.”** That pattern is what
@@ -421,8 +430,10 @@ npm run dev
   signature is rejected after a successful burn, the burn stays in this browser's
   pending list for a manual mint — there is no server-side resume.
 - **Panoptic Unicorn is hidden if DeFiLlama has no parseable Unicorn APY**, or if
-  `asset()` is not native USDC. Do not substitute another pool's number. The vault
-  itself has not been deposit-tested from this app.
+  `asset()` is not native USDC. **PLP WETH is hidden** if `asset()` is not WETH or
+  DeFiLlama has no parseable PLP APY. Do not substitute the other vault's number.
+  Neither vault has been deposit-tested from this app. No ETH→WETH wrap in the
+  modal — PLP is WETH-in.
 - **Circle Fast Transfer is not built.** It would take a fee from the bridged amount.
   Standard Transfer is fee-free at Circle's layer and slower.
 - **Pendle is PT-only on an allowlist.** Points-farm markets, YT, and LP are skipped even
@@ -451,6 +462,7 @@ npm run dev
 | `app/api/cctp/attestation/route.ts` | Same-origin Iris pass-through. No wallet, no store. |
 | `components/CctpMove.tsx` | User-signed burn → wait → mint. Pending list in localStorage. |
 | `app/(public)/move/page.tsx` | Move USDC tool (not a strategy page) |
+| `lib/opportunityFilters.ts` | Browse filters (yield, chain, asset, risk, type) — hide/reorder only |
 | `lib/protocols/{aave,lido,yearn,curve,sky,maple,panoptic,pendle}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
 | `lib/config/pendle.ts` | Allowlisted PT names, slippage, min TVL / days-to-expiry |
 | `lib/pendle/convert.ts` | Hosted SDK Convert parse (skip if tx/output missing) |

@@ -259,8 +259,8 @@ browser, no real wallet, no RPC in this sandbox.
    even though it stays non-custodial.
 7. Smoke-test CCTP V2 (`/move`) on testnet with Circle-native USDC (not Aave’s faucet
    token on Sepolia/Base Sepolia), both the happy path and “reject the mint after a
-   successful burn.” Smoke-test Panoptic Unicorn `asset()` + DeFiLlama Unicorn field
-   names before a mainnet deposit.
+   successful burn.” Smoke-test Panoptic Unicorn **and PLP** `asset()` + DeFiLlama
+   field names (do not reuse one vault’s APY for the other) before a mainnet deposit.
 8. Smoke-test Pendle Hosted SDK Convert against a small mainnet PT buy (sUSDS book)
    and an early sell. Confirm `requiredApprovals` spender matches `tx.to`. Do not
    expand to YT/LP without a separate product decision.
@@ -354,3 +354,13 @@ Catalog-only Principal Tokens from Pendle's official markets API, allowlisted to
 - Not a recommendation and not a rolling vault — each expiry is its own token.
 
 **Still not added:** Pendle YT/LP, looping, Uniswap V3 / Aerodrome, GMX, a strategy page.
+
+## Session update (2026-08-18) — options toolkit (Unicorn + PLP + browse filters)
+
+Catalog + filters only — not a scored picker and not an Openhand-run options desk.
+
+- **Panoptic PLP WETH** (`0xD4e2c720A760049cc4151bcf61e3A9348Db9Cd92`, official deployment docs 2026-08-18) as a second ERC-4626 card. WETH-in. Skip if `asset()` ≠ canonical WETH9 or DeFiLlama has no PLP APY. Do not reuse Unicorn’s number. Medium risk badge (relative to Unicorn; still not Aave-like). Copy does not call it market-neutral.
+- Unicorn stays higher-risk USDC. `cardBadges` no longer maps every `protocol === 'panoptic'` to higher.
+- Browse filters: **Risk** (Lower / Medium / Higher) and **Type** (Lending / Options / Fixed-term / Credit) hide/reorder the catalog. Yield sort is still high-to-low. No “best options,” no featured card, no allocation.
+
+**Still not added:** Thetanuts / Ribbon / Aevo, ETH→WETH wrap in the modal, looping, YT/LP, a strategy page.

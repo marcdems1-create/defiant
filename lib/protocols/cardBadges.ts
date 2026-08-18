@@ -14,9 +14,9 @@ export interface CardBadges {
   liquidity: CardBadge;
 }
 
-type RiskLevel = 'lower' | 'medium' | 'higher';
+export type CardRiskLevel = 'lower' | 'medium' | 'higher';
 
-const RISK_BADGE: Record<RiskLevel, CardBadge> = {
+const RISK_BADGE: Record<CardRiskLevel, CardBadge> = {
   lower: {
     emoji: '🟢',
     label: 'Lower risk',
@@ -34,12 +34,13 @@ const RISK_BADGE: Record<RiskLevel, CardBadge> = {
   },
 };
 
-function cardRiskLevel(opportunity: Opportunity): RiskLevel {
+/** Same axis as the card badge — used by browse filters, not a suitability score. */
+export function getCardRiskLevel(opportunity: Opportunity): CardRiskLevel {
   if (
     opportunity.protocol === 'convex-cvxcrv' ||
     opportunity.protocol === 'frax-sfrxusd' ||
     opportunity.protocol === 'maple' ||
-    opportunity.protocol === 'panoptic' ||
+    (opportunity.protocol === 'panoptic' && opportunity.panoptic?.vault !== 'plp-weth') ||
     (opportunity.protocol === 'pendle' &&
       (opportunity.pendle?.name === 'sUSDe' || opportunity.pendle?.name === 'USDe'))
   ) {
@@ -55,6 +56,7 @@ function cardRiskLevel(opportunity: Opportunity): RiskLevel {
     opportunity.protocol === 'moonwell' ||
     opportunity.protocol === 'fluid' ||
     opportunity.protocol === 'pendle' ||
+    (opportunity.protocol === 'panoptic' && opportunity.panoptic?.vault === 'plp-weth') ||
     (opportunity.protocol === 'morpho' && opportunity.riskTier === 'emerging')
   ) {
     return 'medium';
@@ -65,7 +67,7 @@ function cardRiskLevel(opportunity: Opportunity): RiskLevel {
 
 /** Map protocol + risk into the axes shown on collection cards. */
 export function getCardBadges(opportunity: Opportunity): CardBadges {
-  const risk = RISK_BADGE[cardRiskLevel(opportunity)];
+  const risk = RISK_BADGE[getCardRiskLevel(opportunity)];
 
   const battleTested =
     opportunity.protocol === 'aave-v3' ||

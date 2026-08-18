@@ -49,6 +49,9 @@ export interface Opportunity {
     expiryMs: number;
     name: string;
   };
+  panoptic?: {
+    vault: 'unicorn' | 'plp-weth';
+  };
 }
 
 /** Protocols that use plain ERC-4626 deposit(assets)/withdraw(assets). */

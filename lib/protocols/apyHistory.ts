@@ -99,13 +99,23 @@ function lookupFor(opportunity: Opportunity): LlamaLookup | null {
         matchesSymbol: (s) => s.includes('SYRUPUSDC') || s.includes('SYRUP'),
         preferBase: false,
       };
-    case 'panoptic':
+    case 'panoptic': {
+      const vault = opportunity.panoptic?.vault;
+      if (vault === 'plp-weth') {
+        return {
+          projects: ['panoptic', 'panoptic-v2'],
+          chain: 'Ethereum',
+          matchesSymbol: (s) => s.includes('PLP'),
+          preferBase: false,
+        };
+      }
       return {
         projects: ['panoptic', 'panoptic-v2'],
         chain: 'Ethereum',
         matchesSymbol: (s) => s.includes('UNICORN'),
         preferBase: false,
       };
+    }
     case 'pendle': {
       const name = (opportunity.pendle?.name ?? '').toUpperCase();
       if (!name) return null;
