@@ -355,3 +355,38 @@ the standard rate (no referral discount there yet) — minor follow-up.
      on-chain gas, but removes popup fatigue).
    Verdict: viable and not fee-prohibitive when scoped to L2 + USDC-native pools + sane min/max;
    the only real cost risk is many pools + tiny amounts on Ethereum mainnet during high gas.
+
+## Session update (2026-08-18) — cross-chain USDC router (LI.FI), seamless
+
+Built the "user doesn't pick a chain" bridge as a **non-custodial** router, not a hosted widget:
+- `lib/bridge/lifi.ts` — LI.FI (li.quest) `GET /v1/quote` + `GET /v1/status` via plain `fetch`
+  (same shape as `lib/swap/zeroex.ts`, no `@lifi/sdk` dep). It's an AGGREGATOR: given from/to
+  chain + amount it picks the underlying bridge (CCTP/Across/eco/…) itself and returns ONE
+  ready-to-sign tx; **we never surface which bridge it chose** — user just sees "moving your USDC,
+  ~N min". Gated on `NEXT_PUBLIC_LIFI_INTEGRATOR` (`bridgeConfigured()`); optional
+  `NEXT_PUBLIC_LIFI_API_KEY` (rate limits) and `NEXT_PUBLIC_LIFI_FEE_BPS` (integrator fee, the
+  revenue source — LI.FI collects it INSIDE the route tx, never a custody hop). Field/param names
+  verified against docs.li.fi; `value`/`gasLimit`/`gasPrice` are HEX. **Verified live** against the
+  real API: Base→Arbitrum 100 USDC parsed correctly (tool `eco`, `approvalAddress`, `toAmountMin`),
+  status on a bogus hash degrades to `UNKNOWN` (no throw). NOTE: the `fee` param requires a
+  **verified** integrator — with an unregistered one LI.FI rejects the quote and `fetchBridgeQuote`
+  returns `null` (graceful, by design). Register the integrator + set the key before fees work.
+- `lib/config/bridgeChains.ts` + `lib/hooks/useCrossChainUsdc.ts` — native USDC per chain
+  (Ethereum/Base/Arbitrum, matches addresses.ts) + a batched `useReadContracts` that reads the
+  wallet's USDC on all three at once → the "single USDC balance" view. Mainnet-only (no testnet
+  bridge liquidity).
+- `/bridge` page + `components/BridgeCard.tsx` — user picks DESTINATION + amount; the card
+  auto-selects the SOURCE (other chain with the most USDC) and the route. Flow: switch to source →
+  scoped `approve` to `estimate.approvalAddress` (never unbounded) → send route tx → poll
+  `/status` until DONE (cross-chain settlement is NOT instant). Non-custodial: **the wallet signs
+  the approve + bridge tx** — "seamless" = hidden routing, NOT skipped authorization (same boundary
+  as the auto-zap). Shows the gated "not configured" / testnet-mode states like `/swap`.
+- `DepositWithdrawModal` — when a USDC-denominated deposit is short on the opportunity's chain but
+  the wallet holds USDC elsewhere, a subtle one-tap hint links to `/bridge` (reads via
+  `useCrossChainUsdc`, gated off unless mainnet + configured, so it costs nothing otherwise).
+- Nav: `Bridge` added to `NavBar` + `MobileTabBar`.
+
+**Not transaction-tested** (no funded wallet / verified integrator here) — the quote+status parsing
+is live-verified but the on-chain approve→bridge→settle path and the fee split need a real
+integrator key + funds. typecheck / lint / clean build all pass; `/bridge` builds as a static route
+(lazy-AppKit SSR pattern intact).
