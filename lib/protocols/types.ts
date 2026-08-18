@@ -10,7 +10,10 @@ export type ProtocolId =
   | 'compound-v3'
   | 'morpho'
   | 'fluid'
-  | 'moonwell';
+  | 'moonwell'
+  | 'sky'
+  | 'maple'
+  | 'panoptic';
 
 export interface Opportunity {
   id: string;
@@ -47,4 +50,16 @@ export const ERC4626_PROTOCOLS: ProtocolId[] = [
   'frax-sfrxusd',
   'morpho',
   'fluid',
+  'panoptic',
 ];
+
+/** Share tokens whose underlying value is convertToAssets (vault-style). */
+export const CONVERT_TO_ASSETS_PROTOCOLS: ProtocolId[] = [
+  ...ERC4626_PROTOCOLS,
+  'maple',
+];
+
+/** Extra reward tokens that can be claimed, then optionally sold to USDC. */
+export function hasTokenEmissions(protocol: ProtocolId): boolean {
+  return protocol === 'moonwell' || protocol === 'convex-cvxcrv';
+}

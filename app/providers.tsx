@@ -1,28 +1,48 @@
 'use client';
 
-import '@rainbow-me/rainbowkit/styles.css';
-import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiProvider } from 'wagmi';
-import { useState } from 'react';
-import { getWagmiConfig } from '@/lib/wagmi';
+import { Component, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
+import { privyAppId } from '@/lib/config/privy';
+import { RainbowAppProviders } from './providers-rainbow';
+import { WalletModeContext, type WalletMode } from '@/lib/walletMode';
 
-export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
+const PrivyAppProviders = dynamic(
+  () => import('./providers-privy').then((m) => m.PrivyAppProviders),
+  { ssr: false },
+);
 
-  return (
-    <WagmiProvider config={getWagmiConfig()}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          theme={darkTheme({
-            accentColor: '#3ecf8e',
-            accentColorForeground: '#0b0e11',
-            borderRadius: 'medium',
-          })}
-        >
-          {children}
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
-  );
+/**
+ * Privy throws on an origin that is not in its dashboard allowlist (www vs
+ * apex is the usual miss). That used to white-screen the whole public app.
+ * Catch it and keep RainbowKit connect working.
+ */
+class WalletProviderBoundary extends Component<
+  { children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('Privy failed to start; using RainbowKit only', error);
+  }
+
+  render() {
+    const mode: WalletMode =
+      privyAppId() && !this.state.failed ? 'privy' : 'rainbow';
+    const inner =
+      mode === 'privy' ? (
+        <PrivyAppProviders>{this.props.children}</PrivyAppProviders>
+      ) : (
+        <RainbowAppProviders>{this.props.children}</RainbowAppProviders>
+      );
+    return <WalletModeContext.Provider value={mode}>{inner}</WalletModeContext.Provider>;
+  }
+}
+
+export function Providers({ children }: { children: ReactNode }) {
+  return <WalletProviderBoundary>{children}</WalletProviderBoundary>;
 }

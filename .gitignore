@@ -18,6 +18,9 @@
 *.pem
 npm-debug.log*
 
+# Local KYB / PII — never commit
+/kyb-local
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

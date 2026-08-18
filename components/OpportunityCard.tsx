@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { Opportunity } from '@/lib/protocols/types';
-import { getCardBadges } from '@/lib/protocols/cardBadges';
+import { COMPOUNDED_BADGE, getCardBadges } from '@/lib/protocols/cardBadges';
 import { PROTOCOL_TINT } from '@/lib/protocols/opportunityDetails';
 import { apyCaption, assetMark, chainName, formatApy } from '@/lib/format';
-import { AssetMark } from './AssetMark';
+import { CardBadgeChip } from './CardBadgeChip';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 
 export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
@@ -17,9 +17,8 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
   return (
     <>
       <article
-        className={`relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-5 flex flex-col gap-4 min-h-[260px] transition-transform hover:-translate-y-0.5 hover:border-accent/40`}
+        className={`relative rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-5 flex flex-col gap-4 min-h-[260px] transition-transform hover:-translate-y-0.5 hover:border-accent/40`}
       >
-        <AssetMark symbol={opportunity.asset.symbol} />
         <Link
           href={`/opportunities/${opportunity.id}`}
           className="relative z-[1] flex flex-col gap-4 flex-1 group outline-none focus-visible:ring-2 focus-visible:ring-accent/50 rounded-xl -m-1 p-1"
@@ -48,36 +47,11 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
           </div>
 
           <div className="flex flex-wrap gap-2 text-sm">
-            {opportunity.apyCompounded && (
-              <span
-                className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1"
-                title="This rate is compounded APY, not simple APR. Interest accrues into the receipt token automatically."
-              >
-                <span aria-hidden>🔁</span>
-                <span className="text-accent text-xs">Compounded</span>
-              </span>
-            )}
-            <span
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1"
-              title={badges.risk.label}
-            >
-              <span aria-hidden>{badges.risk.emoji}</span>
-              <span className="text-ink/80 text-xs">{badges.risk.label}</span>
-            </span>
-            <span
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1"
-              title={badges.battle.label}
-            >
-              <span aria-hidden>{badges.battle.emoji}</span>
-              <span className="text-ink/80 text-xs">{badges.battle.label}</span>
-            </span>
-            <span
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-paper/60 px-2.5 py-1"
-              title={badges.fee.label}
-            >
-              <span aria-hidden>{badges.fee.emoji}</span>
-              <span className="text-ink/80 text-xs">{badges.fee.label}</span>
-            </span>
+            {opportunity.apyCompounded && <CardBadgeChip badge={COMPOUNDED_BADGE} accent />}
+            <CardBadgeChip badge={badges.risk} />
+            <CardBadgeChip badge={badges.battle} />
+            <CardBadgeChip badge={badges.fee} />
+            <CardBadgeChip badge={badges.liquidity} />
           </div>
 
           <p className="text-sm text-ink/60 leading-relaxed line-clamp-2 flex-1">

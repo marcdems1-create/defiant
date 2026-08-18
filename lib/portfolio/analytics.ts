@@ -13,6 +13,8 @@ const STABLE_SYMBOLS = new Set([
   'USDBC',
   'LUSD',
   'CRVUSD',
+  'USDS',
+  'SUSDS',
 ]);
 
 export function isStableAsset(symbol: string): boolean {
