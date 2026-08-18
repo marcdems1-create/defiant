@@ -66,8 +66,13 @@ used a wallet can still get an address:
 
 1. A Privy app ID is already in the client (`cmstzz2zb009k0el4fzr8x8jb`). Override
    with `NEXT_PUBLIC_PRIVY_APP_ID`, or set it to `off` for RainbowKit-only connect.
+   That env var must be the **App ID** from App settings → Basics, never the App Secret.
+   A secret there is inlined into public JS and crashes the site with “invalid Privy app ID”
+   (that was the 2026-08-17 white-screen). Redeploy after changing it.
 2. In the Privy dashboard: enable **Email**, **Passkeys**, and **embedded Ethereum wallets**.
-   Add `https://openhand.online` and `https://www.openhand.online` as allowed origins.
+   Add **both** `https://openhand.online` and `https://www.openhand.online` as allowed
+   origins. Vercel currently 308s the apex to `www`; if only the apex is allowlisted,
+   the public site white-screens (`Application error: a client-side exception`).
 3. Connect offers email or a passkey first. Privy creates an embedded wallet for users
    who do not already have one. MetaMask / Rainbow / Rabby / WalletConnect remain available.
    Coinbase is not featured.
