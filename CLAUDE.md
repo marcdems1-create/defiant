@@ -521,3 +521,24 @@ Capacitor/Electron — those wrappers break WalletConnect return-to-app and Tran
 - `sw.js` is served with `Cache-Control: no-cache` so updates apply. Bump the
   `CACHE` constant in `public/sw.js` if the worker logic changes.
 
+## Session update (2026-08-18) — pay gas from USDC (Circle Paymaster)
+
+Transak users land with USDC and no ETH. A 0x USDC→ETH swap cannot bootstrap that
+(the swap itself needs gas). Openhand still must not run a relayer or sponsor
+wallet (non-negotiable #1).
+
+When native ETH is dust and the wallet has enough USDC, deposit/withdraw (and
+harvest claims) submit an ERC-4337 UserOp via EIP-7702. Circle Paymaster v0.8
+pulls a **scoped** EIP-2612 permit (1 USDC on L2, 5 USDC on Ethereum — unused
+refunded; never `uint256.max`) and fronts ETH. The user signs; Openhand never
+holds the USDC. 10% surcharge is Circle's, on Base/Arbitrum only.
+
+Addresses: `lib/config/paymaster.ts` (Circle registry 2026-08-18). Bundler
+defaults to Pimlico public; override `NEXT_PUBLIC_BUNDLER_URL`. Privy embedded
+wallets sign 7702 via `useSign7702Authorization`. Injected wallets that cannot
+sign 7702 still need ETH.
+
+Not transaction-tested. Max on a USDC deposit leaves the permit amount in the
+wallet so a later withdraw can also pay gas in USDC.
+
+

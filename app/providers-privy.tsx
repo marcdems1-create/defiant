@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { getPrivyClientConfig } from '@/lib/config/privyClient';
 import { privyAppId } from '@/lib/config/privy';
 import { chains, getWagmiTransports, setWagmiConfig } from '@/lib/wagmi';
+import { PrivySign7702Provider } from '@/components/PrivySign7702Provider';
 
 function buildPrivyWagmiConfig() {
   const chainTuple = chains as unknown as readonly [
@@ -32,7 +33,9 @@ export function PrivyAppProviders({ children }: { children: React.ReactNode }) {
   return (
     <PrivyProvider appId={appId} config={getPrivyClientConfig()}>
       <QueryClientProvider client={queryClient}>
-        <WagmiProvider config={wagmiConfig}>{children}</WagmiProvider>
+        <WagmiProvider config={wagmiConfig}>
+          <PrivySign7702Provider>{children}</PrivySign7702Provider>
+        </WagmiProvider>
       </QueryClientProvider>
     </PrivyProvider>
   );
