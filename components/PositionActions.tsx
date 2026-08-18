@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import type { Opportunity } from '@/lib/protocols/types';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
-import { HarvestRewards } from './HarvestRewards';
 
 type Tab = 'deposit' | 'withdraw';
 
@@ -12,19 +11,18 @@ export function PositionActions({ opportunity }: { opportunity: Opportunity }) {
 
   return (
     <>
-      <HarvestRewards opportunity={opportunity} compact />
-      <div className="flex items-center gap-3 justify-end font-sans">
+      <div className="flex items-center gap-2 justify-end font-sans">
         <button
           type="button"
           onClick={() => setTab('withdraw')}
-          className="text-xs text-accent hover:underline"
+          className="text-[11px] px-2.5 py-1 rounded-full border border-border text-ink/70 hover:text-ink hover:border-ink/30 transition-colors"
         >
           Withdraw
         </button>
         <button
           type="button"
           onClick={() => setTab('deposit')}
-          className="text-xs text-ink/50 hover:underline"
+          className="text-[11px] px-2.5 py-1 rounded-full bg-accent text-paper hover:bg-accent/90 transition-colors"
         >
           Deposit
         </button>
