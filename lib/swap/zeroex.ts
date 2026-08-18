@@ -10,6 +10,8 @@
  * (NEXT_PUBLIC_SWAP_FEE_BPS, in basis points) is paid to NEXT_PUBLIC_SWAP_FEE_RECIPIENT
  * atomically inside that same swap transaction via 0x's swapFeeBps/swapFeeRecipient
  * parameters — see https://0x.org/docs/0x-swap-api/guides/monetize-your-app-using-swap.
+ * That recipient is a cold wallet (bridge / convert trades only). Do not point it at
+ * a hot operating key. Deposit/withdraw treasury fees stay off.
  *
  * VERIFIED 2026-08-13 against 0x's own documentation, official example repo
  * (github.com/0xProject/0x-examples/tree/main/swap-v2-allowance-holder-headless-example),
@@ -48,9 +50,9 @@ interface FetchSwapQuoteParams {
 
 export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<SwapQuote | null> {
   const apiKey = process.env.NEXT_PUBLIC_ZEROEX_API_KEY;
-  const feeRecipient = process.env.NEXT_PUBLIC_SWAP_FEE_RECIPIENT;
+  const feeRecipient = process.env.NEXT_PUBLIC_SWAP_FEE_RECIPIENT?.trim();
   const feeBps = process.env.NEXT_PUBLIC_SWAP_FEE_BPS;
-  if (!apiKey || !feeRecipient) return null;
+  if (!apiKey) return null;
 
   const qs = new URLSearchParams({
     chainId: String(params.chainId),
@@ -58,10 +60,15 @@ export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<Swap
     buyToken: params.buyToken,
     sellAmount: params.sellAmount.toString(),
     taker: params.taker,
-    swapFeeToken: params.buyToken,
-    swapFeeRecipient: feeRecipient,
-    swapFeeBps: feeBps || '0',
   });
+  // Swap-fee params are optional so harvest-to-USDC still works when the
+  // conversion fee recipient is unset (deposit/withdraw fees are a separate
+  // NEXT_PUBLIC_TREASURY_ADDRESS path).
+  if (feeRecipient && /^0x[a-fA-F0-9]{40}$/.test(feeRecipient) && !/^0x0{40}$/i.test(feeRecipient)) {
+    qs.set('swapFeeToken', params.buyToken);
+    qs.set('swapFeeRecipient', feeRecipient);
+    qs.set('swapFeeBps', feeBps || '0');
+  }
 
   try {
     const res = await fetch(`${ZEROEX_QUOTE_ENDPOINT}?${qs.toString()}`, {

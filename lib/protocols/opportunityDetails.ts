@@ -21,6 +21,9 @@ export const PROTOCOL_TINT: Record<ProtocolId, string> = {
   morpho: 'from-cyan-500/20 via-cyan-500/5 to-transparent',
   fluid: 'from-indigo-500/20 via-indigo-500/5 to-transparent',
   moonwell: 'from-lime-500/20 via-lime-500/5 to-transparent',
+  sky: 'from-yellow-500/20 via-yellow-500/5 to-transparent',
+  maple: 'from-orange-500/20 via-orange-500/5 to-transparent',
+  panoptic: 'from-violet-500/20 via-violet-500/5 to-transparent',
 };
 
 const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
@@ -176,6 +179,53 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
     docsUrl: 'https://docs.moonwell.fi/',
     docsLabel: 'Moonwell documentation',
     withdrawalNote: 'Withdraw underlying USDC anytime, subject to pool liquidity.',
+  },
+  sky: {
+    howYieldWorks:
+      'You swap USDC 1:1 into sUSDS through Spark\'s PSM on this chain (no protocol swap fee beyond gas). sUSDS accrues the Sky protocol rate as its exchange rate vs USDC rises. Swap back to USDC the same way. This is not a bank deposit.',
+    risks: [
+      'Smart contract risk in Sky, Spark PSM, and the cross-chain rate oracle.',
+      'Stablecoin / peg risk — USDS and USDC can trade off $1 in stress.',
+      'Governance can change the Sky protocol rate, including down to zero.',
+      'L2 sUSDS is a wrapped ERC-20, not the Ethereum ERC-4626 vault — bridging is a separate risk if you move it across chains.',
+    ],
+    coolDetail:
+      'The PSM is a 1:1 converter, not a pool you trade against, so there is no Curve-style slippage on the swap itself. The number that moves is the Sky rate, not a pool price.',
+    docsUrl: 'https://docs.spark.fi/dev/savings/spark-psm',
+    docsLabel: 'Spark PSM documentation',
+    withdrawalNote: 'Swap sUSDS back to USDC in one transaction, subject to PSM liquidity.',
+  },
+  maple: {
+    howYieldWorks:
+      'You deposit USDC into Maple\'s syrupUSDC pool, which lends to institutional borrowers. Yield is credit interest, not a money-market utilization rate. Shares are ERC-4626-style, but exits go through a FIFO withdrawal queue rather than an instant redeem.',
+    risks: [
+      'Credit risk — borrowers can delay or default. This is private credit, not a cash park.',
+      'Liquidity risk — withdrawals wait in a FIFO queue. Maple documents typical waits of hours to two days, and up to 30 days when liquidity is tight.',
+      'Smart contract and permissioning risk — first-time wallets need Maple\'s lender authorization.',
+      'Share price can fall if the pool takes losses (impairment), unlike a simple lending aToken rebase.',
+    ],
+    coolDetail:
+      'syrupUSDC is how Maple opened institutional loans to ordinary wallets — the trade-off for the extra yield is a queue, not instant cash.',
+    docsUrl: 'https://docs.maple.finance/integrate/ethereum-mainnet/smart-contract-integration',
+    docsLabel: 'Maple integration docs',
+    withdrawalNote:
+      'Call requestRedeem to enter the queue. USDC is sent to your wallet when processed — no extra claim transaction. Typical wait is hours to a couple of days; up to 30 days is documented.',
+  },
+  panoptic: {
+    howYieldWorks:
+      'You deposit USDC into Panoptic\'s Unicorn vault. A third-party curator supplies that USDC to lending markets and runs an automated options/volatility strategy. Openhand does not pick strikes, hedge, or operate the vault. Yield is not a money-market rate.',
+    risks: [
+      'Options and volatility risk — trades can lose USDC. This is not a cash park and is not "market-neutral" just because the strategy tries to hedge.',
+      'Smart contract risk in the vault, Panoptic markets, lending venues, and Uniswap infrastructure underneath.',
+      'Liquidity risk — ERC-4626 redeem depends on vault liquidity being available.',
+      'Newer / emerging protocol — shorter track record than Aave or Lido.',
+      'If DeFiLlama has no parseable Unicorn APY, this card is hidden rather than showing a guessed number.',
+    ],
+    coolDetail:
+      'Unicorn is a Panoptic community vault from their own docs. Listing it in the catalog is not a recommendation and not a "start here."',
+    docsUrl: 'https://panoptic.xyz/docs/getting-started/vaults',
+    docsLabel: 'Panoptic vault docs',
+    withdrawalNote: 'Redeem vault shares anytime via ERC-4626, subject to vault liquidity.',
   },
 };
 

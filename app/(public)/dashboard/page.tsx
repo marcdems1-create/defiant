@@ -14,6 +14,7 @@ import { chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { GrowthChart } from '@/components/GrowthChart';
 import { PositionActions } from '@/components/PositionActions';
+import { StockDesk } from '@/components/StockDesk';
 
 function StatCard({
   label,
@@ -68,7 +69,8 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-medium tracking-tight">Dashboard</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
             Track where you stand and stay the course. Live on-chain reads only — Openhand never
-            holds your keys or funds.
+            holds your keys or funds. Tokenized stocks on this page are a separate LI.FI tape,
+            not yield.
           </p>
         </div>
       </header>
@@ -245,6 +247,8 @@ export default function DashboardPage() {
           </section>
         </>
       )}
+
+      <StockDesk />
 
       <section className="rounded-2xl border border-border bg-white/[0.02] p-6">
         <h2 className="text-lg font-medium mb-1">
