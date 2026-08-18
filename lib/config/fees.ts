@@ -1,8 +1,11 @@
 /**
- * Fee model: a flat basis-point cut on deposit and withdrawal, taken as a
- * separate wallet-signed transfer to a treasury address — never skimmed by
- * a contract that touches user funds. See README "Fees" for the full
- * mechanism and why it's two transactions, not one.
+ * Deposit/withdraw treasury fee — KEEP DISABLED.
+ *
+ * The code path is a flat bps cut taken as a separate wallet-signed transfer
+ * to a treasury address, never skimmed inside supply()/deposit()/submit().
+ * Do not set NEXT_PUBLIC_TREASURY_ADDRESS. Monetize on Transak's partner fee
+ * (Buy USDC) and optional 0x swapFeeBps (convert-then-deposit only). See
+ * README "Fees" and CLAUDE.md non-negotiable #6 (2026-08-17).
  */
 export const DEPOSIT_FEE_BPS = 25; // 0.25%
 export const WITHDRAW_FEE_BPS = 25; // 0.25%
