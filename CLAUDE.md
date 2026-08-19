@@ -6,7 +6,7 @@
 
 **Openhand (repo: Defiant) is a non-custodial DeFi yield interface for a global audience.**
 Public host is `https://openhand.online`. Connect your
-own wallet, compare live on-chain yield across Aave v3, Lido, and Yearn v3, deposit or
+own wallet, compare live on-chain yield (USDC catalog for now), deposit or
 withdraw with transactions you sign yourself. The app never holds funds — no pooled
 contract, no admin key, no custody. See `README.md` for the full rationale and regulatory
 framing; the short version: custody is what turns this into a heavily-regulated financial
@@ -524,4 +524,10 @@ Capacitor/Electron — those wrappers break WalletConnect return-to-app and Tran
   snooze); iOS hint is Safari-only.
 - `sw.js` is served with `Cache-Control: no-cache` so updates apply. Bump the
   `CACHE` constant in `public/sw.js` if the worker logic changes.
+
+## Session update (2026-08-19) — USDC-only catalog
+
+Public collection lists **USDC** cards only. Lido (ETH), Convex (CRV), and Frax (frxUSD)
+are not fetched. Toggle is `lib/catalogAssets.ts` (`isListedCatalogAsset`). Do not
+re-list other assets without an explicit product ask.
 
