@@ -329,12 +329,15 @@ filters.
 
 The dashboard includes a browse-only tape of tokenized stocks and ETFs routed by
 [LI.FI](https://li.fi) (`components/StockDesk.tsx`). This is **not** a yield card, not a
-brokerage, and not a recommendation. Filters hide/reorder the catalog. Rows are
-alphabetical. Nothing is featured.
+brokerage, and not a recommendation. The default tape is the **top 50** LI.FI-routable
+names by CoinGecko **token** market cap (not the listed company's equity cap). Search
+still finds names outside that list. Nothing is featured as a pick.
 
 - **Issuers shown:** xStocks, Ondo Tokenized, Backed — classified from LI.FI's catalog
   names (LI.FI has no public `stock` tag; only `stablecoin` is documented). Ambiguous
   names are skipped, not guessed. A row without a parseable `priceUSD` is skipped.
+  Market cap and 24h % come from CoinGecko's `tokenized-stock` markets, matched by
+  symbol; skip rather than guess if CoinGecko is down or a field does not parse.
 - **Swap:** USDC ↔ the selected token on the same chain. `POST /api/lifi/quote` calls
   LI.FI `/v1/quote`; the wallet signs `approve` (exact amount, never unlimited) then the
   returned `transactionRequest`. Openhand never holds the tokens. Addresses are
@@ -519,6 +522,7 @@ npm run dev
 | `components/InstallAppBanner.tsx` | Home-screen install prompt (Chrome) / Safari hint |
 | `lib/config/lifi.ts` | LI.FI API host, integrator name, stock chain IDs, Circle USDC lookup |
 | `lib/lifi/stocks.ts` | Catalog filter + quote parser. Skip on parse failure — never guess a price. |
+| `lib/lifi/marketCap.ts` | CoinGecko tokenized-stock caps for the dashboard top-50 tape |
 | `app/api/lifi/stocks/route.ts` | Cached stock catalog for the dashboard tape |
 | `app/api/lifi/quote/route.ts` | USDC ↔ catalogued stock quote. Wallet signs the tx. |
 | `components/StockDesk.tsx` | Dashboard browse + holdings-in-view |

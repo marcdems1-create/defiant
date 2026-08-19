@@ -14,13 +14,16 @@ import { formatTokenAmount } from '@/lib/format';
 import { useStockCatalog } from '@/lib/hooks/useStockCatalog';
 import {
   STOCK_ISSUER_LABEL,
+  STOCK_TAPE_SIZE,
+  compareStockTape,
+  preferOneChainPerSymbol,
   type StockIssuer,
   type StockToken,
 } from '@/lib/lifi/stocks';
 import { NETWORK_MODE } from '@/lib/wagmi';
 import { StockSwapModal } from './StockSwapModal';
 
-const PAGE_SIZE = 24;
+const PAGE_SIZE = STOCK_TAPE_SIZE;
 
 function formatUsd(n: number): string {
   return n.toLocaleString(undefined, {
@@ -29,6 +32,24 @@ function formatUsd(n: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function formatMarketCap(n: number): string {
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return formatUsd(n);
+}
+
+function formatChangePct(n: number): string {
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+}
+
+function changeClass(n: number): string {
+  if (n > 0) return 'text-accent';
+  if (n < 0) return 'text-danger';
+  return 'text-ink/45';
 }
 
 function Pill({
@@ -66,16 +87,16 @@ export function StockDesk() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return tokens.filter((t) => {
+    const scoped = preferOneChainPerSymbol(tokens, chainId).filter((t) => {
       if (issuer !== 'all' && t.issuer !== issuer) return false;
-      if (chainId !== 'all' && t.chainId !== chainId) return false;
-      if (!q) return true;
+      if (!q) return t.marketCapUsd !== undefined;
       return (
         t.symbol.toLowerCase().includes(q) ||
         t.name.toLowerCase().includes(q) ||
         STOCK_ISSUER_LABEL[t.issuer].toLowerCase().includes(q)
       );
     });
+    return [...scoped].sort(compareStockTape);
   }, [tokens, query, issuer, chainId]);
 
   const visible = useMemo(() => filtered.slice(0, PAGE_SIZE), [filtered]);
@@ -124,10 +145,11 @@ export function StockDesk() {
         </p>
         <h2 className="text-lg font-medium">Live tape via LI.FI</h2>
         <p className="text-sm text-ink/50 mt-1 max-w-2xl leading-relaxed">
-          Browse tokenized stocks and ETFs routed by LI.FI (xStocks, Ondo, Backed). Prices are
-          LI.FI last marks — skipped when they cannot be parsed. These are not the listed share,
-          not advice, and not a yield product. You sign every swap. Openhand never holds the
-          tokens. Availability varies by issuer and jurisdiction.
+          Browse tokenized stocks and ETFs routed by LI.FI (xStocks, Ondo, Backed). The tape
+          lists the top {STOCK_TAPE_SIZE} by CoinGecko token market cap — not the listed
+          company&apos;s equity cap, not a recommendation. Prices are LI.FI last marks; 24h %
+          is CoinGecko. A row is skipped when price or cap cannot be parsed. You sign every
+          swap. Openhand never holds the tokens. Availability varies by issuer and jurisdiction.
         </p>
       </div>
 
@@ -138,8 +160,8 @@ export function StockDesk() {
             <span className="text-xs font-mono text-accent">≈ {formatUsd(holdingUsd)}</span>
           </div>
           <p className="text-[11px] text-ink/45 mb-3">
-            Approximate, using LI.FI last price on the rows currently in view. Search a ticker to
-            check another holding.
+            Approximate, using LI.FI last price on the rows currently in view. Search to check a
+            holding that is not in the top {STOCK_TAPE_SIZE}.
           </p>
           <ul className="flex flex-col gap-2">
             {holdings.map((h) => (
@@ -171,7 +193,7 @@ export function StockDesk() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Type a ticker or name to browse"
+          placeholder="Filter by ticker or name"
           className="w-full bg-transparent border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-accent"
         />
         <div className="flex flex-wrap gap-2">
@@ -206,7 +228,11 @@ export function StockDesk() {
         </div>
       )}
       {!isLoading && !isError && tokens.length > 0 && filtered.length === 0 && (
-        <div className="text-ink/50 text-sm">No rows match that search. Try another ticker.</div>
+        <div className="text-ink/50 text-sm">
+          {query.trim()
+            ? 'No rows match that search. Try another ticker.'
+            : 'CoinGecko did not return parseable token market caps right now, so nothing is ranked. Search a ticker — we will not guess a cap.'}
+        </div>
       )}
 
       {visible.length > 0 && (
@@ -233,9 +259,25 @@ export function StockDesk() {
                   {t.name} · {STOCK_ISSUER_LABEL[t.issuer]} · {stockChainLabel(t.chainId)}
                 </div>
               </div>
-              <div className="text-right shrink-0">
+              <div className="text-right shrink-0 min-w-[5.5rem]">
                 <div className="font-mono text-sm">{formatUsd(t.priceUsd)}</div>
-                <div className="text-[10px] uppercase tracking-wide text-ink/35">LI.FI last</div>
+                <div className="text-[10px] uppercase tracking-wide text-ink/35">
+                  {t.marketCapUsd !== undefined
+                    ? `Cap ${formatMarketCap(t.marketCapUsd)}`
+                    : 'LI.FI last'}
+                </div>
+              </div>
+              <div className="text-right shrink-0 min-w-[4.25rem]">
+                {t.changePct24h !== undefined ? (
+                  <>
+                    <div className={`font-mono text-sm ${changeClass(t.changePct24h)}`}>
+                      {formatChangePct(t.changePct24h)}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-wide text-ink/35">24h</div>
+                  </>
+                ) : (
+                  <div className="font-mono text-sm text-ink/25">—</div>
+                )}
               </div>
               <button
                 type="button"
@@ -249,10 +291,11 @@ export function StockDesk() {
         </ul>
       )}
 
-      {filtered.length > PAGE_SIZE && (
+      {filtered.length > 0 && (
         <p className="text-xs text-ink/40">
-          Showing {visible.length} of {filtered.length}. Narrow the search to see the rest — nothing
-          here is ranked or featured.
+          {query.trim()
+            ? `Showing ${visible.length} of ${filtered.length} matches, market-cap first when a cap parsed.`
+            : `Top ${visible.length} by CoinGecko token market cap. Search to find names outside this list. Not a recommendation.`}
         </p>
       )}
 
