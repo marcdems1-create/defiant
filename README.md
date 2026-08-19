@@ -407,6 +407,28 @@ cp .env.example .env.local
 npm run dev
 ```
 
+## Production smoke checks
+
+A successful deploy can still render a broken app if the browser requests stale chunks after
+an asset rollover. Run a lightweight production smoke check before partner demos/KYB follow-ups:
+
+```bash
+npm run smoke:public
+```
+
+The check verifies:
+
+- apex host redirects to `www`
+- `https://www.openhand.online/` returns `200`
+- all `/_next/static/*` assets referenced by homepage HTML are fetchable
+- `manifest.webmanifest` is reachable
+
+Override hosts when needed:
+
+```bash
+OPENHAND_SMOKE_APEX_URL=https://example.com OPENHAND_SMOKE_WWW_URL=https://www.example.com/ npm run smoke:public
+```
+
 ## Known simplifications — read before extending
 
 - **Yearn's API response shape is unverified against the live endpoint.** This sandbox's
