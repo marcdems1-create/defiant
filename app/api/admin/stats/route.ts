@@ -9,6 +9,8 @@ type DayRow = { day: Date | string; views: string | number; visitors: string | n
 type EventRow = { event: string; n: string | number };
 type PathRow = { path: string; n: string | number };
 type CardRow = { opportunity_id: string; opens: string | number; dones: string | number };
+type ExistsRow = { exists: boolean };
+type ReferralCodeRow = { ref_code: string; n: string | number };
 
 function num(value: string | number | undefined): number {
   return typeof value === 'number' ? value : parseInt(String(value ?? '0'), 10) || 0;
@@ -25,6 +27,11 @@ export async function GET() {
   }
 
   try {
+    const referralTable = await pool.query<ExistsRow>(
+      `SELECT to_regclass('public.referral_attributions') IS NOT NULL AS exists`,
+    );
+    const referralsEnabled = Boolean(referralTable.rows[0]?.exists);
+
     const [days, events, paths, cards, views24h, views7d, views30d, visitors7d, deposits7d, connects7d] =
       await Promise.all([
         pool.query<DayRow>(
@@ -81,6 +88,50 @@ export async function GET() {
         ),
       ]);
 
+    let referralSummary = {
+      enabled: false,
+      linked7d: 0,
+      linked30d: 0,
+      uniqueCodes30d: 0,
+      topCodes: [] as { code: string; n: number }[],
+    };
+
+    if (referralsEnabled) {
+      const [linked7d, linked30d, uniqueCodes30d, topCodes] = await Promise.all([
+        pool.query<CountRow>(
+          `SELECT count(*) AS n
+             FROM referral_attributions
+            WHERE created_at > now() - interval '7 days'`,
+        ),
+        pool.query<CountRow>(
+          `SELECT count(*) AS n
+             FROM referral_attributions
+            WHERE created_at > now() - interval '30 days'`,
+        ),
+        pool.query<CountRow>(
+          `SELECT count(DISTINCT ref_code) AS n
+             FROM referral_attributions
+            WHERE created_at > now() - interval '30 days'`,
+        ),
+        pool.query<ReferralCodeRow>(
+          `SELECT ref_code, count(*)::int AS n
+             FROM referral_attributions
+            WHERE created_at > now() - interval '30 days'
+            GROUP BY ref_code
+            ORDER BY n DESC
+            LIMIT 12`,
+        ),
+      ]);
+
+      referralSummary = {
+        enabled: true,
+        linked7d: num(linked7d.rows[0]?.n),
+        linked30d: num(linked30d.rows[0]?.n),
+        uniqueCodes30d: num(uniqueCodes30d.rows[0]?.n),
+        topCodes: topCodes.rows.map((row) => ({ code: row.ref_code, n: num(row.n) })),
+      };
+    }
+
     return NextResponse.json({
       configured: true,
       totals: {
@@ -91,6 +142,7 @@ export async function GET() {
         deposits7d: num(deposits7d.rows[0]?.n),
         connects7d: num(connects7d.rows[0]?.n),
       },
+      referrals: referralSummary,
       days: days.rows.map((row) => ({
         day: typeof row.day === 'string' ? row.day : row.day.toISOString(),
         views: num(row.views),

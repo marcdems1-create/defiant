@@ -14,6 +14,13 @@ interface Stats {
     deposits7d: number;
     connects7d: number;
   };
+  referrals?: {
+    enabled: boolean;
+    linked7d: number;
+    linked30d: number;
+    uniqueCodes30d: number;
+    topCodes: { code: string; n: number }[];
+  };
   days?: { day: string; views: number; visitors: number }[];
   events?: { event: string; n: number }[];
   paths?: { path: string; n: number }[];
@@ -76,8 +83,8 @@ export default function AdminPage() {
           </p>
           <h1 className="text-3xl font-medium tracking-tight">Analytics</h1>
           <p className="text-sm text-ink/50 mt-2 max-w-xl leading-relaxed">
-            First-party counts only. No wallet addresses, IPs, or third-party pixels. Unique
-            visitors are an approximate daily hash — not a profile.
+            First-party counts only. No third-party pixels. Site analytics stays wallet-free, and
+            referral attribution stores wallet links only with consent and wallet signatures.
           </p>
         </div>
         <button
@@ -115,6 +122,20 @@ export default function AdminPage() {
               label="Deposits confirmed · 7d"
               value={String(stats.totals.deposits7d)}
               sub="Client reported tx confirmed"
+            />
+            <StatCard
+              label="Referrals linked · 7d"
+              value={String(stats.referrals?.linked7d ?? 0)}
+              sub={
+                stats.referrals?.enabled
+                  ? 'Consent + signed wallet attribution'
+                  : 'Run migration 003 to enable'
+              }
+            />
+            <StatCard
+              label="Referral codes · 30d"
+              value={String(stats.referrals?.uniqueCodes30d ?? 0)}
+              sub={stats.referrals?.enabled ? 'Distinct ref codes with attributions' : undefined}
             />
           </section>
 
@@ -176,6 +197,29 @@ export default function AdminPage() {
               ))}
               {(stats.cards?.length ?? 0) === 0 && <li className="text-ink/45">None yet.</li>}
             </ul>
+          </section>
+
+          <section className="rounded-2xl border border-border bg-white/[0.02] p-6">
+            <h2 className="text-sm font-medium mb-4">Top referral codes · 30 days</h2>
+            {!stats.referrals?.enabled ? (
+              <p className="text-sm text-ink/50">
+                Referral attribution is off until{' '}
+                <code className="font-mono text-accent">migrations/003_referral_attributions.sql</code>{' '}
+                has been run.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2 text-sm font-mono">
+                {stats.referrals.topCodes.map((code) => (
+                  <li key={code.code} className="flex justify-between gap-4">
+                    <span className="text-ink/70 truncate">{code.code}</span>
+                    <span className="shrink-0">{code.n}</span>
+                  </li>
+                ))}
+                {stats.referrals.topCodes.length === 0 && (
+                  <li className="text-ink/45">No referral attributions yet.</li>
+                )}
+              </ul>
+            )}
           </section>
         </>
       )}
