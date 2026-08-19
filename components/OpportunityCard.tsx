@@ -59,7 +59,7 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
           </p>
 
           <span className="text-xs text-accent/60 group-hover:text-accent transition-colors">
-            Explore this card →
+            View details →
           </span>
         </Link>
 

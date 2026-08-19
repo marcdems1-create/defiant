@@ -27,6 +27,20 @@ zone at Vercel (not the parking page) and add the domain on the Vercel project:
 6. Register that origin in Reown / WalletConnect, Privy, and Transak’s
    allowlist. `*.vercel.app` preview URLs are not the production host.
 
+## Operator
+
+Openhand is operated by **HYPERFLEX** in Ontario, Canada. Public contact is
+[`hello@openhand.money`](mailto:hello@openhand.money). Company pages for partner
+review (Transak KYB and similar):
+
+- [`/about`](/about) — who operates the interface and what it does not do
+- [`/support`](/support) — what we can and cannot help with
+- [`/privacy`](/privacy) — what this site collects (almost nothing) vs Privy / Transak
+- [`/terms`](/terms) — software terms; Ontario governing law
+
+Do not invent a street address on these pages. Do not add a KYC form or a
+questionnaire. Transak, not Openhand, runs onramp identity checks.
+
 ## Why non-custodial
 
 Two designs were possible for this product: hold user funds and deploy them into yield
@@ -110,7 +124,7 @@ treating email login as production-ready.
 
 A first-time visitor sees a three-step path, then the full catalog:
 
-1. **Deposit** — email or passkey (Privy) to get a wallet. Existing wallets stay behind “Continue with a wallet.”
+1. **Connect wallet** — email or passkey (Privy) to get a wallet. Existing wallets stay behind “Continue with a wallet.”
 2. **Add USDC** — if the wallet is empty, Buy USDC opens Transak (needs
    `TRANSAK_API_KEY` + `TRANSAK_API_SECRET`). CAD is the default fiat; Interac is
    the usual Canadian path. Transak staging (`TRANSAK_STAGING=true`) can be tested

@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { NavBar } from '@/components/NavBar';
 import { NetworkBanner } from '@/components/NetworkBanner';
 import { MobileTabBar } from '@/components/MobileTabBar';
-import { RiskFooter } from '@/components/RiskDisclaimer';
+import { SiteFooter } from '@/components/SiteFooter';
 import { InstallAppBanner } from '@/components/InstallAppBanner';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
@@ -23,7 +23,7 @@ export function PublicChrome({ children }: { children: React.ReactNode }) {
         <NavBar />
       </div>
       <main className="max-w-6xl mx-auto px-4 py-6 md:px-6 md:py-10">{children}</main>
-      <RiskFooter />
+      <SiteFooter />
       <InstallAppBanner />
       <MobileTabBar />
     </Providers>

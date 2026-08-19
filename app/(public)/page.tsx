@@ -61,12 +61,12 @@ export default function CollectionPage() {
         <header className="flex flex-col gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-              Your cards
+              Non-custodial
             </p>
-            <h1 className="text-3xl font-medium tracking-tight">Yield decks</h1>
+            <h1 className="text-3xl font-medium tracking-tight">Live USDC yield</h1>
             <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
               Live on-chain rates. You sign every deposit and withdrawal. Openhand never holds
-              your funds.
+              your funds. Buying USDC is processed by Transak, a third party.
             </p>
           </div>
           <RiskDisclaimer />
@@ -116,7 +116,7 @@ export default function CollectionPage() {
         )}
         {!isLoading && !isError && filtered.length === 0 && (
           <div className="text-ink/50 text-sm">
-            No cards match these filters. Try another chain or asset.
+            No cards match these filters. Try another chain.
           </div>
         )}
 
