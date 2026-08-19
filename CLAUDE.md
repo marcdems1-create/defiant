@@ -487,6 +487,18 @@ not added to the yield collection.
   retail. Do not add recommendations, allocations, or a suitability questionnaire.
   Flag for compliance review before this is marketed as a stock product.
 
+## Session update (2026-08-19) — cash out + spot crypto tape
+
+Dashboard: one USDC total across Ethereum/Base/Arbitrum (`UsdcCashPanel`) with **Buy USDC**,
+**Cash out** (Transak `productsAvailed: SELL`, CAD), and **Move**. Openhand never receives
+the USDC. SELL must be enabled on the Transak partner app.
+
+Spot crypto tape (`lib/lifi/crypto.ts`): CoinGecko top-50 market cap ∩ LI.FI-routable
+tokens, **sorted by 24h %**. Reorder of live data — not a featured pick, not advice.
+Stables omitted. Quote route allowlists stock **or** crypto tape only.
+
+Do not add a “best coin” card or scored ranking beyond this sort.
+
 ## Session update (2026-08-18) — Sky sUSDS, Maple syrupUSDC, harvest sell-%
 
 Added USDC-in / USDC-out adapters that stay non-custodial:

@@ -47,6 +47,8 @@ export async function POST(request: Request) {
   const record = body as Record<string, unknown>;
   const address = typeof record.address === 'string' ? record.address : '';
   const chainId = typeof record.chainId === 'number' ? record.chainId : NaN;
+  const productRaw = typeof record.product === 'string' ? record.product.toUpperCase() : 'BUY';
+  const product = productRaw === 'SELL' ? 'SELL' : 'BUY';
   const network = transakNetwork(chainId);
   if (!isAddress(address) || !network) {
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
@@ -64,6 +66,7 @@ export async function POST(request: Request) {
       apiKey,
       address,
       network,
+      product,
       userIp,
       referrerDomain: transakReferrerDomainFromRequest(request),
     });
@@ -79,20 +82,22 @@ async function createWidgetSession({
   apiKey,
   address,
   network,
+  product,
   userIp,
   referrerDomain,
 }: {
   apiKey: string;
   address: string;
   network: string;
+  product: 'BUY' | 'SELL';
   userIp?: string;
   referrerDomain: string;
 }): Promise<string> {
-  const first = await postSession({ apiKey, address, network, userIp, referrerDomain });
+  const first = await postSession({ apiKey, address, network, product, userIp, referrerDomain });
   if (first.ok && first.url) return first.url;
   if (first.status === 401) {
     invalidateTransakAccessToken();
-    const retry = await postSession({ apiKey, address, network, userIp, referrerDomain });
+    const retry = await postSession({ apiKey, address, network, product, userIp, referrerDomain });
     if (retry.ok && retry.url) return retry.url;
     throw new Error(retry.message || 'Transak session failed');
   }
@@ -103,12 +108,14 @@ async function postSession({
   apiKey,
   address,
   network,
+  product,
   userIp,
   referrerDomain,
 }: {
   apiKey: string;
   address: string;
   network: string;
+  product: 'BUY' | 'SELL';
   userIp?: string;
   referrerDomain: string;
 }): Promise<{ ok: boolean; status: number; url?: string; message?: string }> {
@@ -130,7 +137,7 @@ async function postSession({
         widgetParams: {
           apiKey,
           referrerDomain,
-          productsAvailed: 'BUY',
+          productsAvailed: product,
           cryptoCurrencyCode: 'USDC',
           network,
           walletAddress: address,
@@ -139,7 +146,7 @@ async function postSession({
           countryCode: 'CA',
           colorMode: 'DARK',
           themeColor: '3ecf8e',
-          exchangeScreenTitle: 'Buy USDC',
+          exchangeScreenTitle: product === 'SELL' ? 'Cash out USDC' : 'Buy USDC',
         },
       }),
     });

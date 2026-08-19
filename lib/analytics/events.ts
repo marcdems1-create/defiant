@@ -6,6 +6,7 @@ export const ANALYTICS_EVENTS = [
   'withdraw_open',
   'withdraw_done',
   'onramp_open',
+  'offramp_open',
 ] as const;
 
 export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[number];
