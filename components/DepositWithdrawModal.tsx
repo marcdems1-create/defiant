@@ -13,19 +13,27 @@ import { stEthAbi, lidoWithdrawalQueueAbi } from '@/lib/abi/lido';
 import { crvDepositorAbi, cvxCrvRewardsAbi } from '@/lib/abi/convex';
 import { compoundCometAbi } from '@/lib/abi/compoundComet';
 import { moonwellMTokenAbi } from '@/lib/abi/moonwell';
+import { sparkPsmAbi } from '@/lib/abi/sparkPsm';
+import { maplePoolAbi, mapleSyrupRouterAbi } from '@/lib/abi/maple';
 import { LIDO } from '@/lib/config/addresses';
-import { getWagmiConfig } from '@/lib/wagmi';
+import { MAPLE_DEPOSIT_DATA, fetchMapleLenderStatus, type MapleLenderStatus } from '@/lib/protocols/maple';
+import { getWagmiConfig, NETWORK_MODE } from '@/lib/wagmi';
 import { computeFee, DEPOSIT_FEE_BPS, feesEnabled, WITHDRAW_FEE_BPS } from '@/lib/config/fees';
 import { useSendFee } from '@/lib/hooks/useSendFee';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
-import { apyCaption, chainName, formatApy, formatTokenAmount } from '@/lib/format';
-import { ERC4626_PROTOCOLS } from '@/lib/protocols/types';
+import { useCrossChainUsdc } from '@/lib/hooks/useCrossChainUsdc';
+import { bridgeChainById } from '@/lib/config/bridgeChains';
+import { apyCaption, chainName, formatApy, formatTokenAmount, formatUsdcUsd } from '@/lib/format';
+import { ERC4626_PROTOCOLS, hasTokenEmissions } from '@/lib/protocols/types';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
 import { track } from '@/lib/analytics/track';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
+import { MapleWithdrawalStatus } from './MapleWithdrawalStatus';
+import { HarvestRewards } from './HarvestRewards';
 import { OnrampModal } from './OnrampModal';
 import { ConnectButtonClient } from './ConnectButtonClient';
 import { TransactionSentIndicator } from './TransactionSentIndicator';
+import { MoveUsdcButton } from './MoveUsdcButton';
 import { isStableDollarAsset } from '@/lib/firstRun';
 
 type Tab = 'deposit' | 'withdraw';
@@ -69,7 +77,25 @@ export function DepositWithdrawModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
+  const [mapleLender, setMapleLender] = useState<MapleLenderStatus | null>(null);
+  const [moving, setMoving] = useState(false);
+  const [awaitingMove, setAwaitingMove] = useState(false);
   const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
+  const isUsdc = opportunity.asset.symbol.toUpperCase() === 'USDC';
+
+  useEffect(() => {
+    if (opportunity.protocol !== 'maple' || !address) {
+      setMapleLender(null);
+      return;
+    }
+    let cancelled = false;
+    fetchMapleLenderStatus(address).then((status) => {
+      if (!cancelled) setMapleLender(status);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [opportunity.protocol, address]);
 
   useEffect(() => {
     track(tab === 'withdraw' ? 'withdraw_open' : 'deposit_open', {
@@ -94,9 +120,16 @@ export function DepositWithdrawModal({
   const isCurve = opportunity.protocol === 'curve';
   const isConvex = opportunity.protocol === 'convex-cvxcrv';
   const isMoonwell = opportunity.protocol === 'moonwell';
-  // Lido withdrawal fee is charged at claim time (funds aren't in the
-  // wallet yet at request time) — see LidoWithdrawalRequests.
-  const feeAppliesHere = feesEnabled() && !(opportunity.protocol === 'lido' && tab === 'withdraw');
+  const isSky = opportunity.protocol === 'sky';
+  const isMaple = opportunity.protocol === 'maple';
+  const isPanoptic = opportunity.protocol === 'panoptic';
+  // Lido/Maple withdrawal fee is charged when funds actually land (Lido claim).
+  // Maple's queue is push-based — no claim tx — so we skip the fee on request
+  // rather than taking it from unrelated wallet funds.
+  const feeAppliesHere =
+    feesEnabled() &&
+    !(opportunity.protocol === 'lido' && tab === 'withdraw') &&
+    !(isMaple && tab === 'withdraw');
 
   // Curve LP shares (and Morpho vault shares) aren't 1:1 with the underlying,
   // so those withdraw tabs enter an amount of positionToken. Moonwell's
@@ -106,7 +139,7 @@ export function DepositWithdrawModal({
   // redeemUnderlying call.
   const positionDecimals = opportunity.positionDecimals ?? opportunity.asset.decimals;
   const positionSymbol = opportunity.positionSymbol ?? opportunity.asset.symbol;
-  const withdrawInPositionUnits = tab === 'withdraw' && !isMoonwell;
+  const withdrawInPositionUnits = tab === 'withdraw' && !isMoonwell && !isMaple;
   const amountDecimals = withdrawInPositionUnits
     ? positionDecimals
     : opportunity.asset.decimals;
@@ -125,6 +158,19 @@ export function DepositWithdrawModal({
   const walletBalance = isNativeDeposit
     ? nativeBalance.data?.value ?? 0n
     : ((erc20WalletBalance.data as bigint | undefined) ?? 0n);
+
+  const canSeeOtherChains =
+    NETWORK_MODE === 'mainnet' && isUsdc && Boolean(bridgeChainById(opportunity.chainId));
+  const crossChain = useCrossChainUsdc(canSeeOtherChains ? address : undefined);
+  const bestOtherChainUsdc = useMemo(
+    () =>
+      crossChain.balances
+        .filter((b) => b.chainId !== opportunity.chainId && b.balance > 0n)
+        .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0))[0],
+    [crossChain.balances, opportunity.chainId],
+  );
+  const sourcingFromOtherChain =
+    tab === 'deposit' && walletBalance === 0n && Boolean(bestOtherChainUsdc);
 
   const positionBalance = useErc20Balance(opportunity.positionToken, address, opportunity.chainId);
   const positionBalanceValue = (positionBalance.data as bigint | undefined) ?? 0n;
@@ -183,18 +229,39 @@ export function DepositWithdrawModal({
     chainId: opportunity.chainId,
     query: { enabled: isCurve && tab === 'withdraw' && amountBig > 0n },
   });
+  const skyWithdrawPreview = useReadContract({
+    address: opportunity.depositTarget,
+    abi: sparkPsmAbi,
+    functionName: 'previewSwapExactIn',
+    args:
+      opportunity.positionToken && amountBig > 0n
+        ? [opportunity.positionToken, opportunity.asset.address, amountBig]
+        : undefined,
+    chainId: opportunity.chainId,
+    query: {
+      enabled: isSky && tab === 'withdraw' && amountBig > 0n && Boolean(opportunity.positionToken),
+    },
+  });
   const CURVE_SLIPPAGE_BPS = 100n; // 1% tolerance on Curve's own previewed amounts
+  const SKY_SLIPPAGE_BPS = 10n; // 0.1% — PSM is 1:1; buffer is for the SSR oracle moving
   const curveMinOut = (preview: bigint | undefined) =>
     preview ? (preview * (10_000n - CURVE_SLIPPAGE_BPS)) / 10_000n : 0n;
+  const skyMinOut = (preview: bigint | undefined) =>
+    preview ? (preview * (10_000n - SKY_SLIPPAGE_BPS)) / 10_000n : 0n;
 
   const feeBps = tab === 'deposit' ? DEPOSIT_FEE_BPS : WITHDRAW_FEE_BPS;
   // For a Curve withdrawal, amountBig is LP shares (18 decimals, not 1:1
   // with USDC) — the fee must be computed on the previewed USDC output
   // instead, or it comes out wildly wrong (off by orders of magnitude).
+  // Sky withdrawals are sUSDS shares; fee is on the previewed USDC out.
   // Aave/Yearn keep using amountBig directly: their share/aToken amounts
   // are a close enough proxy for the underlying that this is fine there.
   const feeBasisAmount =
-    isCurve && tab === 'withdraw' ? ((curveWithdrawPreview.data as bigint | undefined) ?? 0n) : amountBig;
+    isCurve && tab === 'withdraw'
+      ? ((curveWithdrawPreview.data as bigint | undefined) ?? 0n)
+      : isSky && tab === 'withdraw'
+        ? ((skyWithdrawPreview.data as bigint | undefined) ?? 0n)
+        : amountBig;
   const feeAmount = feeAppliesHere ? computeFee(feeBasisAmount, feeBps) : 0n;
   // Deposit: fee comes out of what you send in, so less reaches the protocol.
   // Withdraw: the protocol pays out the full gross amount first, then the
@@ -243,11 +310,62 @@ export function DepositWithdrawModal({
       ? (positionBalanceValue * moonwellExchangeRate) / 10n ** 18n
       : 0n;
 
+  const skyDepositPreview = useReadContract({
+    address: opportunity.depositTarget,
+    abi: sparkPsmAbi,
+    functionName: 'previewSwapExactIn',
+    args:
+      opportunity.positionToken && netAmount > 0n
+        ? [opportunity.asset.address, opportunity.positionToken, netAmount]
+        : undefined,
+    chainId: opportunity.chainId,
+    query: {
+      enabled: isSky && tab === 'deposit' && netAmount > 0n && Boolean(opportunity.positionToken),
+    },
+  });
+
+  const mapleAssets = useReadContract({
+    address: opportunity.positionToken,
+    abi: maplePoolAbi,
+    functionName: 'convertToAssets',
+    args: [positionBalanceValue],
+    chainId: opportunity.chainId,
+    query: { enabled: isMaple && positionBalanceValue > 0n },
+  });
+  const mapleUnderlying =
+    typeof mapleAssets.data === 'bigint' && mapleAssets.data > 0n ? mapleAssets.data : 0n;
+  const mapleExitShares = useReadContract({
+    address: opportunity.positionToken,
+    abi: maplePoolAbi,
+    functionName: 'convertToExitShares',
+    args: [amountBig],
+    chainId: opportunity.chainId,
+    query: { enabled: isMaple && tab === 'withdraw' && amountBig > 0n },
+  });
+
+  const skyWithdrawAllowance = useErc20Allowance(
+    isSky ? opportunity.positionToken : undefined,
+    address,
+    opportunity.depositTarget,
+    opportunity.chainId,
+  );
+  const skyWithdrawAllowanceValue = (skyWithdrawAllowance.data as bigint | undefined) ?? 0n;
+
   const maxAmount =
-    tab === 'deposit' ? walletBalance : isMoonwell ? moonwellUnderlyingBalance : positionBalanceValue;
+    tab === 'deposit'
+      ? walletBalance
+      : isMoonwell
+        ? moonwellUnderlyingBalance
+        : isMaple
+          ? mapleUnderlying
+          : positionBalanceValue;
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
   function setMax() {
+    if (tab === 'deposit' && walletBalance === 0n && bestOtherChainUsdc) {
+      setAmount(formatUnits(bestOtherChainUsdc.balance, amountDecimals));
+      return;
+    }
     setAmount(formatUnits(maxAmount, amountDecimals));
   }
 
@@ -257,6 +375,9 @@ export function DepositWithdrawModal({
       erc20WalletBalance.refetch(),
       positionBalance.refetch(),
       allowance.refetch(),
+      allowance.refetch(),
+      skyWithdrawAllowance.refetch(),
+      crossChain.refetch(),
     ]);
   }
 
@@ -286,6 +407,9 @@ export function DepositWithdrawModal({
       setSwitchFailed(false);
       return;
     }
+    // Stay on the source chain while USDC still lives there — auto-switching
+    // to Ethereum would fight the move-from-Base signatures.
+    if (moving || sourcingFromOtherChain) return;
     const key = `${address}:${opportunity.chainId}`;
     if (autoSwitchKey.current === key) return;
     autoSwitchKey.current = key;
@@ -293,7 +417,18 @@ export function DepositWithdrawModal({
     switchChainAsync({ chainId: opportunity.chainId }).catch(() => {
       setSwitchFailed(true);
     });
-  }, [address, currentChainId, opportunity.chainId, switchChainAsync]);
+  }, [
+    address,
+    currentChainId,
+    opportunity.chainId,
+    switchChainAsync,
+    moving,
+    sourcingFromOtherChain,
+  ]);
+
+  useEffect(() => {
+    if (walletBalance > 0n) setAwaitingMove(false);
+  }, [walletBalance]);
 
   async function handleDeposit() {
     if (!address || amountBig === 0n) return;
@@ -386,6 +521,36 @@ export function DepositWithdrawModal({
           args: [netAmount],
           chainId: opportunity.chainId,
         });
+      } else if (isSky) {
+        if (!opportunity.positionToken) throw new Error('sUSDS token missing');
+        const minOut = skyMinOut(skyDepositPreview.data as bigint | undefined);
+        await submitAndConfirm({
+          address: opportunity.depositTarget,
+          abi: sparkPsmAbi,
+          functionName: 'swapExactIn',
+          args: [
+            opportunity.asset.address,
+            opportunity.positionToken,
+            netAmount,
+            minOut,
+            address,
+            0n,
+          ],
+          chainId: opportunity.chainId,
+        });
+      } else if (isMaple) {
+        if (mapleLender === 'unauthorized') {
+          throw new Error(
+            'This wallet is not a Maple syrup lender yet. Authorize it once on syrup.fi, then deposit here. Openhand cannot allowlist you.',
+          );
+        }
+        await submitAndConfirm({
+          address: opportunity.depositTarget,
+          abi: mapleSyrupRouterAbi,
+          functionName: 'deposit',
+          args: [netAmount, MAPLE_DEPOSIT_DATA],
+          chainId: opportunity.chainId,
+        });
       } else if (isConvex) {
         await submitAndConfirm({
           address: opportunity.depositTarget,
@@ -451,6 +616,52 @@ export function DepositWithdrawModal({
           args: [redeemAll ? positionBalanceValue : amountBig],
           chainId: opportunity.chainId,
         });
+      } else if (isSky) {
+        if (!opportunity.positionToken) throw new Error('sUSDS token missing');
+        if (skyWithdrawAllowanceValue < amountBig) {
+          setStep('approving');
+          await submitAndConfirm({
+            address: opportunity.positionToken,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [opportunity.depositTarget, amountBig],
+            chainId: opportunity.chainId,
+          });
+          await skyWithdrawAllowance.refetch();
+        }
+        setStep('acting');
+        const minOut = skyMinOut(skyWithdrawPreview.data as bigint | undefined);
+        await submitAndConfirm({
+          address: opportunity.depositTarget,
+          abi: sparkPsmAbi,
+          functionName: 'swapExactIn',
+          args: [
+            opportunity.positionToken,
+            opportunity.asset.address,
+            amountBig,
+            minOut,
+            address,
+            0n,
+          ],
+          chainId: opportunity.chainId,
+        });
+      } else if (isMaple) {
+        setStep('acting');
+        const shares =
+          typeof mapleExitShares.data === 'bigint' && mapleExitShares.data > 0n
+            ? mapleExitShares.data
+            : 0n;
+        if (shares === 0n) throw new Error('Could not convert USDC amount to Maple shares');
+        await submitAndConfirm({
+          address: opportunity.positionToken!,
+          abi: maplePoolAbi,
+          functionName: 'requestRedeem',
+          args: [shares, address],
+          chainId: opportunity.chainId,
+        });
+        setStep('done');
+        await refreshBalances();
+        return;
       } else if (isConvex) {
         setStep('acting');
         await submitAndConfirm({
@@ -549,14 +760,23 @@ export function DepositWithdrawModal({
     }
   }
 
-  const busy = step === 'sendingFee' || step === 'approving' || step === 'acting' || switching;
-  const waitingOnSwitch = wrongNetwork && !switchFailed;
+  const busy =
+    step === 'sendingFee' || step === 'approving' || step === 'acting' || switching || moving;
+  const pauseNetworkNudge = moving || sourcingFromOtherChain;
+  const waitingOnSwitch = wrongNetwork && !switchFailed && !pauseNetworkNudge;
+  const shouldMoveUsdc =
+    tab === 'deposit' &&
+    isUsdc &&
+    Boolean(address && bestOtherChainUsdc) &&
+    (walletBalance === 0n || insufficientBalance);
+  const stillCheckingOtherChains =
+    tab === 'deposit' && isUsdc && canSeeOtherChains && crossChain.isLoading && walletBalance === 0n;
   const txSent = Boolean(pendingTxHash) && (step === 'approving' || step === 'acting');
 
   return (
     <>
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-md bg-paper border border-border rounded-lg p-6">
+    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 sm:px-4">
+      <div className="w-full max-w-md bg-paper border border-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-lg p-6 max-h-[min(92dvh,100%)] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="text-lg font-medium">{opportunity.protocolLabel}</div>
@@ -575,6 +795,39 @@ export function DepositWithdrawModal({
             Lido withdrawals go through a request queue and typically take 1-5 days to
             finalize before you can claim ETH back. This is not instant.
           </div>
+        )}
+        {isSky && (
+          <div className="text-xs text-ink/55 border border-border rounded px-3 py-2 mb-4 leading-relaxed">
+            USDC is swapped 1:1 into sUSDS through Spark&apos;s PSM (Sky protocol rate). This is
+            not a bank deposit and is not insured. Yield can change. Do not confuse it with
+            deposit insurance.
+          </div>
+        )}
+        {isMaple && (
+          <div className="text-xs text-warn bg-warn/10 border border-warn/30 rounded px-3 py-2 mb-4 leading-relaxed">
+            Maple is private credit. Withdrawals wait in a FIFO queue (often hours to a couple
+            of days; Maple documents up to 30 days). First-time wallets must complete Maple&apos;s
+            lender authorization on{' '}
+            <a
+              href="https://app.syrup.fi"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              syrup.fi
+            </a>
+            . Openhand cannot allowlist you.
+          </div>
+        )}
+        {isPanoptic && (
+          <div className="text-xs text-warn bg-warn/10 border border-warn/30 rounded px-3 py-2 mb-4 leading-relaxed">
+            Panoptic Unicorn is a third-party automated options/volatility vault. You can lose
+            USDC. Openhand does not pick strikes or run the strategy. This listing is catalog,
+            not a recommendation.
+          </div>
+        )}
+        {address && hasTokenEmissions(opportunity.protocol) && (
+          <HarvestRewards opportunity={opportunity} />
         )}
 
         {address && (
@@ -610,20 +863,35 @@ export function DepositWithdrawModal({
           </div>
         ) : (
           <>
-            {wrongNetwork && (
+            {wrongNetwork && !pauseNetworkNudge && (
               <div className="text-xs text-ink/50 mb-3">
                 {switching || !switchFailed
                   ? `Switching to ${chainName(opportunity.chainId)}…`
                   : `Confirm ${chainName(opportunity.chainId)} in your wallet to continue.`}
               </div>
             )}
-            <div className="flex justify-between text-xs text-ink/50 mb-1">
+            <div className="flex justify-between text-xs text-ink/50 mb-1 gap-3">
               <span>Amount{dollarInput && tab === 'deposit' ? ' (USD)' : ''}</span>
-              <span>
-                {tab === 'deposit' ? 'Wallet' : 'Deposited'} on {chainName(opportunity.chainId)}:{' '}
-                {dollarInput && tab === 'deposit' ? '$' : ''}
-                {formatUnits(maxAmount, amountDecimals)}{' '}
-                {dollarInput && tab === 'deposit' ? 'USDC' : amountSymbol}
+              <span className="text-right leading-relaxed">
+                {tab === 'deposit' && dollarInput ? (
+                  <>
+                    <span className="block">
+                      Wallet on {chainName(opportunity.chainId)}: ${formatUsdcUsd(walletBalance)}
+                    </span>
+                    {bestOtherChainUsdc && (
+                      <span className="block text-ink/70">
+                        Also on {bestOtherChainUsdc.label}: ${formatUsdcUsd(bestOtherChainUsdc.balance)}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {tab === 'deposit' ? 'Wallet' : 'Deposited'} on {chainName(opportunity.chainId)}
+                    : {dollarInput && tab === 'deposit' ? '$' : ''}{' '}
+                    {formatUnits(maxAmount, amountDecimals)}{' '}
+                    {dollarInput && tab === 'deposit' ? 'USDC' : amountSymbol}
+                  </>
+                )}
               </span>
             </div>
             {tab === 'deposit' && (
@@ -710,7 +978,13 @@ export function DepositWithdrawModal({
               </div>
             )}
 
-            {insufficientBalance && (
+            {isMaple && tab === 'deposit' && mapleLender === 'unauthorized' && (
+              <div className="text-xs text-danger mb-3 leading-relaxed">
+                This wallet is not authorized on Maple yet. Finish the one-time lender step on
+                syrup.fi, then come back — we cannot sign Maple&apos;s allowlist for you.
+              </div>
+            )}
+            {insufficientBalance && !shouldMoveUsdc && (
               <div className="text-xs text-warn mb-3">
                 {tab === 'deposit'
                   ? `That amount is higher than your wallet balance on ${chainName(opportunity.chainId)}. Lower it or tap Max.`
@@ -728,6 +1002,8 @@ export function DepositWithdrawModal({
               <div className="text-xs text-accent mb-3">
                 {tab === 'withdraw' && opportunity.protocol === 'lido'
                   ? 'Withdrawal requested. It will appear below once claimable.'
+                  : tab === 'withdraw' && isMaple
+                    ? 'Withdrawal requested. Maple sends USDC to this wallet when the queue processes — no extra claim.'
                   : tab === 'withdraw' && isMoonwell
                     ? 'USDC is back in your wallet.'
                     : tab === 'deposit' && dollarInput
@@ -736,18 +1012,51 @@ export function DepositWithdrawModal({
               </div>
             )}
 
-            {tab === 'deposit' && address && walletBalance === 0n ? (
+            {stillCheckingOtherChains ? (
+              <button
+                type="button"
+                disabled
+                className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30"
+              >
+                Checking wallet…
+              </button>
+            ) : awaitingMove && walletBalance === 0n ? (
+              <p className="text-xs text-accent text-center py-2">
+                USDC is on the way to {chainName(opportunity.chainId)}.
+              </p>
+            ) : shouldMoveUsdc && address && bestOtherChainUsdc ? (
+              <MoveUsdcButton
+                address={address}
+                destChainId={opportunity.chainId}
+                destLabel={chainName(opportunity.chainId)}
+                source={bestOtherChainUsdc}
+                requestedAmount={amountBig}
+                disabled={busy && !moving}
+                onBusy={setMoving}
+                onMoved={() => {
+                  setAwaitingMove(true);
+                  void refreshBalances();
+                }}
+              />
+            ) : tab === 'deposit' && address && walletBalance === 0n ? (
               <button
                 type="button"
                 onClick={() => setBuyOpen(true)}
                 className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm"
               >
-                {dollarInput ? 'Buy USDC first' : `Get ${opportunity.asset.symbol} first`}
+                {dollarInput ? 'Buy USDC' : `Get ${opportunity.asset.symbol} first`}
               </button>
             ) : (
               <button
                 onClick={tab === 'deposit' ? handleDeposit : handleWithdraw}
-                disabled={busy || waitingOnSwitch || amountBig === 0n || insufficientBalance || !address}
+                disabled={
+                  busy ||
+                  waitingOnSwitch ||
+                  amountBig === 0n ||
+                  insufficientBalance ||
+                  !address ||
+                  (isMaple && tab === 'deposit' && mapleLender === 'unauthorized')
+                }
                 className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {!address
@@ -768,7 +1077,9 @@ export function DepositWithdrawModal({
                             : `Deposit ${opportunity.asset.symbol}`
                           : opportunity.protocol === 'lido'
                             ? 'Request withdrawal'
-                            : `Withdraw ${opportunity.asset.symbol}`}
+                            : isMaple && tab === 'withdraw'
+                              ? 'Request withdrawal'
+                              : `Withdraw ${opportunity.asset.symbol}`}
               </button>
             )}
 
@@ -779,6 +1090,9 @@ export function DepositWithdrawModal({
 
             {opportunity.protocol === 'lido' && tab === 'withdraw' && (
               <LidoWithdrawalRequests chainId={opportunity.chainId} />
+            )}
+            {isMaple && tab === 'withdraw' && opportunity.positionToken && (
+              <MapleWithdrawalStatus pool={opportunity.positionToken} />
             )}
           </>
         )}

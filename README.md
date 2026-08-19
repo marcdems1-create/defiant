@@ -59,6 +59,28 @@ every market this reaches; it does not eliminate it in any of them.
 - Optional Postgres for first-party site analytics. Everything else reads directly
   on-chain or from each protocol's public read-only API.
 
+## Install as an app
+
+Openhand is a **Progressive Web App**, not an App Store / Play Store binary. Adding it
+to the home screen opens a standalone window (no browser chrome) while staying
+non-custodial: the same Privy / RainbowKit wallet still signs every transaction.
+There is no Capacitor/Electron wrapper — those break WalletConnect return-to-app
+and the Transak iframe, and they are not needed for a home-screen icon.
+
+- **Android / desktop Chrome:** the Install prompt appears when Chrome considers the
+  site installable (HTTPS, manifest, service worker). “Later” snoozes it for two weeks.
+- **iPhone / iPad (Safari):** Share → Add to Home Screen. Chrome/Firefox on iOS cannot
+  install PWAs; the hint only shows in Safari.
+- **Standalone + wallets:** email / passkey (Privy) works inside the installed app.
+  WalletConnect to an external wallet (MetaMask etc.) may bounce through Safari and
+  not return — that is an iOS PWA limitation, not a custody change.
+
+The service worker (`public/sw.js`) is an offline *shell* only. It does **not** cache
+`/api/*`, HTML as live rates, or cross-origin RPC/protocol APIs. Stale APY must never
+be shown as if it were live. Precache is `/offline.html` plus icons. Content-hashed
+`/_next/static/*` is cache-first. Do not replace this with `next-pwa` / Serwist
+defaults — those cache too much for a yield product.
+
 ## First-time wallets (Privy)
 
 Openhand does **not** generate or store private keys. A brand-new user who has never
@@ -66,8 +88,13 @@ used a wallet can still get an address:
 
 1. A Privy app ID is already in the client (`cmstzz2zb009k0el4fzr8x8jb`). Override
    with `NEXT_PUBLIC_PRIVY_APP_ID`, or set it to `off` for RainbowKit-only connect.
+   That env var must be the **App ID** from App settings → Basics, never the App Secret.
+   A secret there is inlined into public JS and crashes the site with “invalid Privy app ID”
+   (that was the 2026-08-17 white-screen). Redeploy after changing it.
 2. In the Privy dashboard: enable **Email**, **Passkeys**, and **embedded Ethereum wallets**.
-   Add `https://openhand.online` and `https://www.openhand.online` as allowed origins.
+   Add **both** `https://openhand.online` and `https://www.openhand.online` as allowed
+   origins. Vercel currently 308s the apex to `www`; if only the apex is allowlisted,
+   the public site white-screens (`Application error: a client-side exception`).
 3. Connect offers email or a passkey first. Privy creates an embedded wallet for users
    who do not already have one. MetaMask / Rainbow / Rabby / WalletConnect remain available.
    Coinbase is not featured.
@@ -124,7 +151,9 @@ Do not add a second onramp “just in case Transak is down” until Transak has 
    Gmail / Hotmail / Outlook / iCloud are rejected — you do **not** need to email sales
    for the hosted widget. Copy the API key and API secret. Staging keys are available
    immediately. Production also needs partner KYB (`https://forms.transak.com/kyb`)
-   using the same email. Leave the dashboard partner fee at 0%.
+   using the same email. After KYB, the dashboard **partner fee on the buy** is how
+   Openhand monetizes (start ~0.5–1%; see "Fees"). Do not also turn on the deposit
+   treasury cut.
 2. Allowlist `openhand.online` and `www.openhand.online`.
 3. On Vercel, set `TRANSAK_API_KEY` and `TRANSAK_API_SECRET` (server-only — never
    `NEXT_PUBLIC_*`). Optional `TRANSAK_STAGING=true` for Transak sandbox keys.
@@ -168,6 +197,9 @@ Production keys + KYB are still required before real CAD hits a real wallet.
 | Lido | Ethereum only (no L2 deployment) | ETH → stETH | `stETH.submit()` | Request queue, **1-5 days** to finalize, then `claimWithdrawal()` |
 | Yearn v3 | Ethereum, Base, Arbitrum | USDC vaults | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
 | Curve | Ethereum only (no testnet deployment) | USDC → LP (2 pools, see below) | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
+| Sky (sUSDS) | Base, Arbitrum (Spark PSM3; no testnet) | USDC ↔ sUSDS | `PSM.swapExactIn` | Same swap back to USDC — instant, subject to PSM liquidity |
+| Maple (syrupUSDC) | Ethereum only | USDC | `SyrupRouter.deposit` (Maple lender auth required once) | `Pool.requestRedeem` — FIFO queue; USDC is pushed when processed |
+| Panoptic (Unicorn USDC) | Ethereum only | USDC | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
 
 Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
 `lib/protocols/curve.ts` turns each configured entry into its own opportunity:
@@ -197,29 +229,90 @@ against multiple independent third-party sources instead (see the `CURVE` commen
 **Re-verify against those sources before any mainnet deploy** — don't assume addresses stay
 correct indefinitely.
 
+Sky sUSDS on L2 uses Spark's PSM3 (official addresses in `lib/config/addresses.ts`,
+[Spark PSM docs](https://docs.spark.fi/dev/savings/spark-psm)). Token addresses are read
+from the PSM at runtime. Copy calls this the Sky protocol rate — not a "savings" product.
+Maple syrupUSDC addresses and the `requestRedeem` flow come from
+[Maple's Ethereum integration docs](https://docs.maple.finance/integrate/ethereum-mainnet/smart-contract-integration).
+First-time Maple wallets must complete lender authorization on syrup.fi; Openhand cannot
+sign Maple's allowlist.
+
+Panoptic Unicorn USDC is a **catalog card**, not a featured strategy. Address from
+[Panoptic deployment docs](https://panoptic.xyz/docs/contracts/deployment-addresses)
+(2026-08-18). It is a third-party automated options/volatility vault: you sign an
+ERC-4626 deposit; Panoptic's curator runs the trades. Copy does not call it
+market-neutral or a recommendation. If `asset()` is not native USDC, or DeFiLlama has
+no parseable Unicorn APY, the card is skipped rather than guessed. PLP WETH is not
+listed (USDC-in only).
+
+## Move USDC (Circle CCTP)
+
+`/move` is a **tool**, not a yield opportunity and not a recommendation. It moves
+native USDC you already hold across Ethereum, Base, and Arbitrum using Circle CCTP
+**V2** (V1 is in wind-down). Flow: exact-amount `approve` → `depositForBurn` on the
+source TokenMessenger → poll Circle's public Iris attestation → `receiveMessage` on
+the destination MessageTransmitter. You sign both legs. Openhand never holds the
+tokens, there is no Circle signup/KYB (that is Circle Mint, a different product),
+and there is **no Openhand fee** on this path.
+
+- Addresses: [Circle CCTP contract addresses](https://developers.circle.com/cctp/references/contract-addresses)
+  (verified 2026-08-18). TokenMessengerV2 `0x28b5a0e9…cf5d` / MessageTransmitterV2
+  `0x81D40F21…4B64` on Ethereum, Arbitrum, and Base (same bytes, domain IDs 0 / 3 / 6).
+  Testnet uses the Sepolia counterparts on Circle's table.
+- Burn token is **Circle-issued USDC**
+  ([USDC contract addresses](https://developers.circle.com/stablecoins/usdc-contract-addresses)).
+  Bridged USDC.e and Aave's Sepolia faucet token cannot be burned.
+- Standard Transfer only (`minFinalityThreshold = 2000`, `maxFee = 0`). Fast Transfer
+  (Circle fee taken from the amount) is not wired.
+- One burn is capped at $10 million (Circle). Pending burns are stored in **this
+  browser's localStorage only** (`openhand.cctp.pending.v1`) — not the database.
+- Iris is fetched server-side (`/api/cctp/attestation`) so the browser does not
+  depend on Circle CORS. No API key. Missing attestation → wait / retry, never a
+  guessed message.
+
+**Token emissions (Moonwell WELL, Convex CRV/CVX):** claim is wallet-signed. After a claim,
+you choose what percent of *just-claimed* tokens to sell to USDC via 0x (default 100% sell,
+0% = hold). There is no backend seller or keeper — that would be custody.
+
+**Not built (on purpose):** Uniswap V3 / Aerodrome concentrated LP, GMX, Pendle, and
+one-click looping of stablecoin lending markets. Those are different products (impermanent
+loss, trader PnL, maturity locks, or leverage). Looping in particular multiplies oracle,
+rate, and liquidation risk — see "Looping" under Known simplifications.
+
 ## Fees
 
-A flat basis-point fee on deposit and withdrawal — 0.25% each way by default
-(`lib/config/fees.ts`). Mechanically it is a **separate wallet-signed transfer to a treasury
-address**, never a cut taken inside the deposit/withdraw call itself:
+**Do not enable the deposit/withdraw treasury fee.** The code path exists
+(`lib/config/fees.ts`, 0.25% each way as a separate wallet-signed transfer, never skimmed
+inside `supply()`/`deposit()`/`submit()`), but a cut on every protocol tx is
+money-transmitter-adjacent and a tax on putting dollars to work. Leave
+`NEXT_PUBLIC_TREASURY_ADDRESS` unset. `getTreasuryAddress()` must keep returning `undefined`
+on anything other than a valid, non-zero configured address — never add a hardcoded fallback.
 
-- **Deposit**: the fee is sent to the treasury first, then the *remaining* amount is what
-  actually gets approved and deposited into the protocol.
-- **Withdraw (Aave/Yearn)**: the full gross amount is withdrawn from the protocol into the
-  wallet first, then the fee is sent to the treasury out of what just landed.
-- **Withdraw (Lido)**: fee is charged at *claim* time, not request time — the requested ETH
-  isn't in the wallet yet when a withdrawal is only requested, so charging a fee then would
-  come out of unrelated funds. `LidoWithdrawalRequests.tsx` takes the fee right after
-  `claimWithdrawal()` lands ETH in the wallet.
+**How Openhand monetizes (2026-08-17):**
 
-This keeps the non-custodial claim intact — the fee transaction is a plain transfer the user
-signs, not something a contract deducts from funds passing through it. The cost is UX: an
-extra signature per deposit/withdrawal when fees are enabled.
+1. **Transak partner fee on Buy USDC** (first dollar). Transak is the licensed onramp; they
+   take CAD, run KYC, and send USDC to the user's wallet. After partner KYB, set a small
+   partner fee in the Transak dashboard (start ~0.5–1% of the *buy*, not of later deposits).
+   Openhand never receives the USDC. Repeat Aave/Yearn deposits stay fee-free. Confirm the
+   split and payout with Transak — do not add a second treasury transfer for this.
+2. **Bridge / convert trades — fee to a cold wallet.** Opt-in 0x `swapFeeBps` on
+   convert-then-deposit (CRV / Frax / Convex) is already wired in `lib/swap/zeroex.ts`.
+   Set `NEXT_PUBLIC_SWAP_FEE_RECIPIENT` to a **cold wallet** you do not use as an
+   operating key. Do not put a swap in front of plain USDC → Aave. If a cross-chain
+   bridge ships later: same pattern — user signs, fee is collected atomically to that
+   cold wallet, Openhand never holds the bridged assets. Do not build a custodial
+   bridge or send proceeds to a hot treasury (`NEXT_PUBLIC_TREASURY_ADDRESS` stays unset).
+3. **CAD subscription later** (Stripe) for extras that are not yield: tax-lot export, alerts,
+   history. No crypto through Openhand. Never a performance fee on yield.
 
-**Fees are off by default.** `getTreasuryAddress()` in `lib/config/fees.ts` returns
-`undefined` — and every fee code path no-ops — until `NEXT_PUBLIC_TREASURY_ADDRESS` is set to
-a real address. There is no fallback address; an unset or malformed value disables fees
-entirely rather than sending anywhere unintended.
+Do not add Openhand-operated vaults, a skim inside a protocol call, an Openhand Interac
+account, or a featured product with an affiliate.
+
+The unused two-step treasury mechanism (documented here so it is not re-invented): fee
+transfer first on deposit, then the remainder is approved and deposited; on Aave/Yearn
+withdraw the gross amount lands in the wallet then the fee is sent; on Lido the fee is
+taken at *claim* time, not request time (`LidoWithdrawalRequests.tsx`). Extra signature,
+partial-failure with no auto-refund. Keep it dark.
 
 ## Not advice
 
@@ -231,6 +324,33 @@ suitability or recommend a product or allocation.
 **Do not add a questionnaire, risk score, or “best option for you.”** That pattern is what
 pushes an interface toward investment-adviser-registration territory. Keep filters as
 filters.
+
+## Tokenized stocks (LI.FI)
+
+The dashboard includes a browse-only tape of tokenized stocks and ETFs routed by
+[LI.FI](https://li.fi) (`components/StockDesk.tsx`). This is **not** a yield card, not a
+brokerage, and not a recommendation. The default tape is the **top 50** LI.FI-routable
+names by CoinGecko **token** market cap (not the listed company's equity cap). Search
+still finds names outside that list. Nothing is featured as a pick.
+
+- **Issuers shown:** xStocks, Ondo Tokenized, Backed — classified from LI.FI's catalog
+  names (LI.FI has no public `stock` tag; only `stablecoin` is documented). Ambiguous
+  names are skipped, not guessed. A row without a parseable `priceUSD` is skipped.
+  Market cap and 24h % come from CoinGecko's `tokenized-stock` markets, matched by
+  symbol; skip rather than guess if CoinGecko is down or a field does not parse.
+- **Swap:** USDC ↔ the selected token on the same chain. `POST /api/lifi/quote` calls
+  LI.FI `/v1/quote`; the wallet signs `approve` (exact amount, never unlimited) then the
+  returned `transactionRequest`. Openhand never holds the tokens. Addresses are
+  checksummed with `getAddress` — LI.FI rejects the unchecksummed catalog address.
+- **Mainnet only** to execute. Testnet still shows the live tape, buy/sell disabled.
+- **Fees:** Openhand does not take an integrator cut. LI.FI may charge its own protocol
+  fee inside the swap; the modal shows it when the quote reports `feeCosts`.
+- **Regulatory:** tokenized stocks are securities-adjacent in many readings, often
+  unavailable to US retail, and are not the listed share. Do not add a “best stock”,
+  allocation, or suitability flow. Get a compliance read before marketing this as a
+  stock product.
+
+Optional `LIFI_API_KEY` (server-only) raises LI.FI rate limits. Catalog works without it.
 
 ## Site analytics
 
@@ -282,7 +402,8 @@ same as the fee model and the custody architecture above.
 npm install
 cp .env.example .env.local
 # Fill in NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID at minimum (free at https://cloud.reown.com)
-# NEXT_PUBLIC_TREASURY_ADDRESS is optional — fees stay disabled until it's set (see "Fees")
+# NEXT_PUBLIC_TREASURY_ADDRESS stays blank — do not enable the deposit/withdraw
+# treasury fee (see "Fees"). Monetize via Transak partner fee on Buy USDC.
 # DATABASE_URL is optional — site analytics stays off until it's set AND
 # migrations/002_site_analytics.sql has been run (see "Site analytics").
 # ADMIN_PASSWORD is optional — /admin stays disabled until set.
@@ -340,6 +461,27 @@ npm run dev
 - **No migration runner.** `migrations/002_site_analytics.sql` is applied by hand (psql, or
   your Postgres host's SQL console) — no tracking of which have run. Fine at this scale,
   revisit if the schema grows.
+- **Looping stablecoin pools is not a product here.** Recursive supply/borrow of the same
+  stable (deposit USDC, borrow USDC, deposit again) is leverage, not a dollar park. A depeg
+  or oracle miss can liquidate a "stable-stable" loop; borrow APY can exceed supply APY so
+  the loop loses money while the headline rate looks high; utilization spikes cascade; and
+  protocol-bug risk is multiplied by every loop layer. One-click looping would also look
+  like a recommendation. Do not add it.
+- **Maple first-time deposits need Maple's own lender authorization.** `authorizeAndDeposit`
+  requires a signature from Maple, not from Openhand. We detect `isSyrupLender` via Maple's
+  GraphQL API and send already-authorized wallets through `SyrupRouter.deposit`. Unauthorized
+  wallets are pointed at syrup.fi.
+- **Harvest sell-to-USDC needs `NEXT_PUBLIC_ZEROEX_API_KEY`.** Without it, Harvest still
+  claims WELL/CRV/CVX to the connected wallet; the sell step is skipped rather than guessed.
+- **CCTP Move has not been transaction-tested** against a live wallet/RPC. Standard
+  Transfer attestation from Ethereum or L2s is often 15–19 minutes. If the mint
+  signature is rejected after a successful burn, the burn stays in this browser's
+  pending list for a manual mint — there is no server-side resume.
+- **Panoptic Unicorn is hidden if DeFiLlama has no parseable Unicorn APY**, or if
+  `asset()` is not native USDC. Do not substitute another pool's number. The vault
+  itself has not been deposit-tested from this app.
+- **Circle Fast Transfer is not built.** It would take a fee from the bridged amount.
+  Standard Transfer is fee-free at Circle's layer and slower.
 
 ## File map
 
@@ -357,14 +499,33 @@ npm run dev
 | `app/api/analytics/event/route.ts` | First-party event ingest (no wallet/IP stored) |
 | `app/admin/page.tsx` | Password-gated analytics dashboard (not in public nav) |
 | `migrations/002_site_analytics.sql` | Anonymous site event schema. Applied by hand. |
-| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants) |
-| `lib/protocols/{aave,lido,yearn,curve}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
-| `lib/protocols/aggregate.ts` | Combines all four into one sorted list |
+| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants, Spark PSM, Maple router/pool, Moonwell comptroller, CCTP V2 TokenMessenger/MessageTransmitter) |
+| `lib/config/cctp.ts` | CCTP V2 domains, messengers, native USDC per chain |
+| `lib/cctp/attestation.ts` | bytes32 mint recipient + Iris parse (skip if attestation missing) |
+| `app/api/cctp/attestation/route.ts` | Same-origin Iris pass-through. No wallet, no store. |
+| `components/CctpMove.tsx` | User-signed burn → wait → mint. Pending list in localStorage. |
+| `app/(public)/move/page.tsx` | Move USDC tool (not a strategy page) |
+| `lib/protocols/{aave,lido,yearn,curve,sky,maple,panoptic}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
+| `lib/protocols/aggregate.ts` | Combines protocol fetchers into one sorted list |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |
 | `lib/hooks/useSendFee.ts` | Sends the fee transfer (native or ERC-20) to the treasury address, no-ops if unconfigured |
 | `components/DepositWithdrawModal.tsx` | The actual transaction flow — fee transfer + approve/deposit/withdraw per protocol |
+| `components/HarvestRewards.tsx` | Wallet-signed claim of WELL/CRV/CVX, then optional % sell to USDC via 0x |
 | `components/LidoWithdrawalRequests.tsx` | Pending Lido withdrawal queue requests + claim + fee-on-claim |
+| `components/MapleWithdrawalStatus.tsx` | Maple FIFO queue status (push payout, no claim tx) |
 | `components/RiskDisclaimer.tsx` | Short on-page risk disclosure (not a questionnaire) |
+| `app/manifest.ts` | PWA manifest (standalone, icons, home-screen shortcuts) |
+| `public/sw.js` | Installability + offline shell. Must not cache APY/API/HTML as live. |
+| `public/offline.html` | Offline fallback when a navigation fails |
+| `lib/pwa.ts` | Standalone / iOS Safari / install-snooze helpers (client only) |
+| `components/InstallAppBanner.tsx` | Home-screen install prompt (Chrome) / Safari hint |
+| `lib/config/lifi.ts` | LI.FI API host, integrator name, stock chain IDs, Circle USDC lookup |
+| `lib/lifi/stocks.ts` | Catalog filter + quote parser. Skip on parse failure — never guess a price. |
+| `lib/lifi/marketCap.ts` | CoinGecko tokenized-stock caps for the dashboard top-50 tape |
+| `app/api/lifi/stocks/route.ts` | Cached stock catalog for the dashboard tape |
+| `app/api/lifi/quote/route.ts` | USDC ↔ catalogued stock quote. Wallet signs the tx. |
+| `components/StockDesk.tsx` | Dashboard browse + holdings-in-view |
+| `components/StockSwapModal.tsx` | Approve + LI.FI swap, exact allowance |
 | `app/page.tsx` | Collection browse (first-run hero when disconnected / no positions) |
 | `app/opportunities/[id]/page.tsx` | Card detail |

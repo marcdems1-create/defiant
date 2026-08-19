@@ -35,7 +35,12 @@ const RISK_BADGE: Record<RiskLevel, CardBadge> = {
 };
 
 function cardRiskLevel(opportunity: Opportunity): RiskLevel {
-  if (opportunity.protocol === 'convex-cvxcrv' || opportunity.protocol === 'frax-sfrxusd') {
+  if (
+    opportunity.protocol === 'convex-cvxcrv' ||
+    opportunity.protocol === 'frax-sfrxusd' ||
+    opportunity.protocol === 'maple' ||
+    opportunity.protocol === 'panoptic'
+  ) {
     return 'higher';
   }
   if (
@@ -64,6 +69,7 @@ export function getCardBadges(opportunity: Opportunity): CardBadges {
     opportunity.protocol === 'compound-v3' ||
     opportunity.protocol === 'lido' ||
     opportunity.protocol === 'curve' ||
+    opportunity.protocol === 'sky' ||
     (opportunity.protocol === 'morpho' &&
       !opportunity.protocolLabel.toLowerCase().includes('high yield'));
 
@@ -108,7 +114,7 @@ export function getCardBadges(opportunity: Opportunity): CardBadges {
     opportunity.liquidity === 'delayed'
       ? {
           label: 'Delayed exit',
-          hint: 'Withdrawals wait in a queue — for Lido, typically a few days — then you claim back to your wallet.',
+          hint: 'Withdrawals wait in a queue — Lido is typically a few days then a claim; Maple sends USDC when the FIFO queue processes (hours to days, up to 30 days documented).',
         }
       : {
           label: 'Instant exit',

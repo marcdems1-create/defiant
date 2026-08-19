@@ -4,8 +4,24 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const tabs = [
-  { href: '/', label: 'Collection', icon: '🃏' },
-  { href: '/dashboard', label: 'Dashboard', icon: '📈' },
+  {
+    href: '/',
+    label: 'Collection',
+    icon: '🃏',
+    match: (path: string) => path === '/' || path.startsWith('/opportunities'),
+  },
+  {
+    href: '/move',
+    label: 'Move',
+    icon: '⇄',
+    match: (path: string) => path.startsWith('/move'),
+  },
+  {
+    href: '/dashboard',
+    label: 'Dashboard',
+    icon: '📈',
+    match: (path: string) => path.startsWith('/dashboard'),
+  },
 ] as const;
 
 export function MobileTabBar() {
@@ -18,7 +34,7 @@ export function MobileTabBar() {
     >
       <div className="flex">
         {tabs.map((tab) => {
-          const active = pathname === tab.href;
+          const active = tab.match(pathname);
           return (
             <Link
               key={tab.href}
