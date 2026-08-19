@@ -41,6 +41,17 @@ function formatMarketCap(n: number): string {
   return formatUsd(n);
 }
 
+function formatChangePct(n: number): string {
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+}
+
+function changeClass(n: number): string {
+  if (n > 0) return 'text-accent';
+  if (n < 0) return 'text-danger';
+  return 'text-ink/45';
+}
+
 function Pill({
   active,
   onClick,
@@ -136,9 +147,9 @@ export function StockDesk() {
         <p className="text-sm text-ink/50 mt-1 max-w-2xl leading-relaxed">
           Browse tokenized stocks and ETFs routed by LI.FI (xStocks, Ondo, Backed). The tape
           lists the top {STOCK_TAPE_SIZE} by CoinGecko token market cap — not the listed
-          company&apos;s equity cap, not a recommendation. Prices are LI.FI last marks; a row is
-          skipped when price or cap cannot be parsed. You sign every swap. Openhand never holds
-          the tokens. Availability varies by issuer and jurisdiction.
+          company&apos;s equity cap, not a recommendation. Prices are LI.FI last marks; 24h %
+          is CoinGecko. A row is skipped when price or cap cannot be parsed. You sign every
+          swap. Openhand never holds the tokens. Availability varies by issuer and jurisdiction.
         </p>
       </div>
 
@@ -248,13 +259,25 @@ export function StockDesk() {
                   {t.name} · {STOCK_ISSUER_LABEL[t.issuer]} · {stockChainLabel(t.chainId)}
                 </div>
               </div>
-              <div className="text-right shrink-0">
+              <div className="text-right shrink-0 min-w-[5.5rem]">
                 <div className="font-mono text-sm">{formatUsd(t.priceUsd)}</div>
                 <div className="text-[10px] uppercase tracking-wide text-ink/35">
                   {t.marketCapUsd !== undefined
                     ? `Cap ${formatMarketCap(t.marketCapUsd)}`
                     : 'LI.FI last'}
                 </div>
+              </div>
+              <div className="text-right shrink-0 min-w-[4.25rem]">
+                {t.changePct24h !== undefined ? (
+                  <>
+                    <div className={`font-mono text-sm ${changeClass(t.changePct24h)}`}>
+                      {formatChangePct(t.changePct24h)}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-wide text-ink/35">24h</div>
+                  </>
+                ) : (
+                  <div className="font-mono text-sm text-ink/25">—</div>
+                )}
               </div>
               <button
                 type="button"

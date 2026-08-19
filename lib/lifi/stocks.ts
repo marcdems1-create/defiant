@@ -34,6 +34,8 @@ export interface StockToken {
    * Token cap, not the listed company's equity cap. Omitted rather than guessed.
    */
   marketCapUsd?: number;
+  /** CoinGecko 24h price change in percent. Omitted rather than guessed. */
+  changePct24h?: number;
   logoURI?: string;
 }
 
@@ -164,10 +166,15 @@ export async function fetchStockCatalog(): Promise<StockToken[]> {
 /** Attach CoinGecko caps onto an already-classified LI.FI catalog. Skip unparseable caps. */
 export async function withStockMarketCaps(tokens: StockToken[]): Promise<StockToken[]> {
   if (tokens.length === 0) return tokens;
-  const caps = await fetchTokenizedStockMarketCaps();
+  const markets = await fetchTokenizedStockMarketCaps();
   const out = tokens.map((token) => {
-    const cap = caps.get(token.symbol.toLowerCase());
-    return cap !== undefined ? { ...token, marketCapUsd: cap } : token;
+    const stats = markets.get(token.symbol.toLowerCase());
+    if (!stats) return token;
+    return {
+      ...token,
+      marketCapUsd: stats.marketCapUsd,
+      ...(stats.changePct24h !== undefined ? { changePct24h: stats.changePct24h } : {}),
+    };
   });
   out.sort(compareStockTape);
   return out;

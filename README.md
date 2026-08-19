@@ -336,8 +336,8 @@ still finds names outside that list. Nothing is featured as a pick.
 - **Issuers shown:** xStocks, Ondo Tokenized, Backed — classified from LI.FI's catalog
   names (LI.FI has no public `stock` tag; only `stablecoin` is documented). Ambiguous
   names are skipped, not guessed. A row without a parseable `priceUSD` is skipped.
-  Market cap comes from CoinGecko's `tokenized-stock` markets, matched by symbol; skip
-  rather than guess if CoinGecko is down or the symbol does not match.
+  Market cap and 24h % come from CoinGecko's `tokenized-stock` markets, matched by
+  symbol; skip rather than guess if CoinGecko is down or a field does not parse.
 - **Swap:** USDC ↔ the selected token on the same chain. `POST /api/lifi/quote` calls
   LI.FI `/v1/quote`; the wallet signs `approve` (exact amount, never unlimited) then the
   returned `transactionRequest`. Openhand never holds the tokens. Addresses are
