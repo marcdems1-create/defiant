@@ -21,7 +21,7 @@
  * `0x-version: v2`), query params (`chainId`, `sellToken`, `buyToken`, `sellAmount`,
  * `taker`, `swapFeeToken`, `swapFeeRecipient`, `swapFeeBps`), and response fields
  * (`transaction.to/data/value`, `issues.allowance.spender`, top-level `buyAmount`/
- * `sellAmount` as decimal strings) all check out. Parsing below stays defensive — returns
+ * `sellAmount`/`minBuyAmount` as decimal strings) all check out. Parsing below stays defensive — returns
  * null rather than guessing — but this is de-risked from "unverified" to "doc + example +
  * sample-response verified, pending one live smoke test." Get a real API key at
  * https://dashboard.0x.org and run one real quote before trusting this with funds — a
@@ -38,6 +38,15 @@ export interface SwapQuote {
   allowanceTarget: `0x${string}`;
   buyAmount: bigint;
   sellAmount: bigint;
+  /** Worst-case buy amount after slippage, when 0x returns `minBuyAmount`. */
+  minBuyAmount: bigint;
+}
+
+/** Default slippage (1%) for convert-on-deposit. Harvest quotes omit this. */
+export const DEFAULT_SWAP_SLIPPAGE_BPS = 100;
+
+export function swapConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_ZEROEX_API_KEY?.trim());
 }
 
 interface FetchSwapQuoteParams {
@@ -46,6 +55,7 @@ interface FetchSwapQuoteParams {
   buyToken: `0x${string}`;
   sellAmount: bigint;
   taker: `0x${string}`;
+  slippageBps?: number;
 }
 
 export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<SwapQuote | null> {
@@ -61,6 +71,9 @@ export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<Swap
     sellAmount: params.sellAmount.toString(),
     taker: params.taker,
   });
+  if (params.slippageBps !== undefined) {
+    qs.set('slippageBps', String(params.slippageBps));
+  }
   // Swap-fee params are optional so harvest-to-USDC still works when the
   // conversion fee recipient is unset (deposit/withdraw fees are a separate
   // NEXT_PUBLIC_TREASURY_ADDRESS path).
@@ -83,6 +96,7 @@ export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<Swap
     const allowanceTarget = json?.issues?.allowance?.spender ?? to;
     const buyAmount = json?.buyAmount;
     const sellAmount = json?.sellAmount;
+    const minBuyAmount = json?.minBuyAmount;
 
     if (
       typeof to !== 'string' ||
@@ -94,13 +108,22 @@ export async function fetchSwapQuote(params: FetchSwapQuoteParams): Promise<Swap
       return null;
     }
 
+    const buy = BigInt(buyAmount);
+    const min =
+      typeof minBuyAmount === 'string' && minBuyAmount.length > 0
+        ? BigInt(minBuyAmount)
+        : params.slippageBps !== undefined
+          ? (buy * BigInt(10_000 - params.slippageBps)) / 10_000n
+          : buy;
+
     return {
       to: to as `0x${string}`,
       data: data as `0x${string}`,
       value: BigInt(value ?? '0'),
       allowanceTarget: allowanceTarget as `0x${string}`,
-      buyAmount: BigInt(buyAmount),
+      buyAmount: buy,
       sellAmount: BigInt(sellAmount),
+      minBuyAmount: min,
     };
   } catch {
     return null;
