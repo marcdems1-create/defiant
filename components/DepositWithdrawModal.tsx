@@ -66,6 +66,7 @@ export function DepositWithdrawModal({
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
   const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
 
@@ -258,6 +259,21 @@ export function DepositWithdrawModal({
     ]);
   }
 
+  async function submitAndConfirm(params: {
+    address: `0x${string}`;
+    abi: readonly { type?: string }[];
+    functionName: string;
+    args?: readonly unknown[];
+    value?: bigint;
+    chainId: number;
+  }) {
+    const hash = await writeTx(params);
+    setPendingTxHash(hash);
+    await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+    setPendingTxHash(null);
+    return hash;
+  }
+
   async function ensureChain() {
     if (currentChainId === opportunity.chainId) return;
     await switchChainAsync({ chainId: opportunity.chainId });
@@ -281,6 +297,7 @@ export function DepositWithdrawModal({
   async function handleDeposit() {
     if (!address || amountBig === 0n) return;
     setErrorMsg(null);
+    setPendingTxHash(null);
     try {
       await ensureChain();
       if (feeAmount > 0n) {
@@ -295,7 +312,7 @@ export function DepositWithdrawModal({
 
       if (opportunity.protocol === 'lido') {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: stEthAbi,
           functionName: 'submit',
@@ -303,7 +320,6 @@ export function DepositWithdrawModal({
           value: netAmount,
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         setStep('done');
         await refreshBalances();
         return;
@@ -315,88 +331,81 @@ export function DepositWithdrawModal({
       // that's all that actually reaches the protocol.
       if (allowanceValue < netAmount) {
         setStep('approving');
-        const approveHash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.asset.address,
           abi: erc20Abi,
           functionName: 'approve',
           args: [spender, netAmount],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
         await allowance.refetch();
       }
 
       setStep('acting');
       if (opportunity.protocol === 'aave-v3') {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: aavePoolAbi,
           functionName: 'supply',
           args: [opportunity.asset.address, netAmount, address, 0],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'curve') {
         const minMintAmount = curveMinOut(curveDepositPreviewData);
         if (curveNumCoins === 3) {
-          const hash = await writeTx({
+          await submitAndConfirm({
             address: opportunity.depositTarget,
             abi: curvePoolAbi3Coin,
             functionName: 'add_liquidity',
             args: [curveAmounts3(netAmount), minMintAmount],
             chainId: opportunity.chainId,
           });
-          await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         } else {
-          const hash = await writeTx({
+          await submitAndConfirm({
             address: opportunity.depositTarget,
             abi: curvePoolAbi2Coin,
             functionName: 'add_liquidity',
             args: [curveAmounts2(netAmount), minMintAmount],
             chainId: opportunity.chainId,
           });
-          await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         }
       } else if (opportunity.protocol === 'compound-v3') {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: compoundCometAbi,
           functionName: 'supply',
           args: [opportunity.asset.address, netAmount],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'moonwell') {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
           functionName: 'mint',
           args: [netAmount],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isConvex) {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: crvDepositorAbi,
           functionName: 'deposit',
           args: [netAmount, false, opportunity.positionToken!],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'deposit',
           args: [netAmount, address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       }
       setStep('done');
       await refreshBalances();
     } catch (e) {
+      setPendingTxHash(null);
       setStep('error');
       setErrorMsg(formatTxError(e));
     }
@@ -405,28 +414,27 @@ export function DepositWithdrawModal({
   async function handleWithdraw() {
     if (!address || amountBig === 0n) return;
     setErrorMsg(null);
+    setPendingTxHash(null);
     try {
       await ensureChain();
       if (opportunity.protocol === 'aave-v3') {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: aavePoolAbi,
           functionName: 'withdraw',
           args: [opportunity.asset.address, amountBig, address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'compound-v3') {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: compoundCometAbi,
           functionName: 'withdraw',
           args: [opportunity.asset.address, amountBig],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'moonwell') {
         setStep('acting');
         // Max burns every mUSDC share (redeem) so rounding in redeemUnderlying
@@ -435,58 +443,53 @@ export function DepositWithdrawModal({
           positionBalanceValue > 0n &&
           moonwellUnderlyingBalance > 0n &&
           amountBig >= moonwellUnderlyingBalance;
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
           functionName: redeemAll ? 'redeem' : 'redeemUnderlying',
           args: [redeemAll ? positionBalanceValue : amountBig],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isConvex) {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.positionToken!,
           abi: cvxCrvRewardsAbi,
           functionName: 'withdraw',
           args: [amountBig, true],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (
         ERC4626_PROTOCOLS.includes(opportunity.protocol) &&
         opportunity.protocol !== 'yearn-v3'
       ) {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'redeem',
           args: [amountBig, address, address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'yearn-v3') {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'redeem',
           args: [amountBig, address, address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'curve') {
         setStep('acting');
         const minReceived = curveMinOut(curveWithdrawPreview.data as bigint | undefined);
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: curvePoolAbi2Coin,
           functionName: 'remove_liquidity_one_coin',
           args: [amountBig, curveCoinIndex, minReceived],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'lido') {
         const cfg = (LIDO as Record<number, (typeof LIDO)[keyof typeof LIDO]>)[opportunity.chainId];
         if (!cfg) throw new Error('Lido withdrawal queue not configured for this network');
@@ -500,7 +503,7 @@ export function DepositWithdrawModal({
         const stEthAllowance = 0n;
         if (stEthAllowance < amountBig) {
           setStep('approving');
-          const approveHash = await writeTx({
+          await submitAndConfirm({
             // For Lido, asset.address and depositTarget are both the stETH token.
             address: opportunity.depositTarget,
             abi: erc20Abi,
@@ -508,19 +511,17 @@ export function DepositWithdrawModal({
             args: [cfg.withdrawalQueue, amountBig],
             chainId: opportunity.chainId,
           });
-          await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
           await allowance.refetch();
         }
 
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: cfg.withdrawalQueue,
           abi: lidoWithdrawalQueueAbi,
           functionName: 'requestWithdrawals',
           args: [[amountBig], address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         setStep('done');
         await refreshBalances();
         return;
@@ -541,6 +542,7 @@ export function DepositWithdrawModal({
       setStep('done');
       await refreshBalances();
     } catch (e) {
+      setPendingTxHash(null);
       setStep('error');
       setErrorMsg(formatTxError(e));
     }
@@ -548,6 +550,7 @@ export function DepositWithdrawModal({
 
   const busy = step === 'sendingFee' || step === 'approving' || step === 'acting' || switching;
   const waitingOnSwitch = wrongNetwork && !switchFailed;
+  const txSent = Boolean(pendingTxHash) && (step === 'approving' || step === 'acting');
 
   return (
     <>
@@ -704,6 +707,35 @@ export function DepositWithdrawModal({
             {insufficientBalance && (
               <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
             )}
+            {txSent && pendingTxHash && (
+              <div className="mb-3 rounded border border-accent/35 bg-accent/10 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="relative h-5 flex-1 overflow-hidden rounded">
+                    <div className="absolute left-0 right-0 top-1/2 border-t border-dashed border-accent/40" />
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="plane-fly absolute -top-0.5 left-0 h-5 w-5 text-accent"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M22 2 11 13" />
+                      <path d="m22 2-7 20-4-9-9-4 20-7Z" />
+                    </svg>
+                  </div>
+                  <span className="text-xs text-ink/75 whitespace-nowrap">
+                    {step === 'approving' ? 'Approval sent' : 'Transaction sent'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-ink/55 mt-1">
+                  Waiting for chain confirmation · {pendingTxHash.slice(0, 6)}…
+                  {pendingTxHash.slice(-4)}
+                </div>
+              </div>
+            )}
             {errorMsg && <div className="text-xs text-danger mb-3 break-words">{errorMsg}</div>}
             {step === 'done' && (
               <div className="text-xs text-accent mb-3">
@@ -772,6 +804,26 @@ export function DepositWithdrawModal({
         onClose={() => setBuyOpen(false)}
       />
     )}
+    <style jsx>{`
+      .plane-fly {
+        animation: plane-fly 1.2s ease-in-out infinite;
+      }
+
+      @keyframes plane-fly {
+        0% {
+          transform: translateX(0) translateY(1px) rotate(-9deg);
+          opacity: 0.85;
+        }
+        50% {
+          transform: translateX(160px) translateY(-3px) rotate(2deg);
+          opacity: 1;
+        }
+        100% {
+          transform: translateX(320px) translateY(1px) rotate(8deg);
+          opacity: 0.85;
+        }
+      }
+    `}</style>
     </>
   );
 }
