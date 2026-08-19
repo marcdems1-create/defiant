@@ -54,12 +54,7 @@ export function OnrampModal({
     <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/70 sm:p-4">
       <div className="bg-paper border border-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 max-h-[min(96dvh,100%)] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         <div className="flex items-start justify-between gap-3 mb-3">
-          <div>
-            <h2 className="text-lg font-medium">Add USDC</h2>
-            <p className="text-xs text-ink/45 mt-1 leading-relaxed">
-              Checkout is Transak, not Openhand. They send USDC to this wallet.
-            </p>
-          </div>
+          <h2 className="text-lg font-medium">Add USDC</h2>
           <button onClick={onClose} className="text-ink/50 hover:text-ink" aria-label="Close">
             ✕
           </button>

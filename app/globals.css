@@ -16,10 +16,6 @@ body {
 
 body {
   background-color: #0b0e11;
-  background-image:
-    radial-gradient(ellipse 90% 55% at 50% -25%, rgba(62, 207, 142, 0.09), transparent 55%),
-    radial-gradient(ellipse 45% 35% at 100% 0%, rgba(242, 244, 247, 0.04), transparent 50%);
-  background-attachment: fixed;
 }
 
 * {

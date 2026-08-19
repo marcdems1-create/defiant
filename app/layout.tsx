@@ -1,19 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import {
-  CONTACT_EMAIL,
-  LEGAL_ENTITY,
-  SITE_DESCRIPTION,
-  SITE_NAME,
-  SITE_URL,
-} from '@/lib/config/site';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: {
-    default: `${SITE_NAME} — non-custodial DeFi yield`,
-    template: `%s — ${SITE_NAME}`,
-  },
+  title: `${SITE_NAME} — non-custodial DeFi yield`,
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   alternates: { canonical: '/' },
@@ -49,31 +40,10 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-const organizationJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'Organization',
-  name: SITE_NAME,
-  legalName: LEGAL_ENTITY,
-  url: SITE_URL,
-  email: CONTACT_EMAIL,
-  description: SITE_DESCRIPTION,
-  address: {
-    '@type': 'PostalAddress',
-    addressRegion: 'Ontario',
-    addressCountry: 'CA',
-  },
-};
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-paper text-ink font-sans">
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
-        />
-        {children}
-      </body>
+      <body className="min-h-screen bg-paper text-ink font-sans">{children}</body>
     </html>
   );
 }

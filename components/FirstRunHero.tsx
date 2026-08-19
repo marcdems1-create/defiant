@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import type { Opportunity } from '@/lib/protocols/types';
 import { chainName } from '@/lib/format';
-import { NETWORK_MODE } from '@/lib/wagmi';
-import { CompanyMarks } from './CompanyMarks';
 import { ConnectButtonClient } from './ConnectButtonClient';
 import { OnrampModal } from './OnrampModal';
+import { NETWORK_MODE } from '@/lib/wagmi';
 
 export function FirstRunHero({
   connected,
@@ -25,48 +23,39 @@ export function FirstRunHero({
   const [buyOpen, setBuyOpen] = useState(false);
   const empty = connected && usdcReady && usdcBalance === 0n;
   const funded = connected && usdcReady && usdcBalance > 0n;
-  const onrampChain = starter ? chainName(starter.chainId) : 'Base';
 
   return (
-    <section className="rounded-2xl border border-border bg-gradient-to-br from-accent/[0.07] via-white/[0.02] to-transparent p-6 sm:p-8 flex flex-col gap-6">
+    <section className="rounded-2xl border border-border bg-white/[0.02] p-6 flex flex-col gap-5">
       <div>
         <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-          Non-custodial interface
+          First session
         </p>
-        <h1 className="text-3xl sm:text-4xl font-medium tracking-tight max-w-2xl">
-          {!connected && 'Compare live USDC yield. You sign every transaction.'}
+        <h1 className="text-3xl font-medium tracking-tight">
+          {!connected && 'Get a wallet, add dollars, put them to work'}
           {empty && 'Add USDC to this wallet'}
-          {funded && 'Your USDC is in this wallet'}
+          {funded && 'Put your USDC to work'}
           {connected && !usdcReady && 'Checking your wallet…'}
         </h1>
-        <p className="text-ink/60 text-sm sm:text-[15px] mt-3 max-w-xl leading-relaxed">
+        <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
           {!connected &&
-            'Connect a wallet you control. Openhand never holds keys or funds. Buying USDC is processed by Transak, a third party — not by us.'}
+            'Email or a passkey creates a wallet. You sign every move. Openhand never holds your keys or funds.'}
           {empty &&
             (NETWORK_MODE === 'mainnet'
-              ? `This wallet has no USDC on ${onrampChain} yet. Transak can send USDC here after their checkout, or you can transfer it yourself.`
-              : 'Practice mode. Use a Base Sepolia USDC faucet — production Transak buys need mainnet.')}
+              ? `This wallet has no USDC on ${starter ? chainName(starter.chainId) : 'Base'} yet.`
+              : 'Practice mode. Use a Base Sepolia USDC faucet.')}
           {funded &&
-            'Browse the collection and deposit into any card you choose. There is no featured pick. You sign the protocol transaction.'}
-          {connected && !usdcReady && 'Reading the connected address on-chain.'}
+            'Your USDC is in this wallet. Browse the collection and deposit into any card you choose.'}
         </p>
       </div>
 
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-        <Step n={1} done={connected} label="Wallet" detail="Email, passkey, or existing" />
-        <Step
-          n={2}
-          done={funded}
-          label="Add USDC"
-          detail={NETWORK_MODE === 'mainnet' ? 'Transak or a transfer' : 'Test USDC'}
-        />
-        <Step n={3} done={false} label="Deposit" detail="You sign · any card" />
+        <Step n={1} done={connected} label="Wallet" detail="Email or passkey" />
+        <Step n={2} done={funded} label="Add USDC" detail="Buy or send" />
+        <Step n={3} done={false} label="Deposit" detail="Pick a card" />
       </ol>
 
-      <CompanyMarks />
-
       <div className="flex flex-wrap items-center gap-3">
-        {!connected && <ConnectButtonClient label="Connect wallet" />}
+        {!connected && <ConnectButtonClient label="Deposit" />}
         {empty && address && starter && (
           <button
             type="button"
@@ -76,9 +65,6 @@ export function FirstRunHero({
             Buy USDC
           </button>
         )}
-        <Link href="/about" className="text-sm text-ink/50 hover:text-ink transition-colors">
-          About Openhand
-        </Link>
       </div>
 
       {buyOpen && address && starter && (
@@ -106,7 +92,7 @@ function Step({
   return (
     <li
       className={`rounded-xl border px-3 py-2.5 ${
-        done ? 'border-accent/40 bg-accent/10' : 'border-border bg-paper/40'
+        done ? 'border-accent/40 bg-accent/10' : 'border-border'
       }`}
     >
       <div className="text-[11px] uppercase tracking-[0.12em] text-ink/40 font-mono flex items-center gap-1.5">

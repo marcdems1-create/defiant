@@ -527,16 +527,3 @@ Public collection lists **USDC** cards only. Lido (ETH), Convex (CRV), and Frax 
 are not fetched. Toggle is `lib/catalogAssets.ts` (`isListedCatalogAsset`). Do not
 re-list other assets without an explicit product ask.
 
-## Session update (2026-08-19) — KYB site polish (Transak reviewers)
-
-Partner KYB (Transak) will load the public site. Identity and legal pages must stay
-visible and accurate:
-
-- Operator: **HYPERFLEX**, Ontario, Canada. Contact: `hello@openhand.money`.
-- Pages: `/about`, `/support`, `/privacy`, `/terms`. Footer (`SiteFooter`) replaces
-  the old one-line `RiskFooter` on public chrome.
-- Constants live in `lib/config/site.ts`. Do not invent a street address. Do not add
-  a KYC form, suitability questionnaire, or third-party tracking pixels.
-- Transak is named as the third-party USDC onramp (checkout is theirs; funds go to
-  the connected wallet). Organization JSON-LD is in `app/layout.tsx`.
-
