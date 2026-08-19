@@ -620,12 +620,17 @@ export function DepositWithdrawModal({
             <div className="flex justify-between text-xs text-ink/50 mb-1">
               <span>Amount{dollarInput && tab === 'deposit' ? ' (USD)' : ''}</span>
               <span>
-                {tab === 'deposit' ? 'Wallet' : 'Deposited'}:{' '}
+                {tab === 'deposit' ? 'Wallet' : 'Deposited'} on {chainName(opportunity.chainId)}:{' '}
                 {dollarInput && tab === 'deposit' ? '$' : ''}
                 {formatUnits(maxAmount, amountDecimals)}{' '}
                 {dollarInput && tab === 'deposit' ? 'USDC' : amountSymbol}
               </span>
             </div>
+            {tab === 'deposit' && (
+              <div className="text-[11px] text-ink/45 mb-2">
+                Only funds already on {chainName(opportunity.chainId)} can be deposited here.
+              </div>
+            )}
             <div className="flex gap-2 mb-3">
               <div className="flex-1 flex items-center border border-border rounded px-3 focus-within:border-accent">
                 {dollarInput && tab === 'deposit' && (
@@ -706,7 +711,11 @@ export function DepositWithdrawModal({
             )}
 
             {insufficientBalance && (
-              <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
+              <div className="text-xs text-warn mb-3">
+                {tab === 'deposit'
+                  ? `That amount is higher than your wallet balance on ${chainName(opportunity.chainId)}. Lower it or tap Max.`
+                  : `That amount is higher than your deposited balance on ${chainName(opportunity.chainId)}. Lower it or tap Max.`}
+              </div>
             )}
             {txSent && pendingTxHash && (
               <TransactionSentIndicator
