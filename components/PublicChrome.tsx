@@ -6,6 +6,7 @@ import { NetworkBanner } from '@/components/NetworkBanner';
 import { MobileTabBar } from '@/components/MobileTabBar';
 import { RiskFooter } from '@/components/RiskDisclaimer';
 import { InstallAppBanner } from '@/components/InstallAppBanner';
+import { ReferralAttributionPrompt } from '@/components/ReferralAttributionPrompt';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
 // RainbowKit/Privy touch browser-only APIs at module-eval time. ssr:false
@@ -22,6 +23,7 @@ export function PublicChrome({ children }: { children: React.ReactNode }) {
         <NetworkBanner />
         <NavBar />
       </div>
+      <ReferralAttributionPrompt />
       <main className="max-w-6xl mx-auto px-4 py-6 md:px-6 md:py-10">{children}</main>
       <RiskFooter />
       <InstallAppBanner />

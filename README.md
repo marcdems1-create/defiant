@@ -354,10 +354,14 @@ Optional `LIFI_API_KEY` (server-only) raises LI.FI rate limits. Catalog works wi
 
 ## Site analytics
 
-The only optional server-side store is first-party anonymous event counts. There is no
-wallet-linked collection path — the old investment-style questionnaire and its
-`questionnaire_responses` table were removed. This is **not** a third-party analytics pixel
-(no Google Analytics, no Mixpanel, no tracking scripts).
+The optional server-side stores are:
+
+- first-party anonymous event counts (`site_events`), and
+- wallet-linked referral attribution (`referral_attributions`) that requires consent and
+  wallet signature proof before write.
+
+Neither path uses third-party analytics pixels (no Google Analytics, no Mixpanel, no
+tracking scripts).
 
 A password-gated dashboard at `/admin` counts page views and a short allowlist of product
 events (`page_view`, `connect_open`, `deposit_open`, `deposit_done`, `withdraw_open`,
@@ -374,9 +378,21 @@ disallows `/admin`.
   be used as a long-lived profile.
 - **Allowlisted events only.** Unknown event names are rejected. Paths under `/admin` and
   `/api` are dropped.
-- **No wallet-linked writes.** Analytics does not attribute events to a wallet. If a future
-  feature stores anything against an address, it needs an unchecked-by-default consent
-  checkbox and a valid wallet signature — not a silent add.
+- **No wallet-linked analytics writes.** Analytics does not attribute events to a wallet.
+  Referral attribution is separate and only writes after an unchecked-by-default consent
+  checkbox and a valid wallet signature.
+
+### Referral attribution (wallet-linked, opt-in)
+
+Referral attribution is stored separately from analytics:
+
+- schema: `migrations/003_referral_attributions.sql`
+- write path: `POST /api/referral/register`
+- UI capture: `?ref=` / `?referral=` first-touch localStorage
+- link requirements: unchecked-by-default consent + wallet `signMessage` proof
+- one-wallet rule: each wallet can be linked to one referral code in v1
+
+This flow is attribution-only. It does not move funds, pool assets, or introduce custody.
 
 **What's explicitly NOT built yet, and must exist before this store goes anywhere near real users:**
 a privacy policy describing this collection, a data retention policy, and a self-service (or
@@ -461,6 +477,9 @@ npm run dev
 - **No migration runner.** `migrations/002_site_analytics.sql` is applied by hand (psql, or
   your Postgres host's SQL console) — no tracking of which have run. Fine at this scale,
   revisit if the schema grows.
+- **Referral is attribution-only in v1.** It links a referral code to a wallet with consent
+  + signature proof, but does not yet include qualification, anti-fraud review queues, or
+  payout orchestration.
 - **Looping stablecoin pools is not a product here.** Recursive supply/borrow of the same
   stable (deposit USDC, borrow USDC, deposit again) is leverage, not a dollar park. A depeg
   or oracle miss can liquidate a "stable-stable" loop; borrow APY can exceed supply APY so
@@ -497,8 +516,11 @@ npm run dev
 | `lib/db.ts` | Server-only lazy Postgres pool. Never import from a client component. |
 | `lib/analytics/track.ts` | Client beacon — posts allowlisted events; swallows errors |
 | `app/api/analytics/event/route.ts` | First-party event ingest (no wallet/IP stored) |
+| `app/api/referral/register/route.ts` | Referral attribution write path (consent + wallet signature required) |
 | `app/admin/page.tsx` | Password-gated analytics dashboard (not in public nav) |
 | `migrations/002_site_analytics.sql` | Anonymous site event schema. Applied by hand. |
+| `migrations/003_referral_attributions.sql` | Wallet-linked referral attribution schema. Applied by hand. |
+| `lib/referral/{shared,storage}.ts` | Shared referral message/sanitize helpers + client localStorage capture helpers |
 | `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants, Spark PSM, Maple router/pool, Moonwell comptroller, CCTP V2 TokenMessenger/MessageTransmitter) |
 | `lib/config/cctp.ts` | CCTP V2 domains, messengers, native USDC per chain |
 | `lib/cctp/attestation.ts` | bytes32 mint recipient + Iris parse (skip if attestation missing) |
@@ -520,6 +542,7 @@ npm run dev
 | `public/offline.html` | Offline fallback when a navigation fails |
 | `lib/pwa.ts` | Standalone / iOS Safari / install-snooze helpers (client only) |
 | `components/InstallAppBanner.tsx` | Home-screen install prompt (Chrome) / Safari hint |
+| `components/ReferralAttributionPrompt.tsx` | Consent + sign flow linking referral code to connected wallet |
 | `lib/config/lifi.ts` | LI.FI API host, integrator name, stock chain IDs, Circle USDC lookup |
 | `lib/lifi/stocks.ts` | Catalog filter + quote parser. Skip on parse failure — never guess a price. |
 | `lib/lifi/marketCap.ts` | CoinGecko tokenized-stock caps for the dashboard top-50 tape |
