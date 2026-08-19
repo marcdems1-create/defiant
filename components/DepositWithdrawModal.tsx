@@ -32,6 +32,7 @@ import { MapleWithdrawalStatus } from './MapleWithdrawalStatus';
 import { HarvestRewards } from './HarvestRewards';
 import { OnrampModal } from './OnrampModal';
 import { ConnectButtonClient } from './ConnectButtonClient';
+import { TransactionSentIndicator } from './TransactionSentIndicator';
 import { MoveUsdcButton } from './MoveUsdcButton';
 import { isStableDollarAsset } from '@/lib/firstRun';
 
@@ -74,6 +75,7 @@ export function DepositWithdrawModal({
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
   const [mapleLender, setMapleLender] = useState<MapleLenderStatus | null>(null);
   const [moving, setMoving] = useState(false);
@@ -379,6 +381,21 @@ export function DepositWithdrawModal({
     ]);
   }
 
+  async function submitAndConfirm(params: {
+    address: `0x${string}`;
+    abi: readonly { type?: string }[];
+    functionName: string;
+    args?: readonly unknown[];
+    value?: bigint;
+    chainId: number;
+  }) {
+    const hash = await writeTx(params);
+    setPendingTxHash(hash);
+    await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+    setPendingTxHash(null);
+    return hash;
+  }
+
   async function ensureChain() {
     if (currentChainId === opportunity.chainId) return;
     await switchChainAsync({ chainId: opportunity.chainId });
@@ -416,6 +433,7 @@ export function DepositWithdrawModal({
   async function handleDeposit() {
     if (!address || amountBig === 0n) return;
     setErrorMsg(null);
+    setPendingTxHash(null);
     try {
       await ensureChain();
       if (feeAmount > 0n) {
@@ -430,7 +448,7 @@ export function DepositWithdrawModal({
 
       if (opportunity.protocol === 'lido') {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: stEthAbi,
           functionName: 'submit',
@@ -438,7 +456,6 @@ export function DepositWithdrawModal({
           value: netAmount,
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         setStep('done');
         await refreshBalances();
         return;
@@ -450,70 +467,64 @@ export function DepositWithdrawModal({
       // that's all that actually reaches the protocol.
       if (allowanceValue < netAmount) {
         setStep('approving');
-        const approveHash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.asset.address,
           abi: erc20Abi,
           functionName: 'approve',
           args: [spender, netAmount],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
         await allowance.refetch();
       }
 
       setStep('acting');
       if (opportunity.protocol === 'aave-v3') {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: aavePoolAbi,
           functionName: 'supply',
           args: [opportunity.asset.address, netAmount, address, 0],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'curve') {
         const minMintAmount = curveMinOut(curveDepositPreviewData);
         if (curveNumCoins === 3) {
-          const hash = await writeTx({
+          await submitAndConfirm({
             address: opportunity.depositTarget,
             abi: curvePoolAbi3Coin,
             functionName: 'add_liquidity',
             args: [curveAmounts3(netAmount), minMintAmount],
             chainId: opportunity.chainId,
           });
-          await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         } else {
-          const hash = await writeTx({
+          await submitAndConfirm({
             address: opportunity.depositTarget,
             abi: curvePoolAbi2Coin,
             functionName: 'add_liquidity',
             args: [curveAmounts2(netAmount), minMintAmount],
             chainId: opportunity.chainId,
           });
-          await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         }
       } else if (opportunity.protocol === 'compound-v3') {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: compoundCometAbi,
           functionName: 'supply',
           args: [opportunity.asset.address, netAmount],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'moonwell') {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
           functionName: 'mint',
           args: [netAmount],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isSky) {
         if (!opportunity.positionToken) throw new Error('sUSDS token missing');
         const minOut = skyMinOut(skyDepositPreview.data as bigint | undefined);
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: sparkPsmAbi,
           functionName: 'swapExactIn',
@@ -527,43 +538,40 @@ export function DepositWithdrawModal({
           ],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isMaple) {
         if (mapleLender === 'unauthorized') {
           throw new Error(
             'This wallet is not a Maple syrup lender yet. Authorize it once on syrup.fi, then deposit here. Openhand cannot allowlist you.',
           );
         }
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: mapleSyrupRouterAbi,
           functionName: 'deposit',
           args: [netAmount, MAPLE_DEPOSIT_DATA],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isConvex) {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: crvDepositorAbi,
           functionName: 'deposit',
           args: [netAmount, false, opportunity.positionToken!],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else {
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'deposit',
           args: [netAmount, address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       }
       setStep('done');
       await refreshBalances();
     } catch (e) {
+      setPendingTxHash(null);
       setStep('error');
       setErrorMsg(formatTxError(e));
     }
@@ -572,28 +580,27 @@ export function DepositWithdrawModal({
   async function handleWithdraw() {
     if (!address || amountBig === 0n) return;
     setErrorMsg(null);
+    setPendingTxHash(null);
     try {
       await ensureChain();
       if (opportunity.protocol === 'aave-v3') {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: aavePoolAbi,
           functionName: 'withdraw',
           args: [opportunity.asset.address, amountBig, address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'compound-v3') {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: compoundCometAbi,
           functionName: 'withdraw',
           args: [opportunity.asset.address, amountBig],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'moonwell') {
         setStep('acting');
         // Max burns every mUSDC share (redeem) so rounding in redeemUnderlying
@@ -602,34 +609,29 @@ export function DepositWithdrawModal({
           positionBalanceValue > 0n &&
           moonwellUnderlyingBalance > 0n &&
           amountBig >= moonwellUnderlyingBalance;
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
           functionName: redeemAll ? 'redeem' : 'redeemUnderlying',
           args: [redeemAll ? positionBalanceValue : amountBig],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isSky) {
         if (!opportunity.positionToken) throw new Error('sUSDS token missing');
         if (skyWithdrawAllowanceValue < amountBig) {
           setStep('approving');
-          const approveHash = await writeTx({
+          await submitAndConfirm({
             address: opportunity.positionToken,
             abi: erc20Abi,
             functionName: 'approve',
             args: [opportunity.depositTarget, amountBig],
             chainId: opportunity.chainId,
           });
-          await waitForTransactionReceipt(getWagmiConfig(), {
-            hash: approveHash,
-            chainId: opportunity.chainId,
-          });
           await skyWithdrawAllowance.refetch();
         }
         setStep('acting');
         const minOut = skyMinOut(skyWithdrawPreview.data as bigint | undefined);
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: sparkPsmAbi,
           functionName: 'swapExactIn',
@@ -643,7 +645,6 @@ export function DepositWithdrawModal({
           ],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isMaple) {
         setStep('acting');
         const shares =
@@ -651,61 +652,56 @@ export function DepositWithdrawModal({
             ? mapleExitShares.data
             : 0n;
         if (shares === 0n) throw new Error('Could not convert USDC amount to Maple shares');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.positionToken!,
           abi: maplePoolAbi,
           functionName: 'requestRedeem',
           args: [shares, address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         setStep('done');
         await refreshBalances();
         return;
       } else if (isConvex) {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.positionToken!,
           abi: cvxCrvRewardsAbi,
           functionName: 'withdraw',
           args: [amountBig, true],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (
         ERC4626_PROTOCOLS.includes(opportunity.protocol) &&
         opportunity.protocol !== 'yearn-v3'
       ) {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'redeem',
           args: [amountBig, address, address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'yearn-v3') {
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'redeem',
           args: [amountBig, address, address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'curve') {
         setStep('acting');
         const minReceived = curveMinOut(curveWithdrawPreview.data as bigint | undefined);
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: opportunity.depositTarget,
           abi: curvePoolAbi2Coin,
           functionName: 'remove_liquidity_one_coin',
           args: [amountBig, curveCoinIndex, minReceived],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'lido') {
         const cfg = (LIDO as Record<number, (typeof LIDO)[keyof typeof LIDO]>)[opportunity.chainId];
         if (!cfg) throw new Error('Lido withdrawal queue not configured for this network');
@@ -719,7 +715,7 @@ export function DepositWithdrawModal({
         const stEthAllowance = 0n;
         if (stEthAllowance < amountBig) {
           setStep('approving');
-          const approveHash = await writeTx({
+          await submitAndConfirm({
             // For Lido, asset.address and depositTarget are both the stETH token.
             address: opportunity.depositTarget,
             abi: erc20Abi,
@@ -727,19 +723,17 @@ export function DepositWithdrawModal({
             args: [cfg.withdrawalQueue, amountBig],
             chainId: opportunity.chainId,
           });
-          await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
           await allowance.refetch();
         }
 
         setStep('acting');
-        const hash = await writeTx({
+        await submitAndConfirm({
           address: cfg.withdrawalQueue,
           abi: lidoWithdrawalQueueAbi,
           functionName: 'requestWithdrawals',
           args: [[amountBig], address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         setStep('done');
         await refreshBalances();
         return;
@@ -760,6 +754,7 @@ export function DepositWithdrawModal({
       setStep('done');
       await refreshBalances();
     } catch (e) {
+      setPendingTxHash(null);
       setStep('error');
       setErrorMsg(formatTxError(e));
     }
@@ -776,6 +771,7 @@ export function DepositWithdrawModal({
     (walletBalance === 0n || insufficientBalance);
   const stillCheckingOtherChains =
     tab === 'deposit' && isUsdc && canSeeOtherChains && crossChain.isLoading && walletBalance === 0n;
+  const txSent = Boolean(pendingTxHash) && (step === 'approving' || step === 'acting');
 
   return (
     <>
@@ -880,22 +876,29 @@ export function DepositWithdrawModal({
                 {tab === 'deposit' && dollarInput ? (
                   <>
                     <span className="block">
-                      ${formatUsdcUsd(walletBalance)} on {chainName(opportunity.chainId)}
+                      Wallet on {chainName(opportunity.chainId)}: ${formatUsdcUsd(walletBalance)}
                     </span>
                     {bestOtherChainUsdc && (
                       <span className="block text-ink/70">
-                        ${formatUsdcUsd(bestOtherChainUsdc.balance)} on {bestOtherChainUsdc.label}
+                        Also on {bestOtherChainUsdc.label}: ${formatUsdcUsd(bestOtherChainUsdc.balance)}
                       </span>
                     )}
                   </>
                 ) : (
                   <>
-                    {tab === 'deposit' ? 'Wallet' : 'Deposited'}:{' '}
-                    {formatUnits(maxAmount, amountDecimals)} {amountSymbol}
+                    {tab === 'deposit' ? 'Wallet' : 'Deposited'} on {chainName(opportunity.chainId)}
+                    : {dollarInput && tab === 'deposit' ? '$' : ''}{' '}
+                    {formatUnits(maxAmount, amountDecimals)}{' '}
+                    {dollarInput && tab === 'deposit' ? 'USDC' : amountSymbol}
                   </>
                 )}
               </span>
             </div>
+            {tab === 'deposit' && (
+              <div className="text-[11px] text-ink/45 mb-2">
+                Only funds already on {chainName(opportunity.chainId)} can be deposited here.
+              </div>
+            )}
             <div className="flex gap-2 mb-3">
               <div className="flex-1 flex items-center border border-border rounded px-3 focus-within:border-accent">
                 {dollarInput && tab === 'deposit' && (
@@ -982,7 +985,17 @@ export function DepositWithdrawModal({
               </div>
             )}
             {insufficientBalance && !shouldMoveUsdc && (
-              <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
+              <div className="text-xs text-warn mb-3">
+                {tab === 'deposit'
+                  ? `That amount is higher than your wallet balance on ${chainName(opportunity.chainId)}. Lower it or tap Max.`
+                  : `That amount is higher than your deposited balance on ${chainName(opportunity.chainId)}. Lower it or tap Max.`}
+              </div>
+            )}
+            {txSent && pendingTxHash && (
+              <TransactionSentIndicator
+                status={step === 'approving' ? 'approving' : 'acting'}
+                hash={pendingTxHash}
+              />
             )}
             {errorMsg && <div className="text-xs text-danger mb-3 break-words">{errorMsg}</div>}
             {step === 'done' && (

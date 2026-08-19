@@ -54,7 +54,12 @@ export function OnrampModal({
     <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/70 sm:p-4">
       <div className="bg-paper border border-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 max-h-[min(96dvh,100%)] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         <div className="flex items-start justify-between gap-3 mb-3">
-          <h2 className="text-lg font-medium">Add USDC</h2>
+          <div>
+            <h2 className="text-lg font-medium">Add USDC</h2>
+            <p className="text-xs text-ink/50 mt-1">
+              Buy USDC to this wallet on {chainName(chainId)}.
+            </p>
+          </div>
           <button onClick={onClose} className="text-ink/50 hover:text-ink" aria-label="Close">
             ✕
           </button>
@@ -72,9 +77,9 @@ export function OnrampModal({
         {error && (
           <p className="text-sm text-ink/65 leading-relaxed">
             {notConfigured && NETWORK_MODE === 'testnet'
-              ? 'Practice mode. Send test USDC to this wallet, or use a Base Sepolia faucet.'
+              ? 'Buy USDC is unavailable in practice mode. Use a Base Sepolia USDC faucet.'
               : notConfigured
-                ? `Send USDC to this wallet on ${chainName(chainId)}.`
+                ? `Buy USDC is not configured yet. Send USDC to this wallet on ${chainName(chainId)}.`
                 : error}
             <span className="block font-mono text-xs text-ink/45 mt-2 break-all">{address}</span>
           </p>
