@@ -14,6 +14,8 @@ import { chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { GrowthChart } from '@/components/GrowthChart';
 import { PositionActions } from '@/components/PositionActions';
+import { HarvestRewards } from '@/components/HarvestRewards';
+import { hasTokenEmissions } from '@/lib/protocols/types';
 import { StockDesk } from '@/components/StockDesk';
 
 function StatCard({
@@ -181,6 +183,11 @@ export default function DashboardPage() {
                         </span>
                       </span>
                       <PositionActions opportunity={p.opportunity} />
+                      {hasTokenEmissions(p.opportunity.protocol) && (
+                        <div className="mt-2 w-full max-w-xs">
+                          <HarvestRewards opportunity={p.opportunity} compact />
+                        </div>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -239,6 +246,11 @@ export default function DashboardPage() {
                       <div className="mt-1.5">
                         <PositionActions opportunity={p.opportunity} />
                       </div>
+                      {hasTokenEmissions(p.opportunity.protocol) && (
+                        <div className="mt-2 text-left">
+                          <HarvestRewards opportunity={p.opportunity} compact />
+                        </div>
+                      )}
                     </div>
                   </li>
                 );

@@ -1,17 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <!-- Openhand tab icon: white 0.H on the app background. Shapes (not text) so it stays crisp at 16px. -->
-  <rect width="512" height="512" rx="112" fill="#0b0e11"/>
-  <!-- 0 — rounded rectangle so it reads as a zero, not a letter O -->
-  <path
-    fill="#ffffff"
-    fill-rule="evenodd"
-    d="M64 148c0-27.6 22.4-50 50-50h86c27.6 0 50 22.4 50 50v216c0 27.6-22.4 50-50 50h-86c-27.6 0-50-22.4-50-50V148zm44 10c0-8.8 7.2-16 16-16h66c8.8 0 16 7.2 16 16v196c0 8.8-7.2 16-16 16h-66c-8.8 0-16-7.2-16-16V158z"
-  />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Openhand tab mark: white 0.H, stroke logotype so it holds at 16px. -->
+  <rect width="64" height="64" rx="14" fill="#0b0e11"/>
+  <!-- 0 -->
+  <rect x="7.5" y="16" width="17.5" height="32" rx="7.5" stroke="#f2f4f7" stroke-width="3.25"/>
   <!-- . -->
-  <circle cx="282" cy="364" r="26" fill="#ffffff"/>
+  <rect x="28.4" y="42.6" width="4.2" height="4.2" rx="0.6" fill="#f2f4f7"/>
   <!-- H -->
   <path
-    fill="#ffffff"
-    d="M328 108h46v122h66V108h46v296h-46V286h-66v118h-46V108z"
+    d="M36.5 16.25v31.5M36.5 32h14.75M51.25 16.25v31.5"
+    stroke="#f2f4f7"
+    stroke-width="3.25"
+    stroke-linecap="butt"
+    stroke-linejoin="miter"
   />
 </svg>

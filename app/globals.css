@@ -22,6 +22,48 @@ body {
   border-color: #1e232b;
 }
 
+/* Native range thumbs default to OS blue — restyle to the Openhand accent. */
+input[type='range'].oh-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 20px;
+  margin: 0;
+}
+input[type='range'].oh-slider:focus {
+  outline: none;
+}
+input[type='range'].oh-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  background: transparent;
+}
+input[type='range'].oh-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 999px;
+  background: #3ecf8e;
+  border: 2px solid #0b0e11;
+  box-shadow: 0 0 0 1px #3ecf8e;
+  cursor: pointer;
+}
+input[type='range'].oh-slider::-moz-range-track {
+  height: 4px;
+  background: transparent;
+  border: none;
+}
+input[type='range'].oh-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #3ecf8e;
+  border: 2px solid #0b0e11;
+  box-shadow: 0 0 0 1px #3ecf8e;
+  cursor: pointer;
+}
+
 @media (display-mode: standalone), (display-mode: fullscreen) {
   html {
     overscroll-behavior: none;

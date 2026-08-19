@@ -33,6 +33,15 @@ function rewardTokensFor(opportunity: Opportunity): { address: `0x${string}`; sy
   return [];
 }
 
+function harvestLabel(step: Step, sellPct: number, busy: boolean): string {
+  if (step === 'claiming') return 'Claiming…';
+  if (step === 'selling') return `Selling ${sellPct}% to USDC…`;
+  if (busy) return 'Working…';
+  if (sellPct === 100) return 'Harvest to USDC';
+  if (sellPct === 0) return 'Harvest and hold';
+  return `Harvest · sell ${sellPct}%`;
+}
+
 /**
  * Claim protocol emissions, then optionally sell a chosen percent of *just-claimed*
  * tokens to USDC via 0x. Every step is signed by the connected wallet — there is
@@ -57,6 +66,7 @@ export function HarvestRewards({
   const moonwellCfg = (MOONWELL as Record<number, { comptroller?: `0x${string}` }>)[opportunity.chainId];
   const canHarvest = hasTokenEmissions(opportunity.protocol);
   const zeroexConfigured = Boolean(process.env.NEXT_PUBLIC_ZEROEX_API_KEY);
+  const rewardTicker = tokens.map((t) => t.symbol).join('/');
 
   const earned = useReadContract({
     address: opportunity.positionToken,
@@ -186,37 +196,76 @@ export function HarvestRewards({
 
   const earnedValue = typeof earned.data === 'bigint' ? earned.data : 0n;
   const busy = step === 'claiming' || step === 'selling';
-  const keepPct = 100 - sellPct;
+  const copy =
+    opportunity.protocol === 'moonwell'
+      ? `${rewardTicker || 'WELL'} rewards sit unclaimed until you harvest. They are not in this card’s APY.`
+      : 'CRV/CVX rewards accrue while staked. Harvest claims them to this wallet.';
 
   return (
-    <div className={compact ? 'text-left' : 'border border-border rounded-lg px-3 py-3 mb-3'}>
+    <div className={compact ? 'text-left' : 'border border-border rounded-xl px-3 py-3 mb-3'}>
       {!compact && <div className="text-sm font-medium mb-1">Token emissions</div>}
-      <p className={`${compact ? 'text-[11px]' : 'text-xs'} text-ink/55 leading-relaxed mb-2`}>
-        {opportunity.protocol === 'moonwell'
-          ? 'WELL rewards (if any) sit unclaimed until you harvest. They are not in the APY on this card.'
-          : 'CRV/CVX rewards accrue while staked. Harvest claims them to this wallet.'}{' '}
-        Openhand cannot sell in the background — you sign the claim, then any sell.
+      <p className={`${compact ? 'text-[11px]' : 'text-xs'} text-ink/50 leading-relaxed mb-2.5`}>
+        {copy} You sign the claim{sellPct > 0 ? ', then any sell' : ''}.
       </p>
       {opportunity.protocol === 'convex-cvxcrv' && earnedValue > 0n && (
         <div className="text-xs font-mono text-ink/70 mb-2">
           ~{formatTokenAmount(earnedValue, 18)} CRV claimable (plus any extra rewards)
         </div>
       )}
-      <label className="flex flex-col gap-1 mb-2">
-        <span className="text-[11px] text-ink/50">
-          Sell {sellPct}% to USDC · keep {keepPct}%
-        </span>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          step={5}
-          value={sellPct}
-          onChange={(e) => setSellPct(Number(e.target.value))}
-          className="w-full"
-          disabled={busy}
-        />
-      </label>
+
+      {compact ? (
+        <div className="inline-flex rounded-full border border-border p-0.5 mb-2.5">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setSellPct(100)}
+            className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+              sellPct === 100 ? 'bg-accent text-paper' : 'text-ink/55 hover:text-ink'
+            }`}
+          >
+            To USDC
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setSellPct(0)}
+            className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+              sellPct === 0 ? 'bg-ink/10 text-ink' : 'text-ink/55 hover:text-ink'
+            }`}
+          >
+            Keep {rewardTicker || 'tokens'}
+          </button>
+        </div>
+      ) : (
+        <label className="flex flex-col gap-2 mb-3">
+          <span className="text-[11px] text-ink/50 font-mono tracking-wide">
+            {sellPct === 100
+              ? 'Sell all claimed tokens to USDC'
+              : sellPct === 0
+                ? 'Keep claimed tokens in this wallet'
+                : `Sell ${sellPct}% to USDC · keep ${100 - sellPct}%`}
+          </span>
+          <span className="relative flex items-center h-5">
+            <span className="absolute inset-x-0 h-1 rounded-full bg-border" aria-hidden />
+            <span
+              className="absolute left-0 h-1 rounded-full bg-accent"
+              style={{ width: `${sellPct}%` }}
+              aria-hidden
+            />
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={sellPct}
+              onChange={(e) => setSellPct(Number(e.target.value))}
+              className="oh-slider relative w-full"
+              disabled={busy}
+            />
+          </span>
+        </label>
+      )}
+
       {errorMsg && <div className="text-xs text-danger mb-2 break-words">{errorMsg}</div>}
       {step === 'done' && (
         <div className="text-xs text-accent mb-2">
@@ -229,19 +278,11 @@ export function HarvestRewards({
         disabled={busy}
         className={
           compact
-            ? 'text-xs text-accent hover:underline disabled:opacity-40'
-            : 'w-full py-1.5 rounded border border-border text-xs text-ink/80 hover:text-ink disabled:opacity-40'
+            ? 'text-[11px] text-accent hover:text-accent/80 disabled:opacity-40'
+            : 'w-full py-1.5 rounded-lg border border-border text-xs text-ink/80 hover:text-ink disabled:opacity-40'
         }
       >
-        {step === 'claiming'
-          ? 'Claiming…'
-          : step === 'selling'
-            ? `Selling ${sellPct}% to USDC…`
-            : sellPct === 100
-              ? 'Harvest and sell to USDC'
-              : sellPct === 0
-                ? 'Harvest and hold'
-                : `Harvest · sell ${sellPct}%`}
+        {harvestLabel(step, sellPct, busy)}
       </button>
       {!zeroexConfigured && sellPct > 0 && (
         <p className="text-[11px] text-ink/40 mt-1">
