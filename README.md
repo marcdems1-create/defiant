@@ -3,7 +3,7 @@
 Public site: [openhand.online](https://openhand.online). GitHub repo: `defiant`.
 
 A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
-across Aave v3, Lido, Yearn v3, and Curve, and deposit or withdraw with transactions you sign
+(USDC catalog for now), and deposit or withdraw with transactions you sign
 yourself. Openhand never takes custody of user funds — there is no pooled contract, no admin
 key, no path for the app itself to move anyone's money.
 
@@ -190,6 +190,10 @@ Transak’s Referer check passes. Allowlist those hosts in the Transak dashboard
 Production keys + KYB are still required before real CAD hits a real wallet.
 
 ## Protocols integrated
+
+**Catalog is USDC-only for now.** ETH (Lido), CRV (Convex cvxCRV), and frxUSD (sfrxUSD)
+adapters remain in the repo but are not fetched or shown. Flip
+`lib/catalogAssets.ts` to bring them back.
 
 | Protocol | Chains | Asset | Deposit | Withdraw |
 |---|---|---|---|---|
@@ -419,9 +423,11 @@ npm run dev
   stETH→WithdrawalQueue allowance first. Harmless (redundant approve, no correctness issue)
   but means an extra wallet signature on repeat withdrawals. See the comment in
   `components/DepositWithdrawModal.tsx`.
-- **USDC only** for Aave and Yearn — no other assets wired up yet. Extending to more assets
-  means adding entries to `lib/config/addresses.ts` and generalizing the reserve/vault filter
-  in `lib/protocols/aave.ts` / `yearn.ts` beyond a single hardcoded USDC address.
+- **Public catalog is USDC-only.** Lido (ETH), Convex (CRV), and Frax (frxUSD) adapters
+  stay in the repo but are not fetched. `lib/catalogAssets.ts` is the allowlist.
+- **USDC only** for Aave and Yearn wiring — no other assets wired up yet. Extending to more
+  assets means adding entries to `lib/config/addresses.ts` and generalizing the reserve/vault
+  filter in `lib/protocols/aave.ts` / `yearn.ts` beyond a single hardcoded USDC address.
 - **No protocol risk scoring or TVL/liquidity display.** APY is shown with zero context on
   underlying risk (smart contract audit status, vault strategy composition, Aave utilization
   rate). A real "savings"-adjacent product needs this before it's honest to a non-technical
@@ -503,6 +509,7 @@ npm run dev
 | `components/CctpMove.tsx` | User-signed burn → wait → mint. Pending list in localStorage. |
 | `app/(public)/move/page.tsx` | Move USDC tool (not a strategy page) |
 | `lib/protocols/{aave,lido,yearn,curve,sky,maple,panoptic}.ts` | Per-protocol opportunity fetchers (APY + deposit target + liquidity/riskTier metadata) |
+| `lib/catalogAssets.ts` | Public catalog allowlist — USDC-only for now |
 | `lib/protocols/aggregate.ts` | Combines protocol fetchers into one sorted list |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |
