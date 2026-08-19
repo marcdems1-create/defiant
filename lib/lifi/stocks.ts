@@ -9,6 +9,7 @@ import {
   usdcOnStockChain,
   type StockChainId,
 } from '@/lib/config/lifi';
+import { fetchTokenizedStockMarketCaps } from '@/lib/lifi/marketCap';
 
 export type StockIssuer = 'xstocks' | 'ondo' | 'backed';
 
@@ -28,8 +29,18 @@ export interface StockToken {
   issuer: StockIssuer;
   /** LI.FI last price. Omitted from the catalog when unparseable — never guessed. */
   priceUsd: number;
+  /**
+   * CoinGecko tokenized-stock market cap in USD, when a symbol match parses.
+   * Token cap, not the listed company's equity cap. Omitted rather than guessed.
+   */
+  marketCapUsd?: number;
   logoURI?: string;
 }
+
+/** Dashboard tape length — top names by parseable market cap, not a featured pick. */
+export const STOCK_TAPE_SIZE = 50;
+
+const CHAIN_PREFERENCE: StockChainId[] = [8453, 42161, 1];
 
 export interface LifiQuote {
   chainId: StockChainId;
@@ -148,6 +159,49 @@ export async function fetchStockCatalog(): Promise<StockToken[]> {
   }
   out.sort((a, b) => a.symbol.localeCompare(b.symbol) || a.chainId - b.chainId);
   return out;
+}
+
+/** Attach CoinGecko caps onto an already-classified LI.FI catalog. Skip unparseable caps. */
+export async function withStockMarketCaps(tokens: StockToken[]): Promise<StockToken[]> {
+  if (tokens.length === 0) return tokens;
+  const caps = await fetchTokenizedStockMarketCaps();
+  const out = tokens.map((token) => {
+    const cap = caps.get(token.symbol.toLowerCase());
+    return cap !== undefined ? { ...token, marketCapUsd: cap } : token;
+  });
+  out.sort(compareStockTape);
+  return out;
+}
+
+/** When every chain is in view, keep one row per ticker (Base, then Arbitrum, then Ethereum). */
+export function preferOneChainPerSymbol(
+  tokens: StockToken[],
+  chainId: StockChainId | 'all',
+): StockToken[] {
+  if (chainId !== 'all') return tokens.filter((t) => t.chainId === chainId);
+  const rank = new Map(CHAIN_PREFERENCE.map((id, i) => [id, i]));
+  const best = new Map<string, StockToken>();
+  for (const token of tokens) {
+    const key = token.symbol.toLowerCase();
+    const prev = best.get(key);
+    if (!prev) {
+      best.set(key, token);
+      continue;
+    }
+    const nextRank = rank.get(token.chainId) ?? 99;
+    const prevRank = rank.get(prev.chainId) ?? 99;
+    if (nextRank < prevRank) best.set(key, token);
+  }
+  return [...best.values()];
+}
+
+export function compareStockTape(a: StockToken, b: StockToken): number {
+  const aCap = a.marketCapUsd;
+  const bCap = b.marketCapUsd;
+  if (aCap !== undefined && bCap !== undefined && aCap !== bCap) return bCap - aCap;
+  if (aCap !== undefined && bCap === undefined) return -1;
+  if (aCap === undefined && bCap !== undefined) return 1;
+  return a.symbol.localeCompare(b.symbol) || a.chainId - b.chainId;
 }
 
 function parseAmount(raw: unknown): bigint | null {

@@ -471,11 +471,15 @@ Not legal advice.
 ## Session update (2026-08-18) — LI.FI tokenized stocks on the dashboard
 
 Dashboard tape of tokenized stocks/ETFs via LI.FI (xStocks, Ondo, Backed). Browse
-filters only — alphabetical, no featured ticker, not added to the yield collection.
+filters only — default list is top 50 by CoinGecko token market cap, no featured ticker,
+not added to the yield collection.
 
 - Catalog: `GET /v1/tokens` then classify by issuer naming (LI.FI's only public tag is
   `stablecoin`). Skip unparseable `priceUSD` and ambiguous names. Checksum addresses
   with `getAddress` before `/v1/quote` or LI.FI returns 1003.
+- Caps: CoinGecko `/coins/markets?category=tokenized-stock`, matched by symbol. LI.FI has
+  no market-cap field. Skip unparseable caps — do not guess. This is the token's cap, not
+  the listed company's. Search still reaches names outside the top 50.
 - Swap is wallet-signed approve (exact amount) + `transactionRequest`. Same-chain USDC
   only. Mainnet to execute. No Openhand integrator fee; disclose LI.FI's own fee when
   quoted. Optional server-only `LIFI_API_KEY`.
