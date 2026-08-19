@@ -17,6 +17,25 @@ const config: Config = {
         sans: ['ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'monospace'],
       },
+      keyframes: {
+        'plane-fly': {
+          '0%': {
+            transform: 'translateX(0) translateY(1px) rotate(-9deg)',
+            opacity: '0.85',
+          },
+          '50%': {
+            transform: 'translateX(160px) translateY(-3px) rotate(2deg)',
+            opacity: '1',
+          },
+          '100%': {
+            transform: 'translateX(320px) translateY(1px) rotate(8deg)',
+            opacity: '0.85',
+          },
+        },
+      },
+      animation: {
+        'plane-fly': 'plane-fly 1.2s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

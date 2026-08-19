@@ -11,10 +11,13 @@ export function TransactionSentIndicator({
     <div className="mb-3 rounded border border-accent/35 bg-accent/10 px-3 py-2">
       <div className="flex items-center gap-2">
         <div className="relative h-5 flex-1 overflow-hidden rounded">
-          <div className="absolute left-0 right-0 top-1/2 border-t border-dashed border-accent/40" />
+          <div
+            className="absolute left-0 right-0 top-1/2 border-t border-dashed"
+            style={{ borderColor: 'rgba(62, 207, 142, 0.45)' }}
+          />
           <svg
             viewBox="0 0 24 24"
-            className="plane-fly absolute -top-0.5 left-0 h-5 w-5 text-accent"
+            className="absolute -top-0.5 left-0 h-5 w-5 text-accent animate-plane-fly"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.8"
@@ -33,26 +36,6 @@ export function TransactionSentIndicator({
       <div className="text-[11px] text-ink/55 mt-1">
         Waiting for chain confirmation · {hash.slice(0, 6)}…{hash.slice(-4)}
       </div>
-      <style jsx>{`
-        .plane-fly {
-          animation: plane-fly 1.2s ease-in-out infinite;
-        }
-
-        @keyframes plane-fly {
-          0% {
-            transform: translateX(0) translateY(1px) rotate(-9deg);
-            opacity: 0.85;
-          }
-          50% {
-            transform: translateX(160px) translateY(-3px) rotate(2deg);
-            opacity: 1;
-          }
-          100% {
-            transform: translateX(320px) translateY(1px) rotate(8deg);
-            opacity: 0.85;
-          }
-        }
-      `}</style>
     </div>
   );
 }
