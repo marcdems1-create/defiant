@@ -128,6 +128,10 @@ path. USDC is sent to the **connected wallet**. Openhand never receives the fund
 never holds a Transak customer account, and does not store the wallet address from
 this flow.
 
+**Cash out** is the same widget with `productsAvailed: SELL` (USDC → CAD / Interac).
+Transak must have SELL enabled on the partner app. Openhand still never receives the
+USDC; the user sends it to Transak from the connected wallet.
+
 Transak is the onramp for Canadian no-coiners: FINTRAC-registered, CAD, Interac
 e-Transfer, **no monthly partner fee** on the hosted widget (the $10k Transak fee
 is Whitelabel API only — this app does not use that). MoonPay blocks Canada on
@@ -352,6 +356,18 @@ still finds names outside that list. Nothing is featured as a pick.
 
 Optional `LIFI_API_KEY` (server-only) raises LI.FI rate limits. Catalog works without it.
 
+## Spot crypto (LI.FI)
+
+A second dashboard tape lists **spot crypto** (`components/CryptoDesk.tsx`): CoinGecko’s
+largest coins by market cap that LI.FI can route against USDC on Ethereum / Base /
+Arbitrum. Default sort is **24h change**. That is a catalog reorder of live data — not
+a featured pick and not “we suggest this coin.” Stables are omitted. BTC matches
+WBTC / cbBTC where native BTC is not an EVM token.
+
+Swap path is the same wallet-signed LI.FI quote as stocks (`POST /api/lifi/quote`,
+allowlisted to the stock tape **or** this crypto tape). Native ETH skips ERC-20
+approve. Do not add a highlighted “best performer” card.
+
 ## Site analytics
 
 The only optional server-side store is first-party anonymous event counts. There is no
@@ -524,7 +540,11 @@ npm run dev
 | `lib/lifi/stocks.ts` | Catalog filter + quote parser. Skip on parse failure — never guess a price. |
 | `lib/lifi/marketCap.ts` | CoinGecko tokenized-stock caps for the dashboard top-50 tape |
 | `app/api/lifi/stocks/route.ts` | Cached stock catalog for the dashboard tape |
-| `app/api/lifi/quote/route.ts` | USDC ↔ catalogued stock quote. Wallet signs the tx. |
+| `lib/lifi/crypto.ts` | CoinGecko top-50 mcap ∩ LI.FI tokens for the spot crypto tape |
+| `app/api/lifi/crypto/route.ts` | Cached crypto catalog |
+| `components/CryptoDesk.tsx` | Dashboard spot-crypto tape, sorted by 24h change |
+| `components/CryptoSwapModal.tsx` | USDC ↔ spot crypto, exact approve (native ETH skips approve) |
+| `components/UsdcCashPanel.tsx` | Combined USDC total + Buy / Cash out / Move |
 | `components/StockDesk.tsx` | Dashboard browse + holdings-in-view |
 | `components/StockSwapModal.tsx` | Approve + LI.FI swap, exact allowance |
 | `app/page.tsx` | Collection browse (first-run hero when disconnected / no positions) |

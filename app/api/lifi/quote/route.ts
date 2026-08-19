@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getAddress, isAddress } from 'viem';
 import { isStockChainId, usdcOnStockChain } from '@/lib/config/lifi';
+import { fetchCryptoCatalog } from '@/lib/lifi/crypto';
 import { fetchLifiQuote, fetchStockCatalog, isUsdcOnChain } from '@/lib/lifi/stocks';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Builds a LI.FI swap quote for USDC ↔ a catalogued tokenized stock.
+ * Builds a LI.FI swap quote for USDC ↔ a catalogued stock or spot-crypto token.
  * The connected wallet signs the returned tx — Openhand never does.
- * Restricted to our stock catalog + Circle USDC on that chain (not a generic swap proxy).
+ * Restricted to the stock tape or the crypto tape + Circle USDC on that chain
+ * (not a generic swap proxy).
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -54,16 +56,20 @@ export async function POST(request: Request) {
   const fromIsUsdc = isUsdcOnChain(chainId, fromToken);
   const toIsUsdc = isUsdcOnChain(chainId, toToken);
   if (fromIsUsdc === toIsUsdc) {
-    return NextResponse.json({ error: 'quote must be USDC against a stock token' }, { status: 400 });
+    return NextResponse.json({ error: 'quote must be USDC against a listed token' }, { status: 400 });
   }
-  const stockAddress = fromIsUsdc ? toToken : fromToken;
+  const listedAddress = fromIsUsdc ? toToken : fromToken;
 
-  const catalog = await fetchStockCatalog();
-  const listed = catalog.some(
-    (t) => t.chainId === chainId && t.address.toLowerCase() === stockAddress.toLowerCase(),
-  );
+  const [stocks, coins] = await Promise.all([fetchStockCatalog(), fetchCryptoCatalog()]);
+  const listed =
+    stocks.some(
+      (t) => t.chainId === chainId && t.address.toLowerCase() === listedAddress.toLowerCase(),
+    ) ||
+    coins.some(
+      (t) => t.chainId === chainId && t.address.toLowerCase() === listedAddress.toLowerCase(),
+    );
   if (!listed) {
-    return NextResponse.json({ error: 'token is not in the stock catalog' }, { status: 400 });
+    return NextResponse.json({ error: 'token is not in the LI.FI tape' }, { status: 400 });
   }
 
   const quote = await fetchLifiQuote({

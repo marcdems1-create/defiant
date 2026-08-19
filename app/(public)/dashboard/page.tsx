@@ -14,7 +14,9 @@ import { chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { GrowthChart } from '@/components/GrowthChart';
 import { PositionActions } from '@/components/PositionActions';
+import { CryptoDesk } from '@/components/CryptoDesk';
 import { StockDesk } from '@/components/StockDesk';
+import { UsdcCashPanel } from '@/components/UsdcCashPanel';
 
 function StatCard({
   label,
@@ -69,8 +71,8 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-medium tracking-tight">Dashboard</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
             Track where you stand and stay the course. Live on-chain reads only — Openhand never
-            holds your keys or funds. Tokenized stocks on this page are a separate LI.FI tape,
-            not yield.
+            holds your keys or funds. Spot crypto and tokenized stocks on this page are separate
+            LI.FI tapes, not yield, and not recommendations.
           </p>
         </div>
       </header>
@@ -87,6 +89,8 @@ export default function DashboardPage() {
           <ConnectButtonClient label="Deposit" />
         </div>
       )}
+
+      {isConnected && <UsdcCashPanel />}
 
       {isConnected && positionsLoading && (
         <div className="text-ink/50 text-sm">Reading your on-chain positions…</div>
@@ -247,6 +251,8 @@ export default function DashboardPage() {
           </section>
         </>
       )}
+
+      <CryptoDesk />
 
       <StockDesk />
 

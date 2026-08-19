@@ -21,6 +21,7 @@ export function FirstRunHero({
   usdcReady: boolean;
 }) {
   const [buyOpen, setBuyOpen] = useState(false);
+  const [cashOpen, setCashOpen] = useState(false);
   const empty = connected && usdcReady && usdcBalance === 0n;
   const funded = connected && usdcReady && usdcBalance > 0n;
 
@@ -65,13 +66,31 @@ export function FirstRunHero({
             Buy USDC
           </button>
         )}
+        {funded && address && starter && (
+          <button
+            type="button"
+            onClick={() => setCashOpen(true)}
+            className="rounded-xl border border-border text-sm px-4 py-2 hover:border-ink/40"
+          >
+            Cash out
+          </button>
+        )}
       </div>
 
       {buyOpen && address && starter && (
         <OnrampModal
           address={address}
           chainId={starter.chainId}
+          product="BUY"
           onClose={() => setBuyOpen(false)}
+        />
+      )}
+      {cashOpen && address && starter && (
+        <OnrampModal
+          address={address}
+          chainId={starter.chainId}
+          product="SELL"
+          onClose={() => setCashOpen(false)}
         />
       )}
     </section>
