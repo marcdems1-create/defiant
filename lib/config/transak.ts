@@ -1,5 +1,5 @@
 import { arbitrum, arbitrumSepolia, base, baseSepolia, mainnet, sepolia } from 'wagmi/chains';
-import { SITE_URL } from '@/lib/config/site';
+import { PRODUCTION_HOST, SITE_URL } from '@/lib/config/site';
 
 /**
  * Transak on-ramp for CAD / Interac → USDC into the connected wallet.
@@ -25,6 +25,8 @@ const USDC_NETWORK: Record<number, string> = {
 
 /** Hostnames Transak may list as referrerDomain. Session host must match. */
 const REFERRER_ALLOWLIST = new Set([
+  PRODUCTION_HOST,
+  `www.${PRODUCTION_HOST}`,
   'openhand.online',
   'www.openhand.online',
   'localhost',
@@ -40,7 +42,7 @@ export function transakReferrerDomain(): string {
   try {
     return new URL(SITE_URL).hostname;
   } catch {
-    return 'openhand.online';
+    return PRODUCTION_HOST;
   }
 }
 
@@ -56,7 +58,7 @@ export function transakReferrerDomainFromRequest(request: Request): string {
     }
   }
   const fallback = transakReferrerDomain();
-  return REFERRER_ALLOWLIST.has(fallback) ? fallback : 'openhand.online';
+  return REFERRER_ALLOWLIST.has(fallback) ? fallback : PRODUCTION_HOST;
 }
 
 export function transakApiKey(): string | undefined {

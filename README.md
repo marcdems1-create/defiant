@@ -1,6 +1,6 @@
 # Openhand
 
-Public site: [openhand.online](https://openhand.online). GitHub repo: `defiant`.
+Public site: [openhand.money](https://openhand.money). GitHub repo: `defiant`.
 
 A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
 across Aave v3, Lido, Yearn v3, and Curve, and deposit or withdraw with transactions you sign
@@ -15,17 +15,21 @@ key, no path for the app itself to move anyone's money.
 
 ## Production domain
 
-The product ships as **Openhand** at `https://openhand.online`. Point the Namecheap
+The product ships as **Openhand** at `https://openhand.money`. Point the Namecheap
 zone at Vercel (not the parking page) and add the domain on the Vercel project:
 
-1. In Namecheap, delete the URL Redirect on `@` and the parking `CNAME` on `www`.
+1. In Namecheap for `openhand.money`, delete any URL Redirect on `@` and parking `CNAME` on `www`.
 2. Apex `A` record: Host `@` → `216.198.79.1` (the value on this project's Vercel domain card).
 3. `CNAME` Host `www` → `cname.vercel-dns.com` (not `name.vercel-dns.com`).
-4. In Vercel → Project → Settings → Domains, add `openhand.online` and
-   `www.openhand.online`. Set the apex as primary.
-5. Set `NEXT_PUBLIC_SITE_URL=https://openhand.online` on the Vercel project.
-6. Register that origin in Reown / WalletConnect, Privy, and Transak’s
-   allowlist. `*.vercel.app` preview URLs are not the production host.
+4. In Vercel → Project → Settings → Domains, add `openhand.money` and
+   `www.openhand.money`. Set the **apex** as primary.
+5. Keep `openhand.online` and `www.openhand.online` on the same Vercel project so
+   they 308 to `https://openhand.money` (see `vercel.json` / `middleware.ts`).
+6. Set `NEXT_PUBLIC_SITE_URL=https://openhand.money` on the Vercel project (rebuild
+   after changing it — it is inlined at build time).
+7. Register `https://openhand.money` **and** `https://www.openhand.money` in Reown /
+   WalletConnect, Privy, and Transak. Leave the old `.online` origins listed until
+   those DNS records are gone. `*.vercel.app` preview URLs are not the production host.
 
 ## Why non-custodial
 
@@ -92,9 +96,10 @@ used a wallet can still get an address:
    A secret there is inlined into public JS and crashes the site with “invalid Privy app ID”
    (that was the 2026-08-17 white-screen). Redeploy after changing it.
 2. In the Privy dashboard: enable **Email**, **Passkeys**, and **embedded Ethereum wallets**.
-   Add **both** `https://openhand.online` and `https://www.openhand.online` as allowed
-   origins. Vercel currently 308s the apex to `www`; if only the apex is allowlisted,
-   the public site white-screens (`Application error: a client-side exception`).
+   Add **both** `https://openhand.money` and `https://www.openhand.money` as allowed
+   origins. The app 308s www (and the old `.online` host) to the apex; if only one
+   origin is allowlisted, the public site can white-screen (`Application error: a
+   client-side exception`).
 3. Connect offers email or a passkey first. Privy creates an embedded wallet for users
    who do not already have one. MetaMask / Rainbow / Rabby / WalletConnect remain available.
    Coinbase is not featured.
@@ -140,21 +145,21 @@ Deposit / swap / referral stay on wagmi — only the buy iframe uses Transak.
 **Reown stays.** Reown Cloud (`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`) is
 WalletConnect — how existing wallets connect. Transak does not replace it, and
 Reown AppKit’s bundled onramp should not replace Transak. Allowlist
-`openhand.online` in both dashboards.
+`openhand.money` in both dashboards.
 
 Do not add a second onramp “just in case Transak is down” until Transak has been used in production. MoonPay, Privy card onramp, Coinbase Onramp, and Reown AppKit onramp cannot do this CAD / Interac / USDC job. Banxa could, later — it is a second partner KYB, not a free toggle. If the Transak session fails, the modal already shows the wallet address so the user can send USDC themselves.
 
 **Setup (production):**
 
 1. Partner account at [dashboard.transak.com](https://dashboard.transak.com) → Developers.
-   Sign up with a **corporate email** on your own domain (e.g. `hello@openhand.online`).
+   Sign up with a **corporate email** on your own domain (e.g. `hello@openhand.money`).
    Gmail / Hotmail / Outlook / iCloud are rejected — you do **not** need to email sales
    for the hosted widget. Copy the API key and API secret. Staging keys are available
    immediately. Production also needs partner KYB (`https://forms.transak.com/kyb`)
    using the same email. After KYB, the dashboard **partner fee on the buy** is how
    Openhand monetizes (start ~0.5–1%; see "Fees"). Do not also turn on the deposit
    treasury cut.
-2. Allowlist `openhand.online` and `www.openhand.online`.
+2. Allowlist `openhand.money` and `www.openhand.money` (keep `.online` until that host is retired).
 3. On Vercel, set `TRANSAK_API_KEY` and `TRANSAK_API_SECRET` (server-only — never
    `NEXT_PUBLIC_*`). Optional `TRANSAK_STAGING=true` for Transak sandbox keys.
 4. The app must be `NEXT_PUBLIC_NETWORK_MODE=mainnet` for **production** keys (real USDC).
@@ -172,7 +177,7 @@ inside Transak.
 memory; Transak tokens last ~7 days) and then a **single-use widget URL** (~5 minutes).
 The modal fetches a fresh session on every open. Transak requires the end-user IP as
 `x-user-ip` for KYC/geo; Openhand forwards it and does not store it. `referrerDomain`
-matches the page host (`localhost` locally, `www.openhand.online` in production) so
+matches the page host (`localhost` locally, `openhand.money` in production) so
 Transak’s Referer check passes. Allowlist those hosts in the Transak dashboard.
 
 **Test (staging — no production KYB):**
