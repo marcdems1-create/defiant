@@ -201,6 +201,9 @@ Production keys + KYB are still required before real CAD hits a real wallet.
 | Maple (syrupUSDC) | Ethereum only | USDC | `SyrupRouter.deposit` (Maple lender auth required once) | `Pool.requestRedeem` — FIFO queue; USDC is pushed when processed |
 | Panoptic (Unicorn USDC) | Ethereum only | USDC | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
 
+For Aave cards, Openhand now also supports variable-rate USDC `borrow()` / `repay()` against the
+same Aave account, with wallet-signed transactions and in-modal health-factor warnings.
+
 Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
 `lib/protocols/curve.ts` turns each configured entry into its own opportunity:
 
@@ -481,6 +484,12 @@ npm run dev
 - **Referral is attribution-only in v1.** It links a referral code to a wallet with consent
   + signature proof, but does not yet include qualification, anti-fraud review queues, or
   payout orchestration.
+- **Borrow/repay is Aave USDC-only (v1).** No E-Mode selector, no stable-rate debt mode, no
+  collateral toggles, and no multi-asset borrow picker yet. The flow uses Aave variable debt
+  mode only (`interestRateMode = 2`) and warns on liquidation risk.
+- **Route & deposit auto-orchestration is scoped.** The one-click route path currently targets
+  USDC deposits on Aave cards: move USDC from another supported chain first, then deposit.
+  If settlement is delayed, the modal waits for funds and then proceeds manually.
 - **Looping stablecoin pools is not a product here.** Recursive supply/borrow of the same
   stable (deposit USDC, borrow USDC, deposit again) is leverage, not a dollar park. A depeg
   or oracle miss can liquidate a "stable-stable" loop; borrow APY can exceed supply APY so
@@ -533,6 +542,7 @@ npm run dev
 | `lib/protocols/aggregate.ts` | Combines protocol fetchers into one sorted list |
 | `lib/hooks/useOpportunities.ts` | React Query wrapper, 60s refresh |
 | `lib/hooks/usePositions.ts` | Batched on-chain read of the connected wallet's live balances across every opportunity |
+| `lib/hooks/useAaveBorrowData.ts` | Aave account data + variable debt reads for borrow/repay UI |
 | `lib/hooks/useSendFee.ts` | Sends the fee transfer (native or ERC-20) to the treasury address, no-ops if unconfigured |
 | `components/DepositWithdrawModal.tsx` | The actual transaction flow — fee transfer + approve/deposit/withdraw per protocol |
 | `components/HarvestRewards.tsx` | Wallet-signed claim of WELL/CRV/CVX, then optional % sell to USDC via 0x |

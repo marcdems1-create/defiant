@@ -22,13 +22,52 @@ export const aavePoolAbi = [
     ],
     outputs: [{ name: '', type: 'uint256' }],
   },
+  {
+    type: 'function',
+    name: 'borrow',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'asset', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'interestRateMode', type: 'uint256' },
+      { name: 'referralCode', type: 'uint16' },
+      { name: 'onBehalfOf', type: 'address' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'repay',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'asset', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'interestRateMode', type: 'uint256' },
+      { name: 'onBehalfOf', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'getUserAccountData',
+    stateMutability: 'view',
+    inputs: [{ name: 'user', type: 'address' }],
+    outputs: [
+      { name: 'totalCollateralBase', type: 'uint256' },
+      { name: 'totalDebtBase', type: 'uint256' },
+      { name: 'availableBorrowsBase', type: 'uint256' },
+      { name: 'currentLiquidationThreshold', type: 'uint256' },
+      { name: 'ltv', type: 'uint256' },
+      { name: 'healthFactor', type: 'uint256' },
+    ],
+  },
 ] as const;
 
 /**
  * Minimal ABI for UiPoolDataProviderV3.getReservesData — only the
  * AggregatedReserveData fields we read are declared. Field order and types
  * must match the real struct exactly through the last field we use
- * (aTokenAddress); trailing fields we don't need are safely omitted.
+ * (variableDebtTokenAddress); trailing fields we don't need are safely omitted.
  * Verified against aave-dao/aave-v3-origin IUiPoolDataProviderV3.sol.
  */
 export const uiPoolDataProviderAbi = [
@@ -60,6 +99,8 @@ export const uiPoolDataProviderAbi = [
           { name: 'variableBorrowRate', type: 'uint128' },
           { name: 'lastUpdateTimestamp', type: 'uint40' },
           { name: 'aTokenAddress', type: 'address' },
+          { name: 'stableDebtTokenAddress', type: 'address' },
+          { name: 'variableDebtTokenAddress', type: 'address' },
         ],
       },
       {

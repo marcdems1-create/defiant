@@ -22,7 +22,9 @@ import { computeFee, DEPOSIT_FEE_BPS, feesEnabled, WITHDRAW_FEE_BPS } from '@/li
 import { useSendFee } from '@/lib/hooks/useSendFee';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
 import { useCrossChainUsdc } from '@/lib/hooks/useCrossChainUsdc';
+import { useAaveBorrowData } from '@/lib/hooks/useAaveBorrowData';
 import { bridgeChainById } from '@/lib/config/bridgeChains';
+import { executeUsdcMove, type MoveStep } from '@/lib/bridge/execute';
 import { apyCaption, chainName, formatApy, formatTokenAmount, formatUsdcUsd } from '@/lib/format';
 import { ERC4626_PROTOCOLS, hasTokenEmissions } from '@/lib/protocols/types';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
@@ -35,10 +37,26 @@ import { ConnectButtonClient } from './ConnectButtonClient';
 import { MoveUsdcButton } from './MoveUsdcButton';
 import { isStableDollarAsset } from '@/lib/firstRun';
 
-type Tab = 'deposit' | 'withdraw';
-type Step = 'idle' | 'sendingFee' | 'approving' | 'acting' | 'done' | 'error';
+type Tab = 'deposit' | 'withdraw' | 'borrow' | 'repay';
+type Step =
+  | 'idle'
+  | 'routing'
+  | 'sendingFee'
+  | 'approving'
+  | 'acting'
+  | 'done'
+  | 'error';
 
 const NULL_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
+const AAVE_VARIABLE_RATE_MODE = 2n;
+
+function moveStepLabel(step: MoveStep, destLabel: string): string {
+  if (step === 'quoting') return 'Finding a route…';
+  if (step === 'switching') return 'Switching network…';
+  if (step === 'approving') return 'Approving move…';
+  if (step === 'moving') return 'Moving…';
+  return `Arriving on ${destLabel}…`;
+}
 
 export function DepositWithdrawModal({
   opportunity,
@@ -77,9 +95,12 @@ export function DepositWithdrawModal({
   const [buyOpen, setBuyOpen] = useState(false);
   const [mapleLender, setMapleLender] = useState<MapleLenderStatus | null>(null);
   const [moving, setMoving] = useState(false);
+  const [moveStep, setMoveStep] = useState<MoveStep | null>(null);
   const [awaitingMove, setAwaitingMove] = useState(false);
   const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
   const isUsdc = opportunity.asset.symbol.toUpperCase() === 'USDC';
+  const isAave = opportunity.protocol === 'aave-v3';
+  const aaveBorrow = useAaveBorrowData(opportunity, address);
 
   useEffect(() => {
     if (opportunity.protocol !== 'maple' || !address) {
@@ -96,6 +117,7 @@ export function DepositWithdrawModal({
   }, [opportunity.protocol, address]);
 
   useEffect(() => {
+    if (tab !== 'deposit' && tab !== 'withdraw') return;
     track(tab === 'withdraw' ? 'withdraw_open' : 'deposit_open', {
       opportunityId: opportunity.id,
       chainId: opportunity.chainId,
@@ -104,6 +126,7 @@ export function DepositWithdrawModal({
 
   const prevStep = useRef<Step>('idle');
   useEffect(() => {
+    if (tab !== 'deposit' && tab !== 'withdraw') return;
     if (step === 'done' && prevStep.current !== 'done') {
       track(tab === 'withdraw' ? 'withdraw_done' : 'deposit_done', {
         opportunityId: opportunity.id,
@@ -121,10 +144,15 @@ export function DepositWithdrawModal({
   const isSky = opportunity.protocol === 'sky';
   const isMaple = opportunity.protocol === 'maple';
   const isPanoptic = opportunity.protocol === 'panoptic';
+  const isBorrowTab = tab === 'borrow';
+  const isRepayTab = tab === 'repay';
+  const isBorrowRepayTab = isBorrowTab || isRepayTab;
   // Lido/Maple withdrawal fee is charged when funds actually land (Lido claim).
   // Maple's queue is push-based — no claim tx — so we skip the fee on request
   // rather than taking it from unrelated wallet funds.
+  const feeTab = tab === 'deposit' || tab === 'withdraw';
   const feeAppliesHere =
+    feeTab &&
     feesEnabled() &&
     !(opportunity.protocol === 'lido' && tab === 'withdraw') &&
     !(isMaple && tab === 'withdraw');
@@ -247,7 +275,7 @@ export function DepositWithdrawModal({
   const skyMinOut = (preview: bigint | undefined) =>
     preview ? (preview * (10_000n - SKY_SLIPPAGE_BPS)) / 10_000n : 0n;
 
-  const feeBps = tab === 'deposit' ? DEPOSIT_FEE_BPS : WITHDRAW_FEE_BPS;
+  const feeBps = tab === 'deposit' ? DEPOSIT_FEE_BPS : tab === 'withdraw' ? WITHDRAW_FEE_BPS : 0;
   // For a Curve withdrawal, amountBig is LP shares (18 decimals, not 1:1
   // with USDC) — the fee must be computed on the previewed USDC output
   // instead, or it comes out wildly wrong (off by orders of magnitude).
@@ -349,14 +377,19 @@ export function DepositWithdrawModal({
   );
   const skyWithdrawAllowanceValue = (skyWithdrawAllowance.data as bigint | undefined) ?? 0n;
 
+  const repayCap = aaveBorrow.variableDebtUsdc < walletBalance ? aaveBorrow.variableDebtUsdc : walletBalance;
   const maxAmount =
     tab === 'deposit'
       ? walletBalance
-      : isMoonwell
-        ? moonwellUnderlyingBalance
-        : isMaple
-          ? mapleUnderlying
-          : positionBalanceValue;
+      : tab === 'withdraw'
+        ? isMoonwell
+          ? moonwellUnderlyingBalance
+          : isMaple
+            ? mapleUnderlying
+            : positionBalanceValue
+        : tab === 'borrow'
+          ? aaveBorrow.availableBorrowsUsdc
+          : repayCap;
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
   function setMax() {
@@ -376,6 +409,7 @@ export function DepositWithdrawModal({
       allowance.refetch(),
       skyWithdrawAllowance.refetch(),
       crossChain.refetch(),
+      aaveBorrow.refetch(),
     ]);
   }
 
@@ -412,6 +446,68 @@ export function DepositWithdrawModal({
   useEffect(() => {
     if (walletBalance > 0n) setAwaitingMove(false);
   }, [walletBalance]);
+
+  async function handleRouteAndDeposit() {
+    if (!address || amountBig === 0n || !bestOtherChainUsdc) return;
+    const source = bridgeChainById(bestOtherChainUsdc.chainId);
+    const destination = bridgeChainById(opportunity.chainId);
+    if (!source || !destination) {
+      setStep('error');
+      setErrorMsg("Couldn't route USDC on this chain pair.");
+      return;
+    }
+
+    const needed = amountBig > walletBalance ? amountBig - walletBalance : 0n;
+    if (needed === 0n) {
+      await handleDeposit();
+      return;
+    }
+
+    const moveAmount = needed < bestOtherChainUsdc.balance ? needed : bestOtherChainUsdc.balance;
+    if (moveAmount <= 0n) {
+      setStep('error');
+      setErrorMsg('No USDC available to move from other chains.');
+      return;
+    }
+
+    setErrorMsg(null);
+    setStep('routing');
+    setMoving(true);
+    const result = await executeUsdcMove({
+      account: address,
+      fromChainId: source.id,
+      toChainId: destination.id,
+      fromToken: source.usdc,
+      toToken: destination.usdc,
+      amount: moveAmount,
+      currentChainId,
+      onStep: (s) => setMoveStep(s),
+    });
+    setMoving(false);
+    setMoveStep(null);
+
+    if (!result.ok) {
+      setStep('error');
+      setErrorMsg(result.error);
+      return;
+    }
+
+    setAwaitingMove(Boolean(result.late));
+    await refreshBalances();
+
+    if (result.late) {
+      setStep('idle');
+      return;
+    }
+
+    if (walletBalance + moveAmount < amountBig) {
+      setStep('error');
+      setErrorMsg('Moved available USDC, but total still below the deposit amount.');
+      return;
+    }
+
+    await handleDeposit();
+  }
 
   async function handleDeposit() {
     if (!address || amountBig === 0n) return;
@@ -765,10 +861,82 @@ export function DepositWithdrawModal({
     }
   }
 
+  async function handleBorrow() {
+    if (!isAave || !address || amountBig === 0n) return;
+    setErrorMsg(null);
+    try {
+      await ensureChain();
+      if (!aaveBorrow.borrowable) {
+        throw new Error('Borrow is not available for this position yet. Supply collateral first.');
+      }
+      if (amountBig > aaveBorrow.availableBorrowsUsdc) {
+        throw new Error('Amount exceeds available borrow for this account.');
+      }
+      setStep('acting');
+      const hash = await writeTx({
+        address: opportunity.depositTarget,
+        abi: aavePoolAbi,
+        functionName: 'borrow',
+        args: [opportunity.asset.address, amountBig, AAVE_VARIABLE_RATE_MODE, 0, address],
+        chainId: opportunity.chainId,
+      });
+      await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+      setStep('done');
+      await refreshBalances();
+    } catch (e) {
+      setStep('error');
+      setErrorMsg(formatTxError(e));
+    }
+  }
+
+  async function handleRepay() {
+    if (!isAave || !address || amountBig === 0n) return;
+    setErrorMsg(null);
+    try {
+      await ensureChain();
+      if (aaveBorrow.variableDebtUsdc <= 0n) {
+        throw new Error('No active USDC debt to repay.');
+      }
+      const repayAmount = amountBig < aaveBorrow.variableDebtUsdc ? amountBig : aaveBorrow.variableDebtUsdc;
+      if (allowanceValue < repayAmount) {
+        setStep('approving');
+        const approveHash = await writeTx({
+          address: opportunity.asset.address,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [spender, repayAmount],
+          chainId: opportunity.chainId,
+        });
+        await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
+        await allowance.refetch();
+      }
+      setStep('acting');
+      const hash = await writeTx({
+        address: opportunity.depositTarget,
+        abi: aavePoolAbi,
+        functionName: 'repay',
+        args: [opportunity.asset.address, repayAmount, AAVE_VARIABLE_RATE_MODE, address],
+        chainId: opportunity.chainId,
+      });
+      await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+      setStep('done');
+      await refreshBalances();
+    } catch (e) {
+      setStep('error');
+      setErrorMsg(formatTxError(e));
+    }
+  }
+
   const busy =
-    step === 'sendingFee' || step === 'approving' || step === 'acting' || switching || moving;
+    step === 'routing' ||
+    step === 'sendingFee' ||
+    step === 'approving' ||
+    step === 'acting' ||
+    switching ||
+    moving;
   const pauseNetworkNudge = moving || sourcingFromOtherChain;
   const waitingOnSwitch = wrongNetwork && !switchFailed && !pauseNetworkNudge;
+  const tabOptions: Tab[] = isAave ? ['deposit', 'withdraw', 'borrow', 'repay'] : ['deposit', 'withdraw'];
   const shouldMoveUsdc =
     tab === 'deposit' &&
     isUsdc &&
@@ -830,13 +998,19 @@ export function DepositWithdrawModal({
             not a recommendation.
           </div>
         )}
+        {isAave && isBorrowRepayTab && (
+          <div className="text-xs text-warn bg-warn/10 border border-warn/30 rounded px-3 py-2 mb-4 leading-relaxed">
+            Borrowing adds liquidation risk. Rates can rise and borrowed USDC is a liability until
+            repaid. This app does not automate looped leverage strategies.
+          </div>
+        )}
         {address && hasTokenEmissions(opportunity.protocol) && (
           <HarvestRewards opportunity={opportunity} />
         )}
 
         {address && (
           <div className="flex gap-2 mb-4">
-            {(['deposit', 'withdraw'] as Tab[]).map((t) => (
+            {tabOptions.map((t) => (
               <button
                 key={t}
                 onClick={() => {
@@ -844,8 +1018,10 @@ export function DepositWithdrawModal({
                   setStep('idle');
                   setErrorMsg(null);
                   setAmount('');
+                  setMoveStep(null);
+                  setAwaitingMove(false);
                 }}
-                className={`flex-1 py-1.5 rounded text-sm capitalize border ${
+                className={`flex-1 py-1.5 rounded text-xs sm:text-sm capitalize border ${
                   tab === t
                     ? 'bg-accent text-paper border-accent'
                     : 'border-border text-ink/70'
@@ -875,9 +1051,33 @@ export function DepositWithdrawModal({
               </div>
             )}
             <div className="flex justify-between text-xs text-ink/50 mb-1 gap-3">
-              <span>Amount{dollarInput && tab === 'deposit' ? ' (USD)' : ''}</span>
+              <span>
+                {isBorrowTab
+                  ? 'Borrow amount (USDC)'
+                  : isRepayTab
+                    ? 'Repay amount (USDC)'
+                    : `Amount${dollarInput && tab === 'deposit' ? ' (USD)' : ''}`}
+              </span>
               <span className="text-right leading-relaxed">
-                {tab === 'deposit' && dollarInput ? (
+                {isBorrowTab ? (
+                  <>
+                    <span className="block">
+                      Available: ${formatUsdcUsd(aaveBorrow.availableBorrowsUsdc)} USDC
+                    </span>
+                    <span className="block text-ink/70">
+                      Health factor: {aaveBorrow.healthFactorDisplay}
+                    </span>
+                  </>
+                ) : isRepayTab ? (
+                  <>
+                    <span className="block">
+                      Debt: ${formatUsdcUsd(aaveBorrow.variableDebtUsdc)} USDC
+                    </span>
+                    <span className="block text-ink/70">
+                      Wallet: ${formatUsdcUsd(walletBalance)} USDC
+                    </span>
+                  </>
+                ) : tab === 'deposit' && dollarInput ? (
                   <>
                     <span className="block">
                       ${formatUsdcUsd(walletBalance)} on {chainName(opportunity.chainId)}
@@ -898,7 +1098,7 @@ export function DepositWithdrawModal({
             </div>
             <div className="flex gap-2 mb-3">
               <div className="flex-1 flex items-center border border-border rounded px-3 focus-within:border-accent">
-                {dollarInput && tab === 'deposit' && (
+                {dollarInput && (tab === 'deposit' || isBorrowRepayTab) && (
                   <span className="text-ink/45 font-mono text-sm mr-1">$</span>
                 )}
                 <input
@@ -906,7 +1106,7 @@ export function DepositWithdrawModal({
                   inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder={dollarInput && tab === 'deposit' ? '50' : '0.0'}
+                  placeholder={dollarInput && (tab === 'deposit' || isBorrowRepayTab) ? '50' : '0.0'}
                   className="flex-1 bg-transparent py-2 text-sm font-mono outline-none"
                 />
               </div>
@@ -917,7 +1117,7 @@ export function DepositWithdrawModal({
                 Max
               </button>
             </div>
-            {dollarInput && tab === 'deposit' && (
+            {dollarInput && (tab === 'deposit' || isBorrowRepayTab) && (
               <div className="flex gap-2 mb-4">
                 {['25', '50', '100'].map((preset) => (
                   <button
@@ -982,12 +1182,22 @@ export function DepositWithdrawModal({
               </div>
             )}
             {insufficientBalance && !shouldMoveUsdc && (
-              <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
+              <div className="text-xs text-danger mb-3">
+                {isBorrowTab
+                  ? 'Amount exceeds available borrow.'
+                  : isRepayTab
+                    ? 'Amount exceeds debt or wallet balance.'
+                    : 'Amount exceeds available balance.'}
+              </div>
             )}
             {errorMsg && <div className="text-xs text-danger mb-3 break-words">{errorMsg}</div>}
             {step === 'done' && (
               <div className="text-xs text-accent mb-3">
-                {tab === 'withdraw' && opportunity.protocol === 'lido'
+                {isBorrowTab
+                  ? `Borrowed $${amount || '0'} USDC from Aave. Keep health factor safely above 1.0.`
+                  : isRepayTab
+                    ? `Repayment submitted. Remaining debt updates after confirmation.`
+                  : tab === 'withdraw' && opportunity.protocol === 'lido'
                   ? 'Withdrawal requested. It will appear below once claimable.'
                   : tab === 'withdraw' && isMaple
                     ? 'Withdrawal requested. Maple sends USDC to this wallet when the queue processes — no extra claim.'
@@ -1012,19 +1222,32 @@ export function DepositWithdrawModal({
                 USDC is on the way to {chainName(opportunity.chainId)}.
               </p>
             ) : shouldMoveUsdc && address && bestOtherChainUsdc ? (
-              <MoveUsdcButton
-                address={address}
-                destChainId={opportunity.chainId}
-                destLabel={chainName(opportunity.chainId)}
-                source={bestOtherChainUsdc}
-                requestedAmount={amountBig}
-                disabled={busy && !moving}
-                onBusy={setMoving}
-                onMoved={() => {
-                  setAwaitingMove(true);
-                  void refreshBalances();
-                }}
-              />
+              isAave && tab === 'deposit' ? (
+                <button
+                  type="button"
+                  onClick={() => void handleRouteAndDeposit()}
+                  disabled={busy || waitingOnSwitch || amountBig === 0n}
+                  className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {step === 'routing' && moveStep
+                    ? moveStepLabel(moveStep, chainName(opportunity.chainId))
+                    : `Route & deposit $${amount || '0'}`}
+                </button>
+              ) : (
+                <MoveUsdcButton
+                  address={address}
+                  destChainId={opportunity.chainId}
+                  destLabel={chainName(opportunity.chainId)}
+                  source={bestOtherChainUsdc}
+                  requestedAmount={amountBig}
+                  disabled={busy && !moving}
+                  onBusy={setMoving}
+                  onMoved={() => {
+                    setAwaitingMove(true);
+                    void refreshBalances();
+                  }}
+                />
+              )
             ) : tab === 'deposit' && address && walletBalance === 0n ? (
               <button
                 type="button"
@@ -1035,14 +1258,24 @@ export function DepositWithdrawModal({
               </button>
             ) : (
               <button
-                onClick={tab === 'deposit' ? handleDeposit : handleWithdraw}
+                onClick={
+                  tab === 'deposit'
+                    ? handleDeposit
+                    : tab === 'withdraw'
+                      ? handleWithdraw
+                      : tab === 'borrow'
+                        ? handleBorrow
+                        : handleRepay
+                }
                 disabled={
                   busy ||
                   waitingOnSwitch ||
                   amountBig === 0n ||
                   insufficientBalance ||
                   !address ||
-                  (isMaple && tab === 'deposit' && mapleLender === 'unauthorized')
+                  (isMaple && tab === 'deposit' && mapleLender === 'unauthorized') ||
+                  (isBorrowTab && !aaveBorrow.borrowable) ||
+                  (isRepayTab && aaveBorrow.variableDebtUsdc === 0n)
                 }
                 className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
               >
@@ -1050,10 +1283,16 @@ export function DepositWithdrawModal({
                   ? 'Deposit'
                   : switching || waitingOnSwitch
                     ? `Switching to ${chainName(opportunity.chainId)}…`
+                    : step === 'routing'
+                      ? moveStep
+                        ? moveStepLabel(moveStep, chainName(opportunity.chainId))
+                        : 'Routing…'
                     : step === 'sendingFee'
                     ? 'Sending fee…'
                     : step === 'approving'
-                      ? dollarInput && amount
+                      ? tab === 'repay'
+                        ? `Approve $${amount || '0'} ${opportunity.asset.symbol}`
+                        : dollarInput && amount
                         ? `Approve $${amount} ${opportunity.asset.symbol}`
                         : 'Approving…'
                       : step === 'acting'
@@ -1062,11 +1301,19 @@ export function DepositWithdrawModal({
                           ? dollarInput && amount
                             ? `Deposit $${amount}`
                             : `Deposit ${opportunity.asset.symbol}`
-                          : opportunity.protocol === 'lido'
+                          : tab === 'withdraw' && opportunity.protocol === 'lido'
                             ? 'Request withdrawal'
-                            : isMaple && tab === 'withdraw'
+                            : tab === 'withdraw' && isMaple
                               ? 'Request withdrawal'
-                              : `Withdraw ${opportunity.asset.symbol}`}
+                              : tab === 'withdraw'
+                                ? `Withdraw ${opportunity.asset.symbol}`
+                                : tab === 'borrow'
+                                  ? dollarInput && amount
+                                    ? `Borrow $${amount}`
+                                    : `Borrow ${opportunity.asset.symbol}`
+                                  : dollarInput && amount
+                                    ? `Repay $${amount}`
+                                    : `Repay ${opportunity.asset.symbol}`}
               </button>
             )}
 
