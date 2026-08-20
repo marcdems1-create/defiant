@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import type { Opportunity } from '@/lib/protocols/types';
 import { chainName } from '@/lib/format';
 import { ConnectButtonClient } from './ConnectButtonClient';
@@ -33,9 +32,9 @@ export function FirstRunHero({
           First session
         </p>
         <h1 className="text-3xl font-medium tracking-tight">
-          {!connected && 'Get a wallet and add dollars'}
+          {!connected && 'Get a wallet, add dollars, put them to work'}
           {empty && 'Add USDC to this wallet'}
-          {funded && 'USDC is in this wallet'}
+          {funded && 'Put your USDC to work'}
           {connected && !usdcReady && 'Checking your wallet…'}
         </h1>
         <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
@@ -46,14 +45,14 @@ export function FirstRunHero({
               ? `This wallet has no USDC on ${starter ? chainName(starter.chainId) : 'Base'} yet.`
               : 'Practice mode. Use a Base Sepolia USDC faucet.')}
           {funded &&
-            'Hold it as cash, browse yield cards, or buy gold, stocks, or crypto. Price can go down. Openhand does not pick for you.'}
+            'Your USDC is in this wallet. Browse the collection and deposit into any card you choose.'}
         </p>
       </div>
 
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <Step n={1} done={connected} label="Wallet" detail="Email or passkey" />
         <Step n={2} done={funded} label="Add USDC" detail="Buy or send" />
-        <Step n={3} done={false} label="Use it" detail="Yield or price upside" />
+        <Step n={3} done={false} label="Deposit" detail="Pick a card" />
       </ol>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -75,11 +74,6 @@ export function FirstRunHero({
           >
             Cash out
           </button>
-        )}
-        {funded && (
-          <Link href="/dashboard" className="text-sm text-accent hover:underline">
-            Gold, stocks, and crypto →
-          </Link>
         )}
       </div>
 

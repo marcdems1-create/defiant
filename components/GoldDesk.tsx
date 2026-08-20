@@ -87,12 +87,9 @@ export function GoldDesk() {
         <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
           Tokenized gold
         </p>
-        <h2 className="text-lg font-medium">PAXG and XAUt via LI.FI</h2>
+        <h2 className="text-lg font-medium">PAXG · XAUt</h2>
         <p className="text-sm text-ink/50 mt-1 max-w-2xl leading-relaxed">
-          Official one-ounce gold tokens on Ethereum — Paxos Gold and Tether Gold. Gold pays no
-          coupon; the number that moves is the metal&apos;s price, up or down. Not yield, not a
-          savings product, not a pick. A row is skipped when LI.FI has no parseable price. You
-          sign every swap. Openhand never holds the tokens.
+          One troy ounce tokens on Ethereum. You sign every swap. Openhand never holds the tokens.
         </p>
       </div>
 
@@ -195,10 +192,7 @@ export function GoldDesk() {
       )}
 
       {tokens.length > 0 && (
-        <p className="text-xs text-ink/40">
-          Sorted by CoinGecko token market cap when a cap parsed. Not a recommendation. Gold
-          price can fall.
-        </p>
+        <p className="text-xs text-ink/40">PAXG and XAUt. Not a recommendation.</p>
       )}
 
       {!mainnet && (

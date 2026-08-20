@@ -2,7 +2,7 @@
   "name": "defiant",
   "version": "0.1.0",
   "private": true,
-  "description": "Non-custodial cash, yield, and price upside",
+  "description": "Non-custodial DeFi yield interface",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

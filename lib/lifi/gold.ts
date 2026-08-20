@@ -12,10 +12,8 @@ import {
 } from '@/lib/config/lifi';
 
 /**
- * Tokenized gold tape: official PAXG and XAUt only, and only when LI.FI
- * currently lists that exact Ethereum address with a parseable price.
- * Gold pays no coupon — this is metal price upside (and downside), not yield.
- * Skip L2 lookalikes and vault wrappers. Never guess a price, cap, or 24h %.
+ * Official PAXG and XAUt only. Skip if LI.FI has no parseable price.
+ * Never guess a price, cap, or 24h %. No L2 lookalikes.
  */
 
 export const GOLD_ISSUER_LABEL: Record<TokenizedGoldIssuer, string> = {

@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Openhand',
     short_name: 'Openhand',
     description:
-      'Cash, yield, and price upside. Connect your wallet. You sign every move. Openhand never holds your funds.',
+      'Compare on-chain yield. Connect your wallet, deposit and withdraw yourself. Openhand never holds your funds.',
     start_url: '/',
     scope: '/',
     display: 'standalone',
@@ -46,7 +46,7 @@ export default function manifest(): MetadataRoute.Manifest {
       {
         name: 'Dashboard',
         short_name: 'Dashboard',
-        description: 'Cash, gold, stocks, crypto, and yield positions',
+        description: 'Your on-chain positions',
         url: '/dashboard',
         icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
       },

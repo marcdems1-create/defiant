@@ -222,9 +222,7 @@ export function GoldSwapModal({
         </div>
 
         <p className="text-xs text-ink/50 leading-relaxed mb-4">
-          Meant to track one troy ounce of vaulted gold. Gold pays no coupon — this is price
-          upside and downside, not yield, and not a savings product. You sign the swap.
-          Openhand never holds the tokens.
+          One troy ounce token. You sign the swap. Openhand never holds the tokens.
         </p>
 
         {!mainnet && (

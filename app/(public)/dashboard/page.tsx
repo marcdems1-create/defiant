@@ -65,13 +65,13 @@ export default function DashboardPage() {
       <header className="flex flex-col gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-            Your money
+            Your yield journey
           </p>
           <h1 className="text-3xl font-medium tracking-tight">Dashboard</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
-            Cash, yield, and price upside in one wallet you control. Gold, stocks, and crypto can
-            go down as well as up — they are not yield cards and not picks. Live on-chain reads
-            only. Openhand never holds your keys or funds.
+            Track where you stand and stay the course. Live on-chain reads only — Openhand never
+            holds your keys or funds. Gold, crypto, and stocks on this page are LI.FI tapes, not
+            yield, and not recommendations.
           </p>
         </div>
       </header>
@@ -100,8 +100,8 @@ export default function DashboardPage() {
       {isConnected && !positionsLoading && positions.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center">
           <p className="text-ink/60 text-sm mb-4">
-            No yield positions yet. Cash and price upside (gold, stocks, crypto) still live on
-            this page. Yield cards are on Collection — Openhand does not pick one.
+            No active positions yet. Pick a yield card and deposit from your wallet to start
+            tracking progress here.
           </p>
           <Link href="/" className="text-sm text-accent hover:underline">
             Browse the collection →

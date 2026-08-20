@@ -16,8 +16,8 @@ export function RiskDisclaimer({
       </p>
       <p className="text-sm text-ink/65 leading-relaxed">
         {compact
-          ? 'Yield is not a bank deposit and is not insured. Gold, stocks, and crypto can lose value. Openhand never holds your funds.'
-          : 'On-chain yield is not a bank deposit and is not insured. Returns are variable and not guaranteed. Gold, stocks, and crypto can go down as well as up. You can lose capital to market, liquidity, or smart-contract failure. Openhand is non-custodial — we never hold your funds.'}
+          ? 'On-chain yield is not a bank deposit and is not insured. You can lose money. Openhand never holds your funds.'
+          : 'On-chain yield is not a bank deposit and is not insured. Returns are variable and not guaranteed. You can lose capital to market, liquidity, or smart-contract failure. Openhand is non-custodial — we never hold your funds.'}
       </p>
       <p className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.12em] text-ink/40 font-mono">
         <span>Not insured</span>
@@ -39,8 +39,8 @@ export function RiskFooter() {
     <footer className="border-t border-border mt-10 mb-2 md:mt-16 md:mb-0">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-5 text-[11px] leading-relaxed text-ink/40">
         Openhand is a non-custodial interface. Yield is not a deposit, is not insured, and is not
-        guaranteed. Gold, stocks, and crypto can lose value. Capital is at risk, including from
-        smart-contract failure. Not an offer of securities or investment advice.
+        guaranteed. Capital is at risk, including from smart-contract failure. Not an offer of
+        securities or investment advice.
       </div>
     </footer>
   );
