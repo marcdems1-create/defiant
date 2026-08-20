@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseUnits, formatUnits } from 'viem';
-import { useAccount, useBalance, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi';
+import { useAccount, useBalance, useChainId, useReadContract, useSwitchChain } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
 import type { Opportunity } from '@/lib/protocols/types';
 import { erc20Abi } from '@/lib/abi/erc20';
@@ -15,7 +15,7 @@ import { compoundCometAbi } from '@/lib/abi/compoundComet';
 import { moonwellMTokenAbi } from '@/lib/abi/moonwell';
 import { sparkPsmAbi } from '@/lib/abi/sparkPsm';
 import { maplePoolAbi, mapleSyrupRouterAbi } from '@/lib/abi/maple';
-import { LIDO } from '@/lib/config/addresses';
+import { AAVE_V3, LIDO } from '@/lib/config/addresses';
 import { MAPLE_DEPOSIT_DATA, fetchMapleLenderStatus, type MapleLenderStatus } from '@/lib/protocols/maple';
 import { getWagmiConfig, NETWORK_MODE } from '@/lib/wagmi';
 import { computeFee, DEPOSIT_FEE_BPS, feesEnabled, WITHDRAW_FEE_BPS } from '@/lib/config/fees';
@@ -26,7 +26,10 @@ import { bridgeChainById } from '@/lib/config/bridgeChains';
 import { dismissStoredUsdcMove, movesForAccount } from '@/lib/bridge/pending';
 import { apyCaption, chainName, formatApy, formatTokenAmount, formatUsdcUsd, txExplorerUrl } from '@/lib/format';
 import { ERC4626_PROTOCOLS, hasTokenEmissions } from '@/lib/protocols/types';
-import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
+import { formatTxError, MIN_GAS_WEI } from '@/lib/tx/gas';
+import { useSponsoredWrite, willPayGasInUsdc, type ContractCall } from '@/lib/hooks/useSponsoredWrite';
+import { gasPermitAmount } from '@/lib/config/paymaster';
+import { getTreasuryAddress } from '@/lib/config/fees';
 import { track } from '@/lib/analytics/track';
 import { LidoWithdrawalRequests } from './LidoWithdrawalRequests';
 import { MapleWithdrawalStatus } from './MapleWithdrawalStatus';
@@ -58,21 +61,8 @@ export function DepositWithdrawModal({
   const { switchChainAsync, isPending: switching } = useSwitchChain();
   const [switchFailed, setSwitchFailed] = useState(false);
   const autoSwitchKey = useRef('');
-  const { writeContractAsync } = useWriteContract();
   const { sendFee } = useSendFee();
-
-  async function writeTx(params: {
-    address: `0x${string}`;
-    abi: readonly { type?: string }[];
-    functionName: string;
-    args?: readonly unknown[];
-    value?: bigint;
-    chainId: number;
-  }) {
-    if (!address) throw new Error('Connect a wallet first');
-    const gas = await estimateCappedGas({ ...params, account: address });
-    return writeContractAsync({ ...params, gas } as never);
-  }
+  const { sendCalls } = useSponsoredWrite();
 
   const [tab, setTab] = useState<Tab>(initialTab);
   const [amount, setAmount] = useState('');
@@ -153,8 +143,11 @@ export function DepositWithdrawModal({
   const nativeBalance = useBalance({
     address,
     chainId: opportunity.chainId,
-    query: { enabled: isNativeDeposit && Boolean(address) },
+    query: { enabled: Boolean(address) },
   });
+  const nativeWei = nativeBalance.data?.value ?? 0n;
+  const gasUsdcToken = AAVE_V3[opportunity.chainId]?.usdc;
+  const gasUsdcBalance = useErc20Balance(gasUsdcToken, address, opportunity.chainId);
   const erc20WalletBalance = useErc20Balance(
     isNativeDeposit ? undefined : opportunity.asset.address,
     address,
@@ -163,6 +156,18 @@ export function DepositWithdrawModal({
   const walletBalance = isNativeDeposit
     ? nativeBalance.data?.value ?? 0n
     : ((erc20WalletBalance.data as bigint | undefined) ?? 0n);
+  const usdcForGas = isNativeDeposit
+    ? 0n
+    : isUsdc
+      ? walletBalance
+      : ((gasUsdcBalance.data as bigint | undefined) ?? 0n);
+  const payingGasInUsdc = willPayGasInUsdc({
+    chainId: opportunity.chainId,
+    nativeWei,
+    usdcBalance: usdcForGas,
+  });
+  const gasReserve =
+    payingGasInUsdc && tab === 'deposit' && isUsdc ? gasPermitAmount(opportunity.chainId) : 0n;
 
   const canSeeOtherChains =
     NETWORK_MODE === 'mainnet' && isUsdc && Boolean(bridgeChainById(opportunity.chainId));
@@ -356,9 +361,15 @@ export function DepositWithdrawModal({
   );
   const skyWithdrawAllowanceValue = (skyWithdrawAllowance.data as bigint | undefined) ?? 0n;
 
+  const depositWalletMax =
+    tab === 'deposit' && gasReserve > 0n && walletBalance > gasReserve
+      ? walletBalance - gasReserve
+      : tab === 'deposit' && gasReserve > 0n
+        ? 0n
+        : walletBalance;
   const maxAmount =
     tab === 'deposit'
-      ? walletBalance
+      ? depositWalletMax
       : isMoonwell
         ? moonwellUnderlyingBalance
         : isMaple
@@ -378,12 +389,20 @@ export function DepositWithdrawModal({
     await Promise.all([
       nativeBalance.refetch(),
       erc20WalletBalance.refetch(),
+      gasUsdcBalance.refetch(),
       positionBalance.refetch(),
-      allowance.refetch(),
       allowance.refetch(),
       skyWithdrawAllowance.refetch(),
       crossChain.refetch(),
     ]);
+  }
+
+  async function writeTxs(calls: ContractCall[]) {
+    return sendCalls(calls, { nativeWei, usdcBalance: usdcForGas });
+  }
+
+  async function writeTx(params: ContractCall) {
+    return writeTxs([params]);
   }
 
   async function ensureChain() {
@@ -458,19 +477,31 @@ export function DepositWithdrawModal({
     setErrorMsg(null);
     try {
       await ensureChain();
+      const calls: ContractCall[] = [];
+      const treasury = getTreasuryAddress();
       if (feeAmount > 0n) {
-        setStep('sendingFee');
-        await sendFee({
-          isNative: isNativeDeposit,
-          tokenAddress: isNativeDeposit ? undefined : opportunity.asset.address,
-          amount: feeAmount,
-          chainId: opportunity.chainId,
-        });
+        if (payingGasInUsdc && !isNativeDeposit && treasury) {
+          calls.push({
+            address: opportunity.asset.address,
+            abi: erc20Abi,
+            functionName: 'transfer',
+            args: [treasury, feeAmount],
+            chainId: opportunity.chainId,
+          });
+        } else {
+          setStep('sendingFee');
+          await sendFee({
+            isNative: isNativeDeposit,
+            tokenAddress: isNativeDeposit ? undefined : opportunity.asset.address,
+            amount: feeAmount,
+            chainId: opportunity.chainId,
+          });
+        }
       }
 
       if (opportunity.protocol === 'lido') {
         setStep('acting');
-        const hash = await writeTx({
+        await writeTx({
           address: opportunity.depositTarget,
           abi: stEthAbi,
           functionName: 'submit',
@@ -478,7 +509,6 @@ export function DepositWithdrawModal({
           value: netAmount,
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
         setStep('done');
         await refreshBalances();
         return;
@@ -490,70 +520,63 @@ export function DepositWithdrawModal({
       // that's all that actually reaches the protocol.
       if (allowanceValue < netAmount) {
         setStep('approving');
-        const approveHash = await writeTx({
+        calls.push({
           address: opportunity.asset.address,
           abi: erc20Abi,
           functionName: 'approve',
           args: [spender, netAmount],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
-        await allowance.refetch();
       }
 
       setStep('acting');
+      let action: ContractCall;
       if (opportunity.protocol === 'aave-v3') {
-        const hash = await writeTx({
+        action = {
           address: opportunity.depositTarget,
           abi: aavePoolAbi,
           functionName: 'supply',
           args: [opportunity.asset.address, netAmount, address, 0],
           chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        };
       } else if (opportunity.protocol === 'curve') {
         const minMintAmount = curveMinOut(curveDepositPreviewData);
-        if (curveNumCoins === 3) {
-          const hash = await writeTx({
-            address: opportunity.depositTarget,
-            abi: curvePoolAbi3Coin,
-            functionName: 'add_liquidity',
-            args: [curveAmounts3(netAmount), minMintAmount],
-            chainId: opportunity.chainId,
-          });
-          await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
-        } else {
-          const hash = await writeTx({
-            address: opportunity.depositTarget,
-            abi: curvePoolAbi2Coin,
-            functionName: 'add_liquidity',
-            args: [curveAmounts2(netAmount), minMintAmount],
-            chainId: opportunity.chainId,
-          });
-          await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
-        }
+        action =
+          curveNumCoins === 3
+            ? {
+                address: opportunity.depositTarget,
+                abi: curvePoolAbi3Coin,
+                functionName: 'add_liquidity',
+                args: [curveAmounts3(netAmount), minMintAmount],
+                chainId: opportunity.chainId,
+              }
+            : {
+                address: opportunity.depositTarget,
+                abi: curvePoolAbi2Coin,
+                functionName: 'add_liquidity',
+                args: [curveAmounts2(netAmount), minMintAmount],
+                chainId: opportunity.chainId,
+              };
       } else if (opportunity.protocol === 'compound-v3') {
-        const hash = await writeTx({
+        action = {
           address: opportunity.depositTarget,
           abi: compoundCometAbi,
           functionName: 'supply',
           args: [opportunity.asset.address, netAmount],
           chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        };
       } else if (opportunity.protocol === 'moonwell') {
-        const hash = await writeTx({
+        action = {
           address: opportunity.depositTarget,
           abi: moonwellMTokenAbi,
           functionName: 'mint',
           args: [netAmount],
           chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        };
       } else if (isSky) {
         if (!opportunity.positionToken) throw new Error('sUSDS token missing');
         const minOut = skyMinOut(skyDepositPreview.data as bigint | undefined);
-        const hash = await writeTx({
+        action = {
           address: opportunity.depositTarget,
           abi: sparkPsmAbi,
           functionName: 'swapExactIn',
@@ -566,41 +589,39 @@ export function DepositWithdrawModal({
             0n,
           ],
           chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        };
       } else if (isMaple) {
         if (mapleLender === 'unauthorized') {
           throw new Error(
             'This wallet is not a Maple syrup lender yet. Authorize it once on syrup.fi, then deposit here. Openhand cannot allowlist you.',
           );
         }
-        const hash = await writeTx({
+        action = {
           address: opportunity.depositTarget,
           abi: mapleSyrupRouterAbi,
           functionName: 'deposit',
           args: [netAmount, MAPLE_DEPOSIT_DATA],
           chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        };
       } else if (isConvex) {
-        const hash = await writeTx({
+        action = {
           address: opportunity.depositTarget,
           abi: crvDepositorAbi,
           functionName: 'deposit',
           args: [netAmount, false, opportunity.positionToken!],
           chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        };
       } else {
-        const hash = await writeTx({
+        action = {
           address: opportunity.depositTarget,
           abi: erc4626Abi,
           functionName: 'deposit',
           args: [netAmount, address],
           chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        };
       }
+      calls.push(action);
+      await writeTxs(calls);
       setStep('done');
       await refreshBalances();
     } catch (e) {
@@ -652,24 +673,20 @@ export function DepositWithdrawModal({
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (isSky) {
         if (!opportunity.positionToken) throw new Error('sUSDS token missing');
+        const withdrawCalls: ContractCall[] = [];
         if (skyWithdrawAllowanceValue < amountBig) {
           setStep('approving');
-          const approveHash = await writeTx({
+          withdrawCalls.push({
             address: opportunity.positionToken,
             abi: erc20Abi,
             functionName: 'approve',
             args: [opportunity.depositTarget, amountBig],
             chainId: opportunity.chainId,
           });
-          await waitForTransactionReceipt(getWagmiConfig(), {
-            hash: approveHash,
-            chainId: opportunity.chainId,
-          });
-          await skyWithdrawAllowance.refetch();
         }
         setStep('acting');
         const minOut = skyMinOut(skyWithdrawPreview.data as bigint | undefined);
-        const hash = await writeTx({
+        withdrawCalls.push({
           address: opportunity.depositTarget,
           abi: sparkPsmAbi,
           functionName: 'swapExactIn',
@@ -683,7 +700,7 @@ export function DepositWithdrawModal({
           ],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        await writeTxs(withdrawCalls);
       } else if (isMaple) {
         setStep('acting');
         const shares =
@@ -757,9 +774,10 @@ export function DepositWithdrawModal({
         // on gas, not a correctness issue — but a dedicated allowance read
         // would avoid the extra signature on repeat withdrawals.
         const stEthAllowance = 0n;
+        const lidoCalls: ContractCall[] = [];
         if (stEthAllowance < amountBig) {
           setStep('approving');
-          const approveHash = await writeTx({
+          lidoCalls.push({
             // For Lido, asset.address and depositTarget are both the stETH token.
             address: opportunity.depositTarget,
             abi: erc20Abi,
@@ -767,19 +785,17 @@ export function DepositWithdrawModal({
             args: [cfg.withdrawalQueue, amountBig],
             chainId: opportunity.chainId,
           });
-          await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash, chainId: opportunity.chainId });
-          await allowance.refetch();
         }
 
         setStep('acting');
-        const hash = await writeTx({
+        lidoCalls.push({
           address: cfg.withdrawalQueue,
           abi: lidoWithdrawalQueueAbi,
           functionName: 'requestWithdrawals',
           args: [[amountBig], address],
           chainId: opportunity.chainId,
         });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
+        await writeTxs(lidoCalls);
         setStep('done');
         await refreshBalances();
         return;
@@ -1037,6 +1053,22 @@ export function DepositWithdrawModal({
             )}
             {insufficientBalance && !shouldMoveUsdc && (
               <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
+            )}
+            {payingGasInUsdc && (
+              <div className="text-xs text-ink/60 bg-accent/10 border border-accent/20 rounded px-3 py-2 mb-3 leading-relaxed">
+                Gas is taken from your USDC (a few cents via Circle Paymaster). You sign; Openhand
+                never holds it.
+                {gasReserve > 0n
+                  ? ` Max leaves $${formatUnits(gasReserve, 6)} USDC for that fee — unused is refunded.`
+                  : null}
+              </div>
+            )}
+            {!payingGasInUsdc && !isNativeDeposit && nativeWei < MIN_GAS_WEI && Boolean(address) && (
+              <div className="text-xs text-warn bg-warn/10 border border-warn/30 rounded px-3 py-2 mb-3 leading-relaxed">
+                This wallet has almost no ETH, and not enough USDC to cover gas. Leave at least $
+                {formatUnits(gasPermitAmount(opportunity.chainId), 6)} USDC here, or send a little
+                ETH, then try again.
+              </div>
             )}
             {errorMsg && <div className="text-xs text-danger mb-3 break-words">{errorMsg}</div>}
             {step === 'done' && (

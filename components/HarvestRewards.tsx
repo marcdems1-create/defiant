@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount, useReadContract, useSendTransaction, useWriteContract } from 'wagmi';
+import { useAccount, useBalance, useReadContract, useSendTransaction } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
 import { createPublicClient, http } from 'viem';
 import type { Opportunity } from '@/lib/protocols/types';
@@ -12,7 +12,9 @@ import { moonwellComptrollerAbi } from '@/lib/abi/moonwell';
 import { CONVEX, MOONWELL, AAVE_V3 } from '@/lib/config/addresses';
 import { chains, getWagmiConfig } from '@/lib/wagmi';
 import { fetchSwapQuote } from '@/lib/swap/zeroex';
-import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
+import { formatTxError } from '@/lib/tx/gas';
+import { useSponsoredWrite } from '@/lib/hooks/useSponsoredWrite';
+import { useErc20Balance } from '@/lib/hooks/useErc20Balance';
 import { formatTokenAmount } from '@/lib/format';
 
 type Step = 'idle' | 'claiming' | 'selling' | 'done' | 'error';
@@ -46,8 +48,8 @@ export function HarvestRewards({
   compact?: boolean;
 }) {
   const { address } = useAccount();
-  const { writeContractAsync } = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
+  const { sendCalls } = useSponsoredWrite();
   const [sellPct, setSellPct] = useState(100);
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -57,6 +59,12 @@ export function HarvestRewards({
   const moonwellCfg = (MOONWELL as Record<number, { comptroller?: `0x${string}` }>)[opportunity.chainId];
   const canHarvest = hasTokenEmissions(opportunity.protocol);
   const zeroexConfigured = Boolean(process.env.NEXT_PUBLIC_ZEROEX_API_KEY);
+  const nativeBalance = useBalance({
+    address,
+    chainId: opportunity.chainId,
+    query: { enabled: Boolean(address) },
+  });
+  const usdcBalance = useErc20Balance(usdc, address, opportunity.chainId);
 
   const earned = useReadContract({
     address: opportunity.positionToken,
@@ -93,9 +101,10 @@ export function HarvestRewards({
     value?: bigint;
     chainId: number;
   }) {
-    if (!address) throw new Error('Connect a wallet first');
-    const gas = await estimateCappedGas({ ...params, account: address });
-    return writeContractAsync({ ...params, gas } as never);
+    return sendCalls([params], {
+      nativeWei: nativeBalance.data?.value ?? 0n,
+      usdcBalance: (usdcBalance.data as bigint | undefined) ?? 0n,
+    });
   }
 
   async function sellClaimed(deltas: { token: `0x${string}`; amount: bigint; symbol: string }[]) {

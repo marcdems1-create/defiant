@@ -498,6 +498,14 @@ npm run dev
   itself has not been deposit-tested from this app.
 - **Circle Fast Transfer is not built.** It would take a fee from the bridged amount.
   Standard Transfer is fee-free at Circle's layer and slower.
+- **USDC-as-gas (Circle Paymaster) was live-tested on Arbitrum Sepolia** (2026-08-18):
+  a 0-ETH wallet paid gas in USDC for a self-transfer and a batched Aave
+  `approve`+`supply`. Pimlico public bundler + Paymaster v0.8. Circle's 10%
+  surcharge on Base/Arbitrum applies. Wallets that cannot sign EIP-7702 still
+  need ETH. Withdraw also needs leftover USDC or ETH because the paymaster
+  pulls USDC *before* the withdraw executes. Max on USDC deposits leaves that
+  reserve on purpose. Not yet run from the production UI against a Privy
+  embedded wallet.
 
 ## File map
 
@@ -505,6 +513,8 @@ npm run dev
 |---|---|
 | `lib/wagmi.ts` | Chain list + wallet connector config, testnet/mainnet switch |
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
+| `lib/config/paymaster.ts` | Circle Paymaster v0.8 addresses + bundler URL. Cited. |
+| `lib/tx/usdcPaymaster.ts` | EIP-7702 UserOp + scoped USDC permit. No Openhand key. |
 | `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
 | `lib/config/transak.ts` | Transak env, CAD default, USDC network map. Server-only secrets. |
 | `lib/transak/accessToken.ts` | Partner access-token cache. Never import from a client component. |
