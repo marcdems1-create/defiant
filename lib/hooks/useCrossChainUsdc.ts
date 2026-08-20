@@ -15,9 +15,9 @@ export interface ChainUsdcBalance {
 }
 
 /**
- * Native USDC on Ethereum, Base, and Arbitrum in one batched read so the
- * deposit modal can treat USDC as one balance regardless of which chain
- * it sits on. Mainnet only — those addresses are not on testnet.
+ * Native USDC on Ethereum, Base, and Arbitrum. Used to offer a move when
+ * the card's chain is empty — not as the deposit Max. Max is always the
+ * opportunity chain. Mainnet only.
  */
 export function useCrossChainUsdc(address: `0x${string}` | undefined) {
   const enabled = Boolean(address) && NETWORK_MODE === 'mainnet';

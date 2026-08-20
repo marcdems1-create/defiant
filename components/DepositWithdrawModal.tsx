@@ -367,10 +367,6 @@ export function DepositWithdrawModal({
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
   function setMax() {
-    if (tab === 'deposit' && walletBalance === 0n && bestOtherChainUsdc) {
-      setAmount(formatUnits(bestOtherChainUsdc.balance, amountDecimals));
-      return;
-    }
     setAmount(formatUnits(maxAmount, amountDecimals));
   }
 
