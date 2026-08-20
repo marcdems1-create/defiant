@@ -80,74 +80,60 @@ export function useAaveBorrowData(
 
   const variableDebt = useErc20Balance(usdcReserve?.variableDebtTokenAddress, address, opportunity.chainId);
 
-  return useMemo(() => {
-    const empty: AaveBorrowData = {
-      enabled: Boolean(cfg && address),
-      loading: Boolean(cfg && (reservesData.isLoading || accountData.isLoading)),
-      borrowable: false,
-      availableBorrowsBase: 0n,
-      availableBorrowsUsdc: 0n,
-      totalCollateralBase: 0n,
-      totalDebtBase: 0n,
-      totalDebtUsdc: 0n,
-      ltvBps: 0,
-      liquidationThresholdBps: 0,
-      healthFactorRaw: 0n,
-      healthFactorDisplay: '0.00',
-      variableDebtToken: usdcReserve?.variableDebtTokenAddress,
-      variableDebtUsdc: (variableDebt.data as bigint | undefined) ?? 0n,
-      refetch: async () => {
-        await Promise.all([reservesData.refetch(), accountData.refetch(), variableDebt.refetch()]);
-      },
-    };
-    if (!cfg || !address) return empty;
+  const refetch = async () => {
+    await Promise.all([reservesData.refetch(), accountData.refetch(), variableDebt.refetch()]);
+  };
 
-    const tuple = accountData.data as UserAccountData | undefined;
-    const totalCollateralBase = tuple?.[0] ?? 0n;
-    const totalDebtBase = tuple?.[1] ?? 0n;
-    const availableBorrowsBase = tuple?.[2] ?? 0n;
-    const liquidationThresholdBps = Number(tuple?.[3] ?? 0n);
-    const ltvBps = Number(tuple?.[4] ?? 0n);
-    const healthFactorRaw = tuple?.[5] ?? 0n;
-    const availableBorrowsUsdc = availableBorrowsBase / 10n ** (AAVE_BASE_DECIMALS - 6n);
-    const totalDebtUsdc = totalDebtBase / 10n ** (AAVE_BASE_DECIMALS - 6n);
+  const empty: AaveBorrowData = {
+    enabled: Boolean(cfg && address),
+    loading: Boolean(cfg && (reservesData.isLoading || accountData.isLoading)),
+    borrowable: false,
+    availableBorrowsBase: 0n,
+    availableBorrowsUsdc: 0n,
+    totalCollateralBase: 0n,
+    totalDebtBase: 0n,
+    totalDebtUsdc: 0n,
+    ltvBps: 0,
+    liquidationThresholdBps: 0,
+    healthFactorRaw: 0n,
+    healthFactorDisplay: '0.00',
+    variableDebtToken: usdcReserve?.variableDebtTokenAddress,
+    variableDebtUsdc: (variableDebt.data as bigint | undefined) ?? 0n,
+    refetch,
+  };
+  if (!cfg || !address) return empty;
 
-    return {
-      enabled: true,
-      loading: reservesData.isLoading || accountData.isLoading || variableDebt.isLoading,
-      borrowable: Boolean(
-        usdcReserve &&
-          usdcReserve.borrowingEnabled &&
-          usdcReserve.isActive &&
-          !usdcReserve.isFrozen &&
-          availableBorrowsBase > 0n,
-      ),
-      availableBorrowsBase,
-      availableBorrowsUsdc,
-      totalCollateralBase,
-      totalDebtBase,
-      totalDebtUsdc,
-      ltvBps,
-      liquidationThresholdBps,
-      healthFactorRaw,
-      healthFactorDisplay: healthFactorRaw > 0n ? formatHealthFactor(healthFactorRaw) : '0.00',
-      variableDebtToken: usdcReserve?.variableDebtTokenAddress,
-      variableDebtUsdc: (variableDebt.data as bigint | undefined) ?? 0n,
-      refetch: async () => {
-        await Promise.all([reservesData.refetch(), accountData.refetch(), variableDebt.refetch()]);
-      },
-    };
-  }, [
-    cfg,
-    address,
-    reservesData.isLoading,
-    accountData.isLoading,
-    variableDebt.isLoading,
-    accountData.data,
-    usdcReserve,
-    variableDebt.data,
-    reservesData.refetch,
-    accountData.refetch,
-    variableDebt.refetch,
-  ]);
+  const tuple = accountData.data as UserAccountData | undefined;
+  const totalCollateralBase = tuple?.[0] ?? 0n;
+  const totalDebtBase = tuple?.[1] ?? 0n;
+  const availableBorrowsBase = tuple?.[2] ?? 0n;
+  const liquidationThresholdBps = Number(tuple?.[3] ?? 0n);
+  const ltvBps = Number(tuple?.[4] ?? 0n);
+  const healthFactorRaw = tuple?.[5] ?? 0n;
+  const availableBorrowsUsdc = availableBorrowsBase / 10n ** (AAVE_BASE_DECIMALS - 6n);
+  const totalDebtUsdc = totalDebtBase / 10n ** (AAVE_BASE_DECIMALS - 6n);
+
+  return {
+    enabled: true,
+    loading: reservesData.isLoading || accountData.isLoading || variableDebt.isLoading,
+    borrowable: Boolean(
+      usdcReserve &&
+        usdcReserve.borrowingEnabled &&
+        usdcReserve.isActive &&
+        !usdcReserve.isFrozen &&
+        availableBorrowsBase > 0n,
+    ),
+    availableBorrowsBase,
+    availableBorrowsUsdc,
+    totalCollateralBase,
+    totalDebtBase,
+    totalDebtUsdc,
+    ltvBps,
+    liquidationThresholdBps,
+    healthFactorRaw,
+    healthFactorDisplay: healthFactorRaw > 0n ? formatHealthFactor(healthFactorRaw) : '0.00',
+    variableDebtToken: usdcReserve?.variableDebtTokenAddress,
+    variableDebtUsdc: (variableDebt.data as bigint | undefined) ?? 0n,
+    refetch,
+  };
 }
