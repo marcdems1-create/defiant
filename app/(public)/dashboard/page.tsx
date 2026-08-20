@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useAccount } from 'wagmi';
 import { useOpportunities } from '@/lib/hooks/useOpportunities';
 import { usePositions } from '@/lib/hooks/usePositions';
+import { useCrossChainUsdc } from '@/lib/hooks/useCrossChainUsdc';
+import { usePendingUsdcMoves } from '@/lib/hooks/usePendingUsdcMoves';
 import {
   computeMarketStats,
   computePortfolioAnalytics,
@@ -40,11 +42,14 @@ const PROJECTION_DISCLAIMER =
   'Illustration only. APY changes daily. Not a forecast or guarantee.';
 
 export default function DashboardPage() {
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const { data: opportunities, isLoading, isError } = useOpportunities();
   const { positions, isLoading: positionsLoading } = usePositions(opportunities, {
     catalogLoading: isLoading,
   });
+  const { total: idleUsdc } = useCrossChainUsdc(address);
+  const { inTransit, moves } = usePendingUsdcMoves(address);
+  const idleOrMoving = idleUsdc > 0n || inTransit > 0n || moves.length > 0;
 
   const analytics = useMemo(
     () => computePortfolioAnalytics(positions),
@@ -98,10 +103,21 @@ export default function DashboardPage() {
 
       {isConnected && !positionsLoading && positions.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center">
-          <p className="text-ink/60 text-sm mb-4">
-            No active positions yet. Pick a yield card and deposit from your wallet to start
-            tracking progress here.
-          </p>
+          {idleOrMoving ? (
+            <>
+              <p className="text-ink/70 text-sm mb-2 font-medium">No yield position yet</p>
+              <p className="text-ink/55 text-sm mb-4 max-w-md mx-auto leading-relaxed">
+                USDC in the panel above is still in your wallet (or on the way between networks).
+                That is not a deposit into Aave, Yearn, or anything else. A position appears here
+                only after you sign the second transaction on a collection card.
+              </p>
+            </>
+          ) : (
+            <p className="text-ink/60 text-sm mb-4">
+              No active positions yet. Pick a yield card and deposit from your wallet to start
+              tracking progress here.
+            </p>
+          )}
           <Link href="/" className="text-sm text-accent hover:underline">
             Browse the collection →
           </Link>

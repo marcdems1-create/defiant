@@ -23,7 +23,8 @@ import { useSendFee } from '@/lib/hooks/useSendFee';
 import { useErc20Allowance, useErc20Balance } from '@/lib/hooks/useErc20Balance';
 import { useCrossChainUsdc } from '@/lib/hooks/useCrossChainUsdc';
 import { bridgeChainById } from '@/lib/config/bridgeChains';
-import { apyCaption, chainName, formatApy, formatTokenAmount, formatUsdcUsd } from '@/lib/format';
+import { dismissStoredUsdcMove, movesForAccount } from '@/lib/bridge/pending';
+import { apyCaption, chainName, formatApy, formatTokenAmount, formatUsdcUsd, txExplorerUrl } from '@/lib/format';
 import { ERC4626_PROTOCOLS, hasTokenEmissions } from '@/lib/protocols/types';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
 import { track } from '@/lib/analytics/track';
@@ -44,10 +45,13 @@ export function DepositWithdrawModal({
   opportunity,
   onClose,
   initialTab = 'deposit',
+  prefillWallet = false,
 }: {
   opportunity: Opportunity;
   onClose: () => void;
   initialTab?: Tab;
+  /** Prefill the deposit amount from wallet USDC on this chain (finish-deposit CTA). */
+  prefillWallet?: boolean;
 }) {
   const { address } = useAccount();
   const currentChainId = useChainId();
@@ -78,6 +82,9 @@ export function DepositWithdrawModal({
   const [mapleLender, setMapleLender] = useState<MapleLenderStatus | null>(null);
   const [moving, setMoving] = useState(false);
   const [awaitingMove, setAwaitingMove] = useState(false);
+  const [moveTxHash, setMoveTxHash] = useState<`0x${string}` | null>(null);
+  const [moveFromChainId, setMoveFromChainId] = useState<number | null>(null);
+  const [moveFinished, setMoveFinished] = useState(false);
   const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
   const isUsdc = opportunity.asset.symbol.toUpperCase() === 'USDC';
 
@@ -410,8 +417,41 @@ export function DepositWithdrawModal({
   ]);
 
   useEffect(() => {
-    if (walletBalance > 0n) setAwaitingMove(false);
-  }, [walletBalance]);
+    if (walletBalance > 0n && awaitingMove) {
+      setAwaitingMove(false);
+      setMoveFinished(true);
+      try {
+        const typed = amount ? parseUnits(amount, amountDecimals) : 0n;
+        if (typed === 0n || typed > walletBalance) {
+          setAmount(formatUnits(walletBalance, amountDecimals));
+        }
+      } catch {
+        setAmount(formatUnits(walletBalance, amountDecimals));
+      }
+    }
+  }, [walletBalance, awaitingMove, amount, amountDecimals]);
+
+  useEffect(() => {
+    if (!prefillWallet || tab !== 'deposit' || walletBalance === 0n || amount) return;
+    setAmount(formatUnits(walletBalance, amountDecimals));
+  }, [prefillWallet, tab, walletBalance, amount, amountDecimals]);
+
+  useEffect(() => {
+    if (!awaitingMove) return;
+    const id = window.setInterval(() => {
+      void refreshBalances();
+    }, 8_000);
+    return () => window.clearInterval(id);
+    // refreshBalances is recreated each render; interval only depends on awaitingMove.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [awaitingMove]);
+
+  useEffect(() => {
+    if (step !== 'done' || tab !== 'deposit' || !address) return;
+    for (const row of movesForAccount(address)) {
+      if (row.opportunityId === opportunity.id) dismissStoredUsdcMove(row.txHash);
+    }
+  }, [step, tab, address, opportunity.id]);
 
   async function handleDeposit() {
     if (!address || amountBig === 0n) return;
@@ -981,6 +1021,20 @@ export function DepositWithdrawModal({
                 syrup.fi, then come back — we cannot sign Maple&apos;s allowlist for you.
               </div>
             )}
+            {shouldMoveUsdc && bestOtherChainUsdc && (
+              <div className="text-xs text-ink/65 border border-accent/25 bg-accent/5 rounded px-3 py-2 mb-3 leading-relaxed">
+                Your USDC is on {bestOtherChainUsdc.label}. Moving it to{' '}
+                {chainName(opportunity.chainId)} is step 1 of 2 — it will sit in this wallet there,
+                not yet in {opportunity.protocolLabel}. After it arrives, you sign a second
+                transaction to deposit.
+              </div>
+            )}
+            {moveFinished && walletBalance > 0n && tab === 'deposit' && (
+              <div className="text-xs text-ink/65 border border-accent/25 bg-accent/5 rounded px-3 py-2 mb-3 leading-relaxed">
+                USDC is on {chainName(opportunity.chainId)}. Step 2 of 2: deposit into{' '}
+                {opportunity.protocolLabel} so a position shows on your dashboard.
+              </div>
+            )}
             {insufficientBalance && !shouldMoveUsdc && (
               <div className="text-xs text-danger mb-3">Amount exceeds available balance.</div>
             )}
@@ -1008,9 +1062,23 @@ export function DepositWithdrawModal({
                 Checking wallet…
               </button>
             ) : awaitingMove && walletBalance === 0n ? (
-              <p className="text-xs text-accent text-center py-2">
-                USDC is on the way to {chainName(opportunity.chainId)}.
-              </p>
+              <div className="flex flex-col gap-2 py-1">
+                <p className="text-xs text-accent text-center leading-relaxed">
+                  USDC is on the way to {chainName(opportunity.chainId)}. It will land in this
+                  wallet — not yet in {opportunity.protocolLabel}. Stay here or check the dashboard;
+                  the deposit button appears when it arrives.
+                </p>
+                {moveTxHash && txExplorerUrl(moveFromChainId ?? 0, moveTxHash) && (
+                  <a
+                    href={txExplorerUrl(moveFromChainId ?? 0, moveTxHash)!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-accent hover:underline text-center"
+                  >
+                    View move transaction
+                  </a>
+                )}
+              </div>
             ) : shouldMoveUsdc && address && bestOtherChainUsdc ? (
               <MoveUsdcButton
                 address={address}
@@ -1018,9 +1086,13 @@ export function DepositWithdrawModal({
                 destLabel={chainName(opportunity.chainId)}
                 source={bestOtherChainUsdc}
                 requestedAmount={amountBig}
+                protocolLabel={opportunity.protocolLabel}
+                opportunityId={opportunity.id}
                 disabled={busy && !moving}
                 onBusy={setMoving}
-                onMoved={() => {
+                onMoved={({ txHash }) => {
+                  setMoveTxHash(txHash);
+                  setMoveFromChainId(bestOtherChainUsdc.chainId);
                   setAwaitingMove(true);
                   void refreshBalances();
                 }}
@@ -1060,8 +1132,8 @@ export function DepositWithdrawModal({
                         ? 'Confirming…'
                         : tab === 'deposit'
                           ? dollarInput && amount
-                            ? `Deposit $${amount}`
-                            : `Deposit ${opportunity.asset.symbol}`
+                            ? `${moveFinished ? 'Step 2 of 2 · ' : ''}Deposit $${amount}`
+                            : `${moveFinished ? 'Step 2 of 2 · ' : ''}Deposit ${opportunity.asset.symbol}`
                           : opportunity.protocol === 'lido'
                             ? 'Request withdrawal'
                             : isMaple && tab === 'withdraw'

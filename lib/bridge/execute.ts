@@ -9,6 +9,7 @@ import { erc20Abi } from '@/lib/abi/erc20';
 import { getWagmiConfig } from '@/lib/wagmi';
 import { estimateCappedGas, estimateCappedTxGas, formatTxError } from '@/lib/tx/gas';
 import { fetchBridgeQuote, fetchBridgeStatus, type BridgeQuote } from '@/lib/bridge/lifi';
+import { patchStoredUsdcMove, upsertStoredUsdcMove, type StoredUsdcMove } from '@/lib/bridge/pending';
 
 export type MoveStep = 'quoting' | 'switching' | 'approving' | 'moving' | 'settling';
 
@@ -19,11 +20,7 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/**
- * Quote + approve (exact amount) + send + poll until USDC lands on the
- * destination chain. Wallet-signed throughout — no Openhand custody hop.
- */
-export async function executeUsdcMove(params: {
+export interface ExecuteUsdcMoveParams {
   account: `0x${string}`;
   fromChainId: number;
   toChainId: number;
@@ -32,7 +29,21 @@ export async function executeUsdcMove(params: {
   amount: bigint;
   currentChainId: number;
   onStep: (step: MoveStep) => void;
-}): Promise<{ ok: true; late?: boolean } | { ok: false; error: string }> {
+  /** Yield card this move is a first step toward — dashboard can point back. */
+  opportunityId?: string;
+  protocolLabel?: string;
+}
+
+/**
+ * Quote + approve (exact amount) + send + poll until USDC lands on the
+ * destination chain. Wallet-signed throughout — no Openhand custody hop.
+ *
+ * The source tx is written to localStorage as soon as it confirms so the
+ * dashboard can show "in transit" if the user leaves before LI.FI settles.
+ */
+export async function executeUsdcMove(
+  params: ExecuteUsdcMoveParams,
+): Promise<{ ok: true; late?: boolean; txHash: `0x${string}` } | { ok: false; error: string }> {
   const cfg = getWagmiConfig();
 
   params.onStep('quoting');
@@ -87,6 +98,20 @@ export async function executeUsdcMove(params: {
     const hash = await sendQuotedMove(quote, params.account);
     await waitForTransactionReceipt(cfg, { hash, chainId: params.fromChainId });
 
+    rememberMove({
+      txHash: hash,
+      fromChainId: quote.fromChainId,
+      toChainId: quote.toChainId,
+      fromAmount: quote.fromAmount.toString(),
+      toAmount: quote.toAmount.toString(),
+      tool: quote.tool,
+      account: params.account,
+      createdAt: Date.now(),
+      opportunityId: params.opportunityId,
+      protocolLabel: params.protocolLabel,
+      status: 'PENDING',
+    });
+
     params.onStep('settling');
     const landed = await waitForArrival(hash, quote);
     try {
@@ -94,9 +119,17 @@ export async function executeUsdcMove(params: {
     } catch {
       // Move already succeeded; deposit can switch later.
     }
-    return { ok: true, late: !landed };
+    return { ok: true, late: !landed, txHash: hash };
   } catch (e) {
     return { ok: false, error: formatTxError(e) };
+  }
+}
+
+function rememberMove(row: StoredUsdcMove) {
+  try {
+    upsertStoredUsdcMove(row);
+  } catch {
+    // localStorage full/blocked — dashboard hint is best-effort.
   }
 }
 
@@ -127,8 +160,12 @@ async function waitForArrival(txHash: `0x${string}`, quote: BridgeQuote): Promis
       toChainId: quote.toChainId,
       tool: quote.tool || undefined,
     });
-    if (s.status === 'DONE') return true;
+    if (s.status === 'DONE') {
+      patchStoredUsdcMove(txHash, { status: 'DONE', receivingTxHash: s.receivingTxHash });
+      return true;
+    }
     if (s.status === 'FAILED') {
+      patchStoredUsdcMove(txHash, { status: 'FAILED' });
       throw new Error('The move failed. Check your wallet activity.');
     }
     await sleep(POLL_INTERVAL_MS);
