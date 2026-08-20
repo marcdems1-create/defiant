@@ -5,6 +5,7 @@ import type { Opportunity } from '@/lib/protocols/types';
 import { chainName } from '@/lib/format';
 import { ConnectButtonClient } from './ConnectButtonClient';
 import { OnrampModal } from './OnrampModal';
+import { ReferralShareCard } from './ReferralShareCard';
 import { NETWORK_MODE } from '@/lib/wagmi';
 
 export function FirstRunHero({
@@ -48,10 +49,11 @@ export function FirstRunHero({
         </p>
       </div>
 
-      <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+      <ol className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
         <Step n={1} done={connected} label="Wallet" detail="Email or passkey" />
         <Step n={2} done={funded} label="Add USDC" detail="Buy or send" />
         <Step n={3} done={false} label="Deposit" detail="Pick a card" />
+        <Step n={4} done={false} label="Invite" detail="Share your link" />
       </ol>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -74,6 +76,8 @@ export function FirstRunHero({
           onClose={() => setBuyOpen(false)}
         />
       )}
+
+      <ReferralShareCard address={address} />
     </section>
   );
 }

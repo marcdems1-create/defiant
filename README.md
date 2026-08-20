@@ -389,6 +389,7 @@ Referral attribution is stored separately from analytics:
 - schema: `migrations/003_referral_attributions.sql`
 - write path: `POST /api/referral/register`
 - UI capture: `?ref=` / `?referral=` first-touch localStorage
+- sharable code: connected wallet address hex without `0x` (deterministic v1)
 - link requirements: unchecked-by-default consent + wallet `signMessage` proof
 - one-wallet rule: each wallet can be linked to one referral code in v1
 
@@ -521,6 +522,7 @@ npm run dev
 | `migrations/002_site_analytics.sql` | Anonymous site event schema. Applied by hand. |
 | `migrations/003_referral_attributions.sql` | Wallet-linked referral attribution schema. Applied by hand. |
 | `lib/referral/{shared,storage}.ts` | Shared referral message/sanitize helpers + client localStorage capture helpers |
+| `lib/referral/code.ts` | Deterministic wallet-derived referral code helper (address without `0x`) |
 | `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants, Spark PSM, Maple router/pool, Moonwell comptroller, CCTP V2 TokenMessenger/MessageTransmitter) |
 | `lib/config/cctp.ts` | CCTP V2 domains, messengers, native USDC per chain |
 | `lib/cctp/attestation.ts` | bytes32 mint recipient + Iris parse (skip if attestation missing) |
@@ -543,6 +545,7 @@ npm run dev
 | `lib/pwa.ts` | Standalone / iOS Safari / install-snooze helpers (client only) |
 | `components/InstallAppBanner.tsx` | Home-screen install prompt (Chrome) / Safari hint |
 | `components/ReferralAttributionPrompt.tsx` | Consent + sign flow linking referral code to connected wallet |
+| `components/ReferralShareCard.tsx` | In-app share card for connected wallets to copy referral links |
 | `lib/config/lifi.ts` | LI.FI API host, integrator name, stock chain IDs, Circle USDC lookup |
 | `lib/lifi/stocks.ts` | Catalog filter + quote parser. Skip on parse failure — never guess a price. |
 | `lib/lifi/marketCap.ts` | CoinGecko tokenized-stock caps for the dashboard top-50 tape |
