@@ -2,10 +2,12 @@
 
 Public site: [openhand.online](https://openhand.online). GitHub repo: `defiant`.
 
-A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
-across Aave v3, Lido, Yearn v3, and Curve, and deposit or withdraw with transactions you sign
-yourself. Openhand never takes custody of user funds — there is no pooled contract, no admin
-key, no path for the app itself to move anyone's money.
+A non-custodial interface for cash, on-chain yield, and price upside. Connect your own
+wallet: hold USDC, compare live yield across Aave v3, Lido, Yearn v3, and Curve, or
+browse gold, stocks, and crypto and swap via LI.FI. Every move is a transaction you
+sign yourself. Openhand never takes custody of user funds — there is no pooled contract,
+no admin key, no path for the app itself to move anyone's money. Yield is one desk, not
+the whole product. Gold, stocks, and crypto are not yield cards and not picks.
 
 > **Naming note:** this is deliberately *not* marketed as a "savings app" anywhere in the
 > product. DeFi yield carries smart-contract, market, and liquidity risk and is not deposit-
@@ -331,7 +333,7 @@ filters.
 
 ## Tokenized stocks (LI.FI)
 
-The dashboard includes a browse-only tape of tokenized stocks and ETFs routed by
+The dashboard **Price upside** section includes a browse-only tape of tokenized stocks and ETFs routed by
 [LI.FI](https://li.fi) (`components/StockDesk.tsx`). This is **not** a yield card, not a
 brokerage, and not a recommendation. The default tape is the **top 50** LI.FI-routable
 names by CoinGecko **token** market cap (not the listed company's equity cap). Search
@@ -358,15 +360,30 @@ Optional `LIFI_API_KEY` (server-only) raises LI.FI rate limits. Catalog works wi
 
 ## Spot crypto (LI.FI)
 
-A second dashboard tape lists **spot crypto** (`components/CryptoDesk.tsx`): CoinGecko’s
+A **Price upside** tape lists **spot crypto** (`components/CryptoDesk.tsx`): CoinGecko’s
 largest coins by market cap that LI.FI can route against USDC on Ethereum / Base /
 Arbitrum. Default sort is **24h change**. That is a catalog reorder of live data — not
 a featured pick and not “we suggest this coin.” Stables are omitted. BTC matches
 WBTC / cbBTC where native BTC is not an EVM token.
 
 Swap path is the same wallet-signed LI.FI quote as stocks (`POST /api/lifi/quote`,
-allowlisted to the stock tape **or** this crypto tape). Native ETH skips ERC-20
+allowlisted to the stock tape, gold tape, **or** this crypto tape). Native ETH skips ERC-20
 approve. Do not add a highlighted “best performer” card.
+
+## Tokenized gold (LI.FI)
+
+Dashboard **Price upside** tape (`components/GoldDesk.tsx`, `lib/lifi/gold.ts`): official
+**PAXG** (Paxos) and **XAUt** (Tether Gold) on Ethereum only. Each token is meant to
+represent one troy ounce of vaulted gold. **Gold pays no coupon** — this is metal price
+upside and downside, not a yield card and not a savings product. Do not invent an APY.
+
+- **Allowlist only.** Addresses are cited in `lib/config/addresses.ts` (`TOKENIZED_GOLD`)
+  from issuer sources (Paxos GitHub README; Tether Alloy Ethereum deployment docs). A
+  row appears only when LI.FI lists that exact address with a parseable `priceUSD`.
+  Skip L2 lookalikes, wrapped shares, and Aave aTokens.
+- **24h / cap** from CoinGecko `pax-gold` and `tether-gold`. Skip rather than guess.
+- Same wallet-signed USDC ↔ token LI.FI quote as stocks/crypto. Mainnet to execute.
+- **Not advice.** Do not add a “best gold”, allocation, or gold-savings copy.
 
 ## Site analytics
 
@@ -542,6 +559,11 @@ npm run dev
 | `app/api/lifi/stocks/route.ts` | Cached stock catalog for the dashboard tape |
 | `lib/lifi/crypto.ts` | CoinGecko top-50 mcap ∩ LI.FI tokens for the spot crypto tape |
 | `app/api/lifi/crypto/route.ts` | Cached crypto catalog |
+| `lib/lifi/gold.ts` | Official PAXG + XAUt ∩ LI.FI Ethereum catalog. No APY. |
+| `app/api/lifi/gold/route.ts` | Cached gold catalog |
+| `components/UpsideDesk.tsx` | Dashboard Gold / Crypto / Stocks tabs — not a featured pick |
+| `components/GoldDesk.tsx` | Tokenized gold tape (PAXG, XAUt) |
+| `components/GoldSwapModal.tsx` | USDC ↔ gold, exact approve |
 | `components/CryptoDesk.tsx` | Dashboard spot-crypto tape, sorted by 24h change |
 | `components/CryptoSwapModal.tsx` | USDC ↔ spot crypto, exact approve (native ETH skips approve) |
 | `components/UsdcCashPanel.tsx` | Combined USDC total + Buy / Cash out / Move |

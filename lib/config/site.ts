@@ -9,4 +9,4 @@ export const SITE_URL = (
 ).replace(/\/$/, '');
 
 export const SITE_DESCRIPTION =
-  'Non-custodial on-chain yield. Connect your own wallet, compare live rates, and sign every deposit and withdrawal yourself. Openhand never holds your funds.';
+  'Non-custodial cash, on-chain yield, and price upside — gold, stocks, crypto. Connect your own wallet and sign every move. Openhand never holds your funds.';

@@ -4,7 +4,7 @@ import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: `${SITE_NAME} — non-custodial DeFi yield`,
+  title: `${SITE_NAME} — cash, yield, and upside`,
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   alternates: { canonical: '/' },
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     type: 'website',
     url: SITE_URL,
     siteName: SITE_NAME,
-    title: `${SITE_NAME} — non-custodial DeFi yield`,
+    title: `${SITE_NAME} — cash, yield, and upside`,
     description: SITE_DESCRIPTION,
   },
   appleWebApp: {

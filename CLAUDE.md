@@ -4,14 +4,16 @@
 
 ## What this is
 
-**Openhand (repo: Defiant) is a non-custodial DeFi yield interface for a global audience.**
-Public host is `https://openhand.online`. Connect your
-own wallet, compare live on-chain yield across Aave v3, Lido, and Yearn v3, deposit or
-withdraw with transactions you sign yourself. The app never holds funds — no pooled
-contract, no admin key, no custody. See `README.md` for the full rationale and regulatory
-framing; the short version: custody is what turns this into a heavily-regulated financial
-product in nearly every jurisdiction, so custody is the thing this build refuses to add.
-Not scoped to any one country — don't add region-specific framing without a reason.
+**Openhand (repo: Defiant) is a non-custodial interface for cash, on-chain yield, and
+price upside (gold, stocks, crypto).** Public host is `https://openhand.online`. Connect
+your own wallet: hold USDC, compare live yield, or swap into gold / stocks / crypto via
+LI.FI. Every value-moving transaction is signed by the connected wallet. The app never
+holds funds — no pooled contract, no admin key, no custody. Yield is one desk, not the
+whole product. Gold, stocks, and crypto are browse tapes, not yield cards and not picks.
+See `README.md` for the full rationale and regulatory framing; the short version: custody
+is what turns this into a heavily-regulated financial product in nearly every
+jurisdiction, so custody is the thing this build refuses to add. Not scoped to any one
+country — don't add region-specific framing without a reason.
 
 **Not called a "savings app" anywhere in the product.** DeFi yield is not deposit-insured
 and carries real smart-contract/market/liquidity risk. Calling it "savings" would misstate
@@ -495,9 +497,17 @@ the USDC. SELL must be enabled on the Transak partner app.
 
 Spot crypto tape (`lib/lifi/crypto.ts`): CoinGecko top-50 market cap ∩ LI.FI-routable
 tokens, **sorted by 24h %**. Reorder of live data — not a featured pick, not advice.
-Stables omitted. Quote route allowlists stock **or** crypto tape only.
+Stables omitted. Quote route allowlists stock, gold, **or** crypto tape.
 
 Do not add a “best coin” card or scored ranking beyond this sort.
+
+## Session update (2026-08-20) — gold + price-upside desk
+
+Yield is one desk, not the product. Dashboard is **cash / yield positions / price upside**.
+Upside tapes (Gold, Crypto, Stocks) sit behind equal tabs — a catalog filter, not a
+featured pick. Gold is PAXG + XAUt on Ethereum only (`TOKENIZED_GOLD` in addresses.ts,
+issuer-cited). No APY on gold. No L2 lookalikes. Quote allowlist includes those two
+addresses. Do not call gold a savings product or add a “best gold” card.
 
 ## Session update (2026-08-18) — Sky sUSDS, Maple syrupUSDC, harvest sell-%
 

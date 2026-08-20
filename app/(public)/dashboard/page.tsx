@@ -14,8 +14,7 @@ import { chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { GrowthChart } from '@/components/GrowthChart';
 import { PositionActions } from '@/components/PositionActions';
-import { CryptoDesk } from '@/components/CryptoDesk';
-import { StockDesk } from '@/components/StockDesk';
+import { UpsideDesk } from '@/components/UpsideDesk';
 import { UsdcCashPanel } from '@/components/UsdcCashPanel';
 
 function StatCard({
@@ -66,13 +65,13 @@ export default function DashboardPage() {
       <header className="flex flex-col gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-            Your yield journey
+            Your money
           </p>
           <h1 className="text-3xl font-medium tracking-tight">Dashboard</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
-            Track where you stand and stay the course. Live on-chain reads only — Openhand never
-            holds your keys or funds. Spot crypto and tokenized stocks on this page are separate
-            LI.FI tapes, not yield, and not recommendations.
+            Cash, yield, and price upside in one wallet you control. Gold, stocks, and crypto can
+            go down as well as up — they are not yield cards and not picks. Live on-chain reads
+            only. Openhand never holds your keys or funds.
           </p>
         </div>
       </header>
@@ -92,6 +91,8 @@ export default function DashboardPage() {
 
       {isConnected && <UsdcCashPanel />}
 
+      <UpsideDesk />
+
       {isConnected && positionsLoading && (
         <div className="text-ink/50 text-sm">Reading your on-chain positions…</div>
       )}
@@ -99,8 +100,8 @@ export default function DashboardPage() {
       {isConnected && !positionsLoading && positions.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center">
           <p className="text-ink/60 text-sm mb-4">
-            No active positions yet. Pick a yield card and deposit from your wallet to start
-            tracking progress here.
+            No yield positions yet. Cash and price upside (gold, stocks, crypto) still live on
+            this page. Yield cards are on Collection — Openhand does not pick one.
           </p>
           <Link href="/" className="text-sm text-accent hover:underline">
             Browse the collection →
@@ -251,10 +252,6 @@ export default function DashboardPage() {
           </section>
         </>
       )}
-
-      <CryptoDesk />
-
-      <StockDesk />
 
       <section className="rounded-2xl border border-border bg-white/[0.02] p-6">
         <h2 className="text-lg font-medium mb-1">
