@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useChainId } from 'wagmi';
-import { formatUsdcUsd } from '@/lib/format';
+import { chainName, formatUsdcUsd, txExplorerUrl } from '@/lib/format';
 import { executeUsdcMove, type MoveStep } from '@/lib/bridge/execute';
 import type { ChainUsdcBalance } from '@/lib/hooks/useCrossChainUsdc';
 import { bridgeChainById } from '@/lib/config/bridgeChains';
@@ -21,6 +21,8 @@ export function MoveUsdcButton({
   destLabel,
   source,
   requestedAmount,
+  protocolLabel,
+  opportunityId,
   disabled,
   onBusy,
   onMoved,
@@ -31,14 +33,17 @@ export function MoveUsdcButton({
   source: ChainUsdcBalance;
   /** 0 or more than source → move all of source. */
   requestedAmount: bigint;
+  protocolLabel?: string;
+  opportunityId?: string;
   disabled?: boolean;
   onBusy?: (busy: boolean) => void;
-  onMoved: () => void;
+  onMoved: (info: { late: boolean; txHash: `0x${string}`; movedAmount: bigint }) => void;
 }) {
   const currentChainId = useChainId();
   const [step, setStep] = useState<MoveStep | 'idle' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [late, setLate] = useState(false);
+  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
 
   const dest = bridgeChainById(destChainId);
   const moveAmount =
@@ -58,6 +63,8 @@ export function MoveUsdcButton({
       toToken: dest.usdc,
       amount: moveAmount,
       currentChainId,
+      opportunityId,
+      protocolLabel,
       onStep: (s) => setStep(s),
     });
     onBusy?.(false);
@@ -66,16 +73,33 @@ export function MoveUsdcButton({
       setError(result.error);
       return;
     }
+    setTxHash(result.txHash);
     setLate(Boolean(result.late));
     setStep('done');
-    onMoved();
+    onMoved({ late: Boolean(result.late), txHash: result.txHash, movedAmount: moveAmount });
   }
+
+  const fromUrl = txHash ? txExplorerUrl(source.chainId, txHash) : null;
 
   if (step === 'done') {
     return (
-      <p className="text-xs text-accent text-center">
-        {late ? `USDC is on the way to ${destLabel}.` : `USDC is on ${destLabel}.`}
-      </p>
+      <div className="flex flex-col gap-1">
+        <p className="text-xs text-accent text-center leading-relaxed">
+          {late
+            ? `USDC is on the way to ${destLabel}. This is not a yield position yet.`
+            : `USDC is on ${destLabel}, in this wallet. Sign once more to deposit${protocolLabel ? ` into ${protocolLabel}` : ''}.`}
+        </p>
+        {fromUrl && (
+          <a
+            href={fromUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] text-accent/80 hover:underline text-center"
+          >
+            View move on {chainName(source.chainId)}
+          </a>
+        )}
+      </div>
     );
   }
 
@@ -87,7 +111,9 @@ export function MoveUsdcButton({
         disabled={disabled || busy || moveAmount <= 0n}
         className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm disabled:opacity-30 disabled:cursor-not-allowed"
       >
-        {busy ? stepLabel(step as MoveStep, destLabel) : `Move $${formatUsdcUsd(moveAmount)} from ${source.label}`}
+        {busy
+          ? stepLabel(step as MoveStep, destLabel)
+          : `Step 1 of 2 · Move $${formatUsdcUsd(moveAmount)} to ${destLabel}`}
       </button>
       {error && <p className="text-xs text-danger mt-2 break-words">{error}</p>}
     </div>

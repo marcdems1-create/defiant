@@ -29,7 +29,11 @@ export function useCrossChainUsdc(address: `0x${string}` | undefined) {
       args: address ? [address] : undefined,
       chainId: c.id,
     })),
-    query: { enabled },
+    query: {
+      enabled,
+      refetchOnWindowFocus: true,
+      refetchInterval: 15_000,
+    },
   });
 
   return useMemo(() => {

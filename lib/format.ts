@@ -15,6 +15,13 @@ export function chainName(chainId: number): string {
   return chains.find((c) => c.id === chainId)?.name ?? `Chain ${chainId}`;
 }
 
+/** Block-explorer URL for a transaction, or null if we don't know the chain. */
+export function txExplorerUrl(chainId: number, txHash: string): string | null {
+  const base = chains.find((c) => c.id === chainId)?.blockExplorers?.default?.url;
+  if (!base) return null;
+  return `${base.replace(/\/$/, '')}/tx/${txHash}`;
+}
+
 /**
  * Big mark an average reader can clock in one glance.
  * USDC → USD, stETH → ETH, cvxCRV → CRV; otherwise the ticker itself.

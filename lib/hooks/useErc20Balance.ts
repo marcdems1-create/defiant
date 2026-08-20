@@ -15,7 +15,11 @@ export function useErc20Balance(
     functionName: 'balanceOf',
     args: owner ? [owner] : undefined,
     chainId,
-    query: { enabled: Boolean(token && owner) },
+    query: {
+      enabled: Boolean(token && owner),
+      refetchOnWindowFocus: true,
+      refetchInterval: 15_000,
+    },
   });
 }
 

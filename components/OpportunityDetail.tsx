@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Opportunity } from '@/lib/protocols/types';
 import { COMPOUNDED_BADGE, getCardBadges } from '@/lib/protocols/cardBadges';
@@ -12,9 +12,18 @@ import { ApyHistoryChart } from './ApyHistoryChart';
 
 export function OpportunityDetail({ opportunity }: { opportunity: Opportunity }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [prefillWallet, setPrefillWallet] = useState(false);
   const badges = getCardBadges(opportunity);
   const details = getOpportunityDetails(opportunity);
   const asset = assetMark(opportunity.asset.symbol);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('deposit') === '1') {
+      setPrefillWallet(true);
+      setModalOpen(true);
+    }
+  }, []);
 
   return (
     <>
@@ -128,7 +137,10 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
 
           <div className="sticky bottom-20 md:bottom-6 z-10 pt-2 pb-4 bg-gradient-to-t from-paper via-paper/95 to-transparent -mx-6 px-6">
             <button
-              onClick={() => setModalOpen(true)}
+              onClick={() => {
+                setPrefillWallet(false);
+                setModalOpen(true);
+              }}
               className="w-full py-3.5 rounded-xl bg-accent text-paper font-medium text-sm hover:bg-accent/90 transition-colors shadow-lg shadow-accent/10"
             >
               Deposit {opportunity.asset.symbol}
@@ -142,7 +154,11 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
       </div>
 
       {modalOpen && (
-        <DepositWithdrawModal opportunity={opportunity} onClose={() => setModalOpen(false)} />
+        <DepositWithdrawModal
+          opportunity={opportunity}
+          onClose={() => setModalOpen(false)}
+          prefillWallet={prefillWallet}
+        />
       )}
     </>
   );
