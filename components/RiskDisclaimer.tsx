@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export function RiskDisclaimer({
   className = '',
   compact = false,
@@ -29,19 +31,13 @@ export function RiskDisclaimer({
           ·
         </span>
         <span>Non-custodial</span>
+        <span className="text-ink/20" aria-hidden>
+          ·
+        </span>
+        <Link href="/risk" className="hover:text-ink/70 normal-case tracking-normal">
+          Full disclosure
+        </Link>
       </p>
     </aside>
-  );
-}
-
-export function RiskFooter() {
-  return (
-    <footer className="border-t border-border mt-10 mb-2 md:mt-16 md:mb-0">
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-5 text-[11px] leading-relaxed text-ink/40">
-        Openhand is a non-custodial interface. Yield is not a deposit, is not insured, and is not
-        guaranteed. Capital is at risk, including from smart-contract failure. Not an offer of
-        securities or investment advice.
-      </div>
-    </footer>
   );
 }

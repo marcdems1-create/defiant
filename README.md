@@ -193,6 +193,45 @@ Transak’s Referer check passes. Allowlist those hosts in the Transak dashboard
 
 Production keys + KYB are still required before real CAD hits a real wallet.
 
+**Transak KYB — do not resubmit until production smoke is green**
+
+The last rejection cited a **non-functional site**. As of this writing, live
+`https://www.openhand.online` can still 404 `/terms` and show a CSS-chunk error on `/`
+until this branch is **merged and redeployed**. Do not send Transak that URL until:
+
+```bash
+npm run smoke:public
+```
+
+passes against production (scheduled in `.github/workflows/production-smoke.yml`). That
+check fails if `/terms` is missing, if Transak’s ToS is not in the HTML, or if the
+homepage looks like the error boundary.
+
+Transak’s API docs require partners to include [Transak’s Terms of Service](https://transak.com/terms-of-service) in their own terms, and to let users **review and acknowledge** those terms in the user journey ([integration/api](https://docs.transak.com/integration/api)). A previous site polish that invented operator details (`HYPERFLEX`, `hello@openhand.money`) was reverted — KYB identity must match the documents you upload, on **www.openhand.online**, not an abandoned domain.
+
+| Checkpoint | In this repo? | You still have to |
+|---|---|---|
+| Live site actually loads (no CSS-chunk white-screen) | Auto-reload + smoke | Merge/redeploy, then `npm run smoke:public` |
+| Public Terms that incorporate Transak ToS by reference | Yes — `/terms` (`/tos` redirects) | Same legal name as the KYB form |
+| Public Privacy | Yes — `/privacy` | — |
+| Refunds (Transak handles fiat; we never received the funds) | Yes — `/refunds` | — |
+| Contact / operator | Yes — `/contact`, `/about` | Set `NEXT_PUBLIC_OPERATOR_*` on Vercel to the **exact** KYB name, mailing address, and phone, then redeploy |
+| About / Partners / Support / Risk / Buy USDC | Yes | Nature of business: paste the paragraph below |
+| Unchecked-by-default Transak T&C acknowledgement before the widget iframe | Yes — `OnrampModal` | — |
+| Legal pages load **without** wallet providers | Yes — `app/(legal)` | — |
+| Corporate email | Default `hello@openhand.online` | Inbox + Transak signup with that address, never Gmail |
+| [Integration checklist](https://share.hsforms.com/1gqzzzz4cTVWGZYjiKXP2ZQ45oa1) + [KYB form](https://forms.transak.com/kyb) | No | Same email as the dashboard |
+| Allowlist both hosts | Code uses them | `openhand.online` **and** `www.openhand.online` in Transak |
+| Static egress IPs | No | Vercel Static IPs (Pro) → [transak.link/partner-security-checklist](https://transak.link/partner-security-checklist) |
+| SELL / cash out | Code is there | Enable SELL on the Transak partner app |
+| Partner fee | Dashboard, not code | After KYB; keep `NEXT_PUBLIC_TREASURY_ADDRESS` unset |
+
+Paste this as **nature of business** on the KYB form (it matches `/about` and `/partners`):
+
+> Openhand is a non-custodial software interface. Users connect their own wallet to view live on-chain yield and to sign their own deposit and withdrawal transactions with third-party protocols. Openhand never holds, pools, or transmits user funds. Fiat on-ramp and off-ramp (CAD / Interac ↔ USDC) is provided exclusively by Transak. Transak is the merchant of record for that checkout, performs user KYC, and sends USDC to or receives USDC from the user’s wallet. Openhand does not receive CAD or USDC from Transak checkout.
+
+Do **not** describe Openhand as a bank, savings product, broker, or money transmitter. Dashboard tokenized-stock / spot-crypto tapes are LI.FI, not Transak — say so if the form asks about other products.
+
 ## Protocols integrated
 
 | Protocol | Chains | Asset | Deposit | Withdraw |
@@ -395,11 +434,12 @@ disallows `/admin`.
   checkbox and a valid wallet signature — not a silent add.
 
 **What's explicitly NOT built yet, and must exist before this store goes anywhere near real users:**
-a privacy policy describing this collection, a data retention policy, and a self-service (or
-at minimum request-based) deletion mechanism. The anonymous event table is a lighter category
-than wallet-linked answers, but it is still in scope for that review. **This is not legal
-advice** — get a real privacy/compliance review before enabling this in front of real users,
-same as the fee model and the custody architecture above.
+a stated retention period and a self-service (or at minimum request-based) deletion
+mechanism. Public `/privacy` now describes this collection and that it stays off until
+configured. The anonymous event table is a lighter category than wallet-linked answers,
+but it is still in scope for that review. **This is not legal advice** — get a real
+privacy/compliance review before enabling this in front of real users, same as the fee
+model and the custody architecture above.
 
 ## Safety defaults
 
@@ -471,8 +511,10 @@ npm run dev
   wallet can error mid-flow. If one leg succeeds and the other then fails, the UI currently
   just surfaces the error — there's no automatic refund/retry/resume orchestration. Worth
   hardening before real money is at stake.
-- **No privacy policy, retention policy, or deletion mechanism yet** for the anonymous
-  event table — see "Site analytics." Needed before this runs in front of real users,
+- **Site analytics still needs a retention period and a deletion path** before
+  `DATABASE_URL` is turned on for real users. Public `/privacy` now describes the
+  (off-by-default) anonymous event table; do not enable the store until those
+  two pieces exist — see "Site analytics."
   not before some later "polish" pass.
 - **No migration runner.** `migrations/002_site_analytics.sql` is applied by hand (psql, or
   your Postgres host's SQL console) — no tracking of which have run. Fine at this scale,
@@ -506,10 +548,12 @@ npm run dev
 | `lib/wagmi.ts` | Chain list + wallet connector config, testnet/mainnet switch |
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
 | `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
+| `lib/config/site.ts` | Public name, URL, operator env (`NEXT_PUBLIC_OPERATOR_*`), Transak/Privy legal URLs |
+| `app/(legal)/*` | About, terms, privacy, risk, partners, support, buy-usdc — no wallet providers |
 | `lib/config/transak.ts` | Transak env, CAD default, USDC network map. Server-only secrets. |
 | `lib/transak/accessToken.ts` | Partner access-token cache. Never import from a client component. |
 | `app/api/onramp/widget/route.ts` | One-shot Transak widget URL locked to the connected wallet |
-| `components/OnrampModal.tsx` | Buy USDC iframe (Transak on mainnet; faucet copy on testnet) |
+| `components/OnrampModal.tsx` | Transak T&C ack (unchecked by default), then Buy USDC / cash-out iframe |
 | `lib/db.ts` | Server-only lazy Postgres pool. Never import from a client component. |
 | `lib/analytics/track.ts` | Client beacon — posts allowlisted events; swallows errors |
 | `app/api/analytics/event/route.ts` | First-party event ingest (no wallet/IP stored) |

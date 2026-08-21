@@ -145,11 +145,13 @@ export function StockDesk() {
         </p>
         <h2 className="text-lg font-medium">Live tape via LI.FI</h2>
         <p className="text-sm text-ink/50 mt-1 max-w-2xl leading-relaxed">
-          Browse tokenized stocks and ETFs routed by LI.FI (xStocks, Ondo, Backed). The tape
-          lists the top {STOCK_TAPE_SIZE} by CoinGecko token market cap — not the listed
-          company&apos;s equity cap, not a recommendation. Prices are LI.FI last marks; 24h %
-          is CoinGecko. A row is skipped when price or cap cannot be parsed. You sign every
-          swap. Openhand never holds the tokens. Availability varies by issuer and jurisdiction.
+          Browse tokenized stocks and ETFs routed by LI.FI (xStocks, Ondo, Backed). This tape
+          is not Transak, not a broker, and not the listed share. Transak is only used for
+          USDC buy and cash out. The tape lists the top {STOCK_TAPE_SIZE} by CoinGecko token
+          market cap — not the listed company&apos;s equity cap, not a recommendation. Prices
+          are LI.FI last marks; 24h % is CoinGecko. A row is skipped when price or cap cannot
+          be parsed. You sign every swap. Openhand never holds the tokens. Availability
+          varies by issuer and jurisdiction.
         </p>
       </div>
 

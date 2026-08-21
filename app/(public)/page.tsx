@@ -13,6 +13,7 @@ import {
 import { pickStarterOpportunity } from '@/lib/firstRun';
 import { OpportunityCard } from '@/components/OpportunityCard';
 import { OpportunityFilters } from '@/components/OpportunityFilters';
+import { HowItWorks } from '@/components/HowItWorks';
 import { RiskDisclaimer } from '@/components/RiskDisclaimer';
 import { PositionCard } from '@/components/PositionCard';
 import { FirstRunHero } from '@/components/FirstRunHero';
@@ -55,6 +56,7 @@ export default function CollectionPage() {
             usdcBalance={usdcValue}
             usdcReady={usdcReady}
           />
+          <HowItWorks />
           <RiskDisclaimer compact />
         </>
       ) : (

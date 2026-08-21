@@ -3,7 +3,16 @@ const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@privy-io/react-auth', '@privy-io/wagmi'],
   async redirects() {
-    return [{ source: '/opportunities', destination: '/', permanent: false }];
+    return [
+      { source: '/opportunities', destination: '/', permanent: false },
+      // URLs Transak / counsel type by habit. Permanent so crawlers keep one canonical.
+      { source: '/tos', destination: '/terms', permanent: true },
+      { source: '/terms-of-service', destination: '/terms', permanent: true },
+      { source: '/privacy-policy', destination: '/privacy', permanent: true },
+      { source: '/refund', destination: '/refunds', permanent: true },
+      { source: '/refund-policy', destination: '/refunds', permanent: true },
+      { source: '/contact-us', destination: '/contact', permanent: true },
+    ];
   },
   async headers() {
     return [
