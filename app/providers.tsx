@@ -1,48 +1,45 @@
 'use client';
 
-import { Component, type ReactNode } from 'react';
-import dynamic from 'next/dynamic';
-import { privyAppId } from '@/lib/config/privy';
-import { RainbowAppProviders } from './providers-rainbow';
-import { WalletModeContext, type WalletMode } from '@/lib/walletMode';
-
-const PrivyAppProviders = dynamic(
-  () => import('./providers-privy').then((m) => m.PrivyAppProviders),
-  { ssr: false },
-);
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { WagmiProvider } from 'wagmi';
+import { getSsrWagmiConfig } from '@/lib/wagmi';
+import { WalletUiReadyContext } from '@/lib/walletMode';
 
 /**
- * Privy throws on an origin that is not in its dashboard allowlist (www vs
- * apex is the usual miss). That used to white-screen the whole public app.
- * Catch it and keep RainbowKit connect working.
+ * Wallet connectors (RainbowKit / Privy) cannot run during SSR. Query + a
+ * connector-less wagmi config still wrap the tree so page HTML (opportunity
+ * copy, headings) is in the first response. After mount we swap in the
+ * real wallet providers without putting RainbowKit in the server graph.
  */
-class WalletProviderBoundary extends Component<
-  { children: ReactNode },
-  { failed: boolean }
-> {
-  state = { failed: false };
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  componentDidCatch(error: Error) {
-    console.error('Privy failed to start; using RainbowKit only', error);
-  }
-
-  render() {
-    const mode: WalletMode =
-      privyAppId() && !this.state.failed ? 'privy' : 'rainbow';
-    const inner =
-      mode === 'privy' ? (
-        <PrivyAppProviders>{this.props.children}</PrivyAppProviders>
-      ) : (
-        <RainbowAppProviders>{this.props.children}</RainbowAppProviders>
-      );
-    return <WalletModeContext.Provider value={mode}>{inner}</WalletModeContext.Provider>;
-  }
-}
-
 export function Providers({ children }: { children: ReactNode }) {
-  return <WalletProviderBoundary>{children}</WalletProviderBoundary>;
+  const [queryClient] = useState(() => new QueryClient());
+  const ssrConfig = useMemo(() => getSsrWagmiConfig(), []);
+  const [BrowserWallets, setBrowserWallets] = useState<ComponentType<{
+    children: ReactNode;
+  }> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    import('./providers-browser').then((mod) => {
+      if (!cancelled) setBrowserWallets(() => mod.WalletBrowserProviders);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <WalletUiReadyContext.Provider value={Boolean(BrowserWallets)}>
+        {BrowserWallets ? (
+          <BrowserWallets>{children}</BrowserWallets>
+        ) : (
+          <WagmiProvider config={ssrConfig} reconnectOnMount={false}>
+            {children}
+          </WagmiProvider>
+        )}
+      </WalletUiReadyContext.Provider>
+    </QueryClientProvider>
+  );
 }

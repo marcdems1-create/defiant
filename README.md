@@ -15,17 +15,29 @@ key, no path for the app itself to move anyone's money.
 
 ## Production domain
 
-The product ships as **Openhand** at `https://openhand.online`. Point the Namecheap
-zone at Vercel (not the parking page) and add the domain on the Vercel project:
+The product ships as **Openhand** at `https://www.openhand.online`. The apex
+`openhand.online` should **308 to www** so Google, wallets, and share cards all
+see one host. Canonical tags, the sitemap, Open Graph, and
+`NEXT_PUBLIC_SITE_URL` must be that www origin — an apex canonical that
+redirects to www is split ranking signal.
+
+Point the Namecheap zone at Vercel (not the parking page) and add the domain
+on the Vercel project:
 
 1. In Namecheap, delete the URL Redirect on `@` and the parking `CNAME` on `www`.
 2. Apex `A` record: Host `@` → `216.198.79.1` (the value on this project's Vercel domain card).
 3. `CNAME` Host `www` → `cname.vercel-dns.com` (not `name.vercel-dns.com`).
 4. In Vercel → Project → Settings → Domains, add `openhand.online` and
-   `www.openhand.online`. Set the apex as primary.
-5. Set `NEXT_PUBLIC_SITE_URL=https://openhand.online` on the Vercel project.
-6. Register that origin in Reown / WalletConnect, Privy, and Transak’s
+   `www.openhand.online`. Set **www as primary** so the apex 308s there.
+5. Set `NEXT_PUBLIC_SITE_URL=https://www.openhand.online` on the Vercel project.
+   If this is still the bare apex, the app rewrites it to www.
+6. Register **both** origins in Reown / WalletConnect, Privy, and Transak’s
    allowlist. `*.vercel.app` preview URLs are not the production host.
+
+Each `/opportunities/[id]` card is its own indexable URL (unique title,
+description, canonical, and copy in the HTML). `sitemap.xml` lists those
+cards. Production builds need `NEXT_PUBLIC_NETWORK_MODE=mainnet` so the
+sitemap emits mainnet IDs, not testnet ones.
 
 ## Why non-custodial
 

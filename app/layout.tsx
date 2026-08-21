@@ -4,14 +4,20 @@ import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: `${SITE_NAME} — non-custodial DeFi yield`,
+  title: {
+    default: `${SITE_NAME} — non-custodial DeFi yield`,
+    template: `%s — ${SITE_NAME}`,
+  },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
-  alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
-    url: SITE_URL,
     siteName: SITE_NAME,
+    title: `${SITE_NAME} — non-custodial DeFi yield`,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: 'summary_large_image',
     title: `${SITE_NAME} — non-custodial DeFi yield`,
     description: SITE_DESCRIPTION,
   },

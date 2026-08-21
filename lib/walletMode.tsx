@@ -15,3 +15,10 @@ export const WalletModeContext = createContext<WalletMode>(
 export function useWalletMode(): WalletMode {
   return useContext(WalletModeContext);
 }
+
+/** False until RainbowKit / Privy providers have mounted after SSR. */
+export const WalletUiReadyContext = createContext(false);
+
+export function useWalletUiReady(): boolean {
+  return useContext(WalletUiReadyContext);
+}

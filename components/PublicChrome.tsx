@@ -8,11 +8,10 @@ import { RiskFooter } from '@/components/RiskDisclaimer';
 import { InstallAppBanner } from '@/components/InstallAppBanner';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
-// RainbowKit/Privy touch browser-only APIs at module-eval time. ssr:false
-// keeps that out of Next's Node page-data collection.
-const Providers = dynamic(() => import('@/app/providers').then((m) => m.Providers), {
-  ssr: false,
-});
+// RainbowKit/Privy stay behind a dynamic import so Next's Node page-data
+// collection never require()'s them. SSR is on — Providers renders children
+// with a connector-less wagmi config so opportunity copy is in the HTML.
+const Providers = dynamic(() => import('@/app/providers').then((m) => m.Providers));
 
 export function PublicChrome({ children }: { children: React.ReactNode }) {
   return (

@@ -229,7 +229,11 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
   },
 };
 
-function morphoOverrides(opportunity: Opportunity): Partial<OpportunityDetailContent> {
+export type OpportunityDetailsSource = Pick<Opportunity, 'protocol' | 'protocolLabel'> & {
+  curve?: Opportunity['curve'];
+};
+
+function morphoOverrides(opportunity: OpportunityDetailsSource): Partial<OpportunityDetailContent> {
   const isHighYield = opportunity.protocolLabel.toLowerCase().includes('high yield');
   if (!isHighYield) return {};
 
@@ -246,7 +250,7 @@ function morphoOverrides(opportunity: Opportunity): Partial<OpportunityDetailCon
   };
 }
 
-function curveOverrides(opportunity: Opportunity): Partial<OpportunityDetailContent> {
+function curveOverrides(opportunity: OpportunityDetailsSource): Partial<OpportunityDetailContent> {
   const is3Pool = opportunity.curve?.numCoins === 3;
   if (!is3Pool) return {};
 
@@ -259,7 +263,7 @@ function curveOverrides(opportunity: Opportunity): Partial<OpportunityDetailCont
 }
 
 /** Educational copy for an opportunity — filter/sort context only, never suitability advice. */
-export function getOpportunityDetails(opportunity: Opportunity): OpportunityDetailContent {
+export function getOpportunityDetails(opportunity: OpportunityDetailsSource): OpportunityDetailContent {
   const base = BASE_DETAILS[opportunity.protocol];
   const overrides =
     opportunity.protocol === 'morpho'
