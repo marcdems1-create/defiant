@@ -26,7 +26,7 @@ export function CollectionPage() {
   });
   const [filters, setFilters] = useState<OpportunityFilterState>(DEFAULT_OPPORTUNITY_FILTERS);
 
-  const allCards = data ?? [];
+  const allCards = useMemo(() => data ?? [], [data]);
   const starter = useMemo(() => pickStarterOpportunity(allCards), [allCards]);
   const usdcBalance = useErc20Balance(
     starter?.asset.address,
