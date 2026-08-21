@@ -1,6 +1,5 @@
-import type { Config } from 'wagmi';
+import { createConfig, http, type Config } from 'wagmi';
 import { arbitrum, arbitrumSepolia, base, baseSepolia, mainnet, sepolia } from 'wagmi/chains';
-import { http } from 'wagmi';
 
 export const NETWORK_MODE: 'testnet' | 'mainnet' =
   process.env.NEXT_PUBLIC_NETWORK_MODE === 'mainnet' ? 'mainnet' : 'testnet';
@@ -49,6 +48,27 @@ export function getWagmiTransports() {
   return Object.fromEntries(
     chains.map((chain) => [chain.id, http(rpcOverrides[chain.id] || undefined)]),
   );
+}
+
+/**
+ * Read-only wagmi config for SSR. No RainbowKit connectors — those touch
+ * indexedDB / WebSocket at construct time and crash Node page rendering.
+ * Never assign this to `_wagmiConfig`; deposit code must use getWagmiConfig().
+ */
+let _ssrWagmiConfig: Config | undefined;
+
+export function getSsrWagmiConfig(): Config {
+  if (_ssrWagmiConfig) return _ssrWagmiConfig;
+  const chainTuple = chains as unknown as readonly [
+    (typeof chains)[number],
+    ...(typeof chains)[number][],
+  ];
+  _ssrWagmiConfig = createConfig({
+    chains: chainTuple,
+    transports: getWagmiTransports() as never,
+    ssr: true,
+  });
+  return _ssrWagmiConfig;
 }
 
 export function getWagmiConfig(): Config {

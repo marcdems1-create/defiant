@@ -14,6 +14,12 @@ export interface CardBadges {
   liquidity: CardBadge;
 }
 
+/** Fields the badge row actually reads — catalog shells work, not only live fetches. */
+export type BadgeSource = Pick<
+  Opportunity,
+  'protocol' | 'protocolLabel' | 'chainId' | 'liquidity' | 'riskTier'
+>;
+
 type RiskLevel = 'lower' | 'medium' | 'higher';
 
 const RISK_BADGE: Record<RiskLevel, CardBadge> = {
@@ -34,7 +40,7 @@ const RISK_BADGE: Record<RiskLevel, CardBadge> = {
   },
 };
 
-function cardRiskLevel(opportunity: Opportunity): RiskLevel {
+function cardRiskLevel(opportunity: BadgeSource): RiskLevel {
   if (
     opportunity.protocol === 'convex-cvxcrv' ||
     opportunity.protocol === 'frax-sfrxusd' ||
@@ -61,7 +67,7 @@ function cardRiskLevel(opportunity: Opportunity): RiskLevel {
 }
 
 /** Map protocol + risk into the axes shown on collection cards. */
-export function getCardBadges(opportunity: Opportunity): CardBadges {
+export function getCardBadges(opportunity: BadgeSource): CardBadges {
   const risk = RISK_BADGE[cardRiskLevel(opportunity)];
 
   const battleTested =

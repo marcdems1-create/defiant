@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { track } from '@/lib/analytics/track';
-import { useWalletMode } from '@/lib/walletMode';
+import { useWalletMode, useWalletUiReady } from '@/lib/walletMode';
 
 // RainbowKit / Privy touch browser-only APIs at module-eval time (indexedDB,
 // WebSocket) which crashes Next's Node-side static page-data collection if
@@ -23,7 +23,11 @@ export function ConnectButtonClient(props: {
   label?: string;
 }) {
   const mode = useWalletMode();
+  const walletUiReady = useWalletUiReady();
   const WalletButton = mode === 'privy' ? PrivyWalletButton : RainbowWalletButton;
+  if (!walletUiReady) {
+    return <span className="inline-block h-9 w-[7.5rem]" aria-hidden />;
+  }
   return (
     <span
       onClick={() => {

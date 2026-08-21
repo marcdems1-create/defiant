@@ -5,14 +5,32 @@ export function formatApy(apy: number): string {
   return `${(apy * 100).toFixed(2)}%`;
 }
 
+/** Live APY for display. Never invent a number — show an em dash if we don't have one. */
+export function formatApyDisplay(apy: number | null | undefined): string {
+  if (apy == null || !Number.isFinite(apy) || apy <= 0) return '—';
+  return formatApy(apy);
+}
+
+const CHAIN_LABELS: Record<number, string> = {
+  1: 'Ethereum',
+  8453: 'Base',
+  42161: 'Arbitrum One',
+  11155111: 'Sepolia',
+  84532: 'Base Sepolia',
+  421614: 'Arbitrum Sepolia',
+};
+
 /** Caption under the big rate — call out compounding when we actually compounded it. */
-export function apyCaption(opportunity: Opportunity, prefix?: string): string {
+export function apyCaption(
+  opportunity: Pick<Opportunity, 'apyCompounded'>,
+  prefix?: string,
+): string {
   const kind = opportunity.apyCompounded ? 'compounded APY' : 'APY';
   return prefix ? `${prefix} ${kind}` : kind;
 }
 
 export function chainName(chainId: number): string {
-  return chains.find((c) => c.id === chainId)?.name ?? `Chain ${chainId}`;
+  return chains.find((c) => c.id === chainId)?.name ?? CHAIN_LABELS[chainId] ?? `Chain ${chainId}`;
 }
 
 /** Block-explorer URL for a transaction, or null if we don't know the chain. */

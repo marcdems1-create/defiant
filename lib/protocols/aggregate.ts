@@ -66,3 +66,27 @@ export async function fetchAllOpportunities(): Promise<Opportunity[]> {
 
   return perChain.flat().sort((a, b) => b.apy - a.apy);
 }
+
+/** Share one live fetch across sitemap + many opportunity pages in the same process. */
+let inflight: Promise<Opportunity[]> | null = null;
+let memo: { at: number; data: Opportunity[] } | null = null;
+
+export function fetchAllOpportunitiesMemoized(ttlMs = 60_000): Promise<Opportunity[]> {
+  const now = Date.now();
+  if (memo && now - memo.at < ttlMs) return Promise.resolve(memo.data);
+  if (!inflight) {
+    inflight = fetchAllOpportunities()
+      .then((data) => {
+        memo = { at: Date.now(), data };
+        return data;
+      })
+      .catch((err: unknown) => {
+        if (memo) return memo.data;
+        throw err;
+      })
+      .finally(() => {
+        inflight = null;
+      });
+  }
+  return inflight;
+}

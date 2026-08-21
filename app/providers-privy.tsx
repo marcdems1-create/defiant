@@ -2,7 +2,6 @@
 
 import { PrivyProvider } from '@privy-io/react-auth';
 import { WagmiProvider, createConfig } from '@privy-io/wagmi';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { getPrivyClientConfig } from '@/lib/config/privyClient';
 import { privyAppId } from '@/lib/config/privy';
@@ -22,7 +21,6 @@ function buildPrivyWagmiConfig() {
 }
 
 export function PrivyAppProviders({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
   const [wagmiConfig] = useState(() => buildPrivyWagmiConfig());
   const appId = privyAppId();
   if (!appId) {
@@ -31,9 +29,7 @@ export function PrivyAppProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <PrivyProvider appId={appId} config={getPrivyClientConfig()}>
-      <QueryClientProvider client={queryClient}>
-        <WagmiProvider config={wagmiConfig}>{children}</WagmiProvider>
-      </QueryClientProvider>
+      <WagmiProvider config={wagmiConfig}>{children}</WagmiProvider>
     </PrivyProvider>
   );
 }

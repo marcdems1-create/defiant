@@ -1,41 +1,52 @@
-'use client';
+import { notFound } from 'next/navigation';
+import { OpportunityDetailView } from '@/components/OpportunityDetailView';
+import { OpportunityDeposit, OpportunityDepositUnavailable } from '@/components/OpportunityDeposit';
+import { ApyHistoryChart } from '@/components/ApyHistoryChart';
+import { SITE_NAME, absoluteUrl } from '@/lib/config/site';
+import { chainName } from '@/lib/format';
+import { getCatalog } from '@/lib/protocols/catalog';
+import { loadOpportunityPage } from '@/lib/protocols/opportunityPage';
 
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useOpportunities } from '@/lib/hooks/useOpportunities';
-import { OpportunityDetail } from '@/components/OpportunityDetail';
+export const revalidate = 300;
+export const dynamicParams = true;
 
-export default function OpportunityDetailPage() {
-  const params = useParams<{ id: string }>();
-  const { data, isLoading, isError } = useOpportunities();
+export function generateStaticParams() {
+  return getCatalog().map((entry) => ({ id: entry.id }));
+}
 
-  const opportunity = data?.find((o) => o.id === params.id);
+export default async function OpportunityDetailPage({ params }: { params: { id: string } }) {
+  const data = await loadOpportunityPage(params.id);
+  if (!data) notFound();
 
-  if (isLoading) {
-    return <div className="text-ink/50 text-sm">Loading card details…</div>;
-  }
+  const { catalog, live } = data;
+  const apy = live && live.apy > 0 ? live.apy : null;
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: `${catalog.protocolLabel} ${catalog.assetSymbol} on ${chainName(catalog.chainId)}`,
+    description: catalog.description,
+    url: absoluteUrl(`/opportunities/${catalog.id}`),
+    isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: absoluteUrl('/') },
+  };
 
-  if (isError) {
-    return (
-      <div className="text-danger text-sm">
-        Couldn&apos;t load this opportunity. Check your network and try again.
-      </div>
-    );
-  }
-
-  if (!opportunity) {
-    return (
-      <div className="max-w-md">
-        <h1 className="text-xl font-medium mb-2">Card not found</h1>
-        <p className="text-sm text-ink/55 mb-4">
-          This yield card may have rotated off the live list, or the link is outdated.
-        </p>
-        <Link href="/" className="text-sm text-accent hover:underline">
-          ← Browse the collection
-        </Link>
-      </div>
-    );
-  }
-
-  return <OpportunityDetail opportunity={opportunity} />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <OpportunityDetailView
+        catalog={catalog}
+        apy={apy}
+        chart={live ? <ApyHistoryChart opportunity={live} /> : null}
+        actions={
+          live ? (
+            <OpportunityDeposit opportunity={live} />
+          ) : (
+            <OpportunityDepositUnavailable assetSymbol={catalog.assetSymbol} />
+          )
+        }
+      />
+    </>
+  );
 }
