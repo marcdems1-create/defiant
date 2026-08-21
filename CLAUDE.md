@@ -82,8 +82,9 @@ language, flag the regulatory/consumer-protection implication first — don't ju
 9. **This app does not collect wallet-linked personal data.** Don't add third-party
    analytics, telemetry, tracking pixels, or any other data collection without treating it
    as a decision with real privacy-law weight. The only optional store is anonymous
-   first-party events. See README "Site analytics." What's still missing before that store
-   faces real users: privacy policy, retention policy, deletion mechanism.
+   first-party events. See README "Site analytics." Public `/privacy` covers that store.
+   What's still missing before analytics faces real users: a stated retention period
+   and a deletion mechanism.
 
 ## ⛔ RainbowKit/wagmi config must stay lazy — do not regress
 
@@ -536,4 +537,31 @@ Capacitor/Electron — those wrappers break WalletConnect return-to-app and Tran
   snooze); iOS hint is Safari-only.
 - `sw.js` is served with `Cache-Control: no-cache` so updates apply. Bump the
   `CACHE` constant in `public/sw.js` if the worker logic changes.
+
+## Session update (2026-08-21) — Transak KYB site (do not get rejected again)
+
+Transak needs a live site that matches the KYB filing, Terms that **include Transak ToS**,
+and a user journey that lets people **review and acknowledge** those T&Cs before checkout
+(https://docs.transak.com/integration/api). The 2026-08-19 polish (PR #31 revert) hardcoded
+HYPERFLEX / `hello@openhand.money` and was undone — do not restore that. Product domain is
+`openhand.online`; contact default is `hello@openhand.online`.
+
+What is in the product now:
+
+- Server-rendered `/about`, `/terms`, `/privacy`, `/risk`, `/partners`, `/support`,
+  `/buy-usdc` under `app/(legal)` — **no wallet providers**, so a Privy miss cannot
+  white-screen the docs a reviewer reads.
+- `/terms` incorporates Transak ToS (and US ToS) by reference; Transak is merchant of
+  record for CAD↔USDC; Openhand never receives those funds.
+- `OnrampModal` does **not** load the iframe until an unchecked-by-default checkbox
+  acknowledging Openhand Terms + Transak ToS.
+- Operator identity is `NEXT_PUBLIC_OPERATOR_*` (legal name, address, jurisdiction,
+  email, phone). Do not invent an entity in code — set env to match the KYB form
+  before resubmitting.
+- Footer company links; How it works on first session; LI.FI tapes labeled as not Transak.
+
+Still ops, not code: corporate inbox, HubSpot integration checklist, KYB form with the
+`/partners` nature-of-business paragraph, Transak host allowlist, Vercel static IPs,
+SELL enabled, partner fee in Transak dashboard. Do not turn on `NEXT_PUBLIC_TREASURY_ADDRESS`.
+
 

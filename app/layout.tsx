@@ -4,7 +4,10 @@ import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: `${SITE_NAME} — non-custodial DeFi yield`,
+  title: {
+    default: `${SITE_NAME} — non-custodial DeFi yield`,
+    template: `%s — ${SITE_NAME}`,
+  },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   alternates: { canonical: '/' },

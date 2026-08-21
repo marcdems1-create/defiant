@@ -148,9 +148,10 @@ export function CryptoDesk() {
         <h2 className="text-lg font-medium">Live tape via LI.FI</h2>
         <p className="text-sm text-ink/50 mt-1 max-w-2xl leading-relaxed">
           Largest coins by CoinGecko market cap that LI.FI can route against USDC, sorted by 24h
-          change. That order is live market data — not a recommendation, and nothing here is
-          featured. Stables are omitted. Prices are LI.FI last marks; 24h % is CoinGecko. You sign
-          every swap. Openhand never holds the tokens.
+          change. This tape is not Transak. Transak is only used for USDC buy and cash out.
+          That order is live market data — not a recommendation, and nothing here is featured.
+          Stables are omitted. Prices are LI.FI last marks; 24h % is CoinGecko. You sign every
+          swap. Openhand never holds the tokens.
         </p>
       </div>
 
