@@ -91,6 +91,7 @@ export default function TermsPage() {
         those documents. The Buy USDC / Cash out flow will not open Transak&apos;s widget
         until you acknowledge them. Refunds, payment failures, and identity-check decisions
         for that checkout are Transak&apos;s — see{' '}
+        <LegalLink href="/refunds">Refunds</LegalLink> and{' '}
         <LegalLink href={TRANSAK_SUPPORT_URL} external>
           Transak support
         </LegalLink>

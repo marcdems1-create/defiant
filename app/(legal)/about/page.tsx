@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CompanyMarks } from '@/components/CompanyMarks';
 import { HowItWorks } from '@/components/HowItWorks';
+import { OperatorCard } from '@/components/OperatorCard';
 import { LegalH2, LegalLink } from '@/components/LegalDoc';
 import {
   CONTACT_EMAIL,
@@ -64,6 +65,8 @@ export default function AboutPage() {
       </header>
 
       <CompanyMarks />
+
+      <OperatorCard />
 
       <div className="flex flex-col gap-5 text-sm text-ink/70 leading-relaxed">
         <LegalH2>Who operates this</LegalH2>

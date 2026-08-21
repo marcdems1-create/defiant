@@ -549,8 +549,12 @@ HYPERFLEX / `hello@openhand.money` and was undone — do not restore that. Produ
 What is in the product now:
 
 - Server-rendered `/about`, `/terms`, `/privacy`, `/risk`, `/partners`, `/support`,
-  `/buy-usdc` under `app/(legal)` — **no wallet providers**, so a Privy miss cannot
-  white-screen the docs a reviewer reads.
+  `/buy-usdc`, `/refunds`, `/contact` under `app/(legal)` — **no wallet providers**.
+  `/tos` → `/terms`, `/privacy-policy` → `/privacy`.
+- Stale CSS/JS chunk failures auto hard-reload once so reviewers are not stuck on
+  “Loading CSS chunk failed” (that white-screen was cited in the last KYB rejection).
+- `npm run smoke:public` checks live www `/terms` includes Transak ToS. Do not
+  resubmit KYB until that command passes on production after merge.
 - `/terms` incorporates Transak ToS (and US ToS) by reference; Transak is merchant of
   record for CAD↔USDC; Openhand never receives those funds.
 - `OnrampModal` does **not** load the iframe until an unchecked-by-default checkbox

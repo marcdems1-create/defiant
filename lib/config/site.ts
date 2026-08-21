@@ -10,9 +10,24 @@
  */
 export const SITE_NAME = 'Openhand';
 
-export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || 'https://openhand.online'
-).replace(/\/$/, '');
+export const SITE_URL = normalizeSiteUrl(
+  process.env.NEXT_PUBLIC_SITE_URL || 'https://www.openhand.online',
+);
+
+function normalizeSiteUrl(raw: string): string {
+  const trimmed = raw.replace(/\/$/, '');
+  try {
+    const url = new URL(trimmed);
+    // Vercel 308s apex → www. Canonicals and Transak referrerDomain must match
+    // the host reviewers actually land on.
+    if (url.hostname === 'openhand.online') {
+      url.hostname = 'www.openhand.online';
+    }
+    return url.origin;
+  } catch {
+    return 'https://www.openhand.online';
+  }
+}
 
 export const SITE_DESCRIPTION =
   'Non-custodial on-chain yield. Connect your own wallet, compare live rates, and sign every deposit and withdrawal yourself. Openhand never holds your funds.';
@@ -52,10 +67,12 @@ export const PRIVY_PRIVACY_URL = 'https://www.privy.io/privacy-policy';
 
 export const FOOTER_LINKS = [
   { href: '/about', label: 'About' },
+  { href: '/contact', label: 'Contact' },
   { href: '/partners', label: 'Partners' },
   { href: '/buy-usdc', label: 'Buy USDC' },
   { href: '/support', label: 'Support' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },
+  { href: '/refunds', label: 'Refunds' },
   { href: '/risk', label: 'Risk' },
 ] as const;

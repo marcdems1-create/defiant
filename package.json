@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke:public": "node scripts/smoke-public-site.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^2.21.4",
