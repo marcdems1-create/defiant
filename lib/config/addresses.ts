@@ -280,3 +280,49 @@ export const PANOPTIC = {
     unicornUsdc: '0x236d0558f06cd60780b232d4Ec4c92d2cb7e4D18' as `0x${string}`,
   },
 } as const;
+
+/**
+ * Tokenized gold — one troy ounce ERC-20s on Ethereum only.
+ *
+ * PAXG: Paxos Gold proxy from the official Paxos contract repo README
+ * (https://github.com/paxosglobal/paxos-gold-contract), re-verified 2026-08-20
+ * against CoinGecko `pax-gold` platform.ethereum. Each token is meant to
+ * represent one fine troy ounce of LBMA gold in Paxos custody. Not a yield
+ * token — Paxos charges a transfer fee for vault storage.
+ *
+ * XAUt: Tether Gold. Address from Tether Alloy Ethereum deployment docs
+ * (https://dev.alloy.tether.to/deployments/ethereum-mainnet, contract `XAUT`)
+ * and the gold.tether.to product, re-verified 2026-08-20 against CoinGecko
+ * `tether-gold` platform.ethereum. Each token is meant to represent one fine
+ * troy ounce. Not a yield token.
+ *
+ * Do **not** add L2 lookalikes (Arbitrum PAXG/XAUt, XAUt0, oXAUT, wrapped /
+ * vault shares) without an issuer-cited address on that chain. Those are
+ * different contracts.
+ */
+export type TokenizedGoldIssuer = 'paxos' | 'tether';
+
+export interface TokenizedGoldSpec {
+  geckoId: string;
+  issuer: TokenizedGoldIssuer;
+  chainId: typeof mainnet.id;
+  address: `0x${string}`;
+  symbol: string;
+}
+
+export const TOKENIZED_GOLD: readonly TokenizedGoldSpec[] = [
+  {
+    geckoId: 'pax-gold',
+    issuer: 'paxos',
+    chainId: mainnet.id,
+    address: '0x45804880De22913dAFE09f4980848ECE6EcbAf78',
+    symbol: 'PAXG',
+  },
+  {
+    geckoId: 'tether-gold',
+    issuer: 'tether',
+    chainId: mainnet.id,
+    address: '0x68749665FF8D2d112Fa859AA293F07A622782F38',
+    symbol: 'XAUt',
+  },
+];

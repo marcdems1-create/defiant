@@ -496,9 +496,14 @@ the USDC. SELL must be enabled on the Transak partner app.
 
 Spot crypto tape (`lib/lifi/crypto.ts`): CoinGecko top-50 market cap ∩ LI.FI-routable
 tokens, **sorted by 24h %**. Reorder of live data — not a featured pick, not advice.
-Stables omitted. Quote route allowlists stock **or** crypto tape only.
+Stables omitted. Quote route allowlists stock, gold, **or** crypto tape.
 
 Do not add a “best coin” card or scored ranking beyond this sort.
+
+## Session update (2026-08-20) — gold tape
+
+PAXG + XAUt on Ethereum (`TOKENIZED_GOLD`). LI.FI swap, no APY, no L2 lookalikes.
+Dashboard tabs: Gold / Crypto / Stocks.
 
 ## Session update (2026-08-18) — Sky sUSDS, Maple syrupUSDC, harvest sell-%
 

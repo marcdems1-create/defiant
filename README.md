@@ -407,8 +407,14 @@ a featured pick and not “we suggest this coin.” Stables are omitted. BTC mat
 WBTC / cbBTC where native BTC is not an EVM token.
 
 Swap path is the same wallet-signed LI.FI quote as stocks (`POST /api/lifi/quote`,
-allowlisted to the stock tape **or** this crypto tape). Native ETH skips ERC-20
+allowlisted to the stock tape, gold tape, **or** this crypto tape). Native ETH skips ERC-20
 approve. Do not add a highlighted “best performer” card.
+
+## Tokenized gold (LI.FI)
+
+Dashboard tape (`components/GoldDesk.tsx`): official **PAXG** and **XAUt** on Ethereum
+only (`TOKENIZED_GOLD` in `lib/config/addresses.ts`). No APY. Row skipped if LI.FI has
+no parseable price. Skip L2 lookalikes. Same USDC LI.FI swap as stocks/crypto.
 
 ## Site analytics
 
@@ -589,6 +595,11 @@ npm run dev
 | `app/api/lifi/stocks/route.ts` | Cached stock catalog for the dashboard tape |
 | `lib/lifi/crypto.ts` | CoinGecko top-50 mcap ∩ LI.FI tokens for the spot crypto tape |
 | `app/api/lifi/crypto/route.ts` | Cached crypto catalog |
+| `lib/lifi/gold.ts` | Official PAXG + XAUt ∩ LI.FI Ethereum catalog. No APY. |
+| `app/api/lifi/gold/route.ts` | Cached gold catalog |
+| `components/UpsideDesk.tsx` | Dashboard Gold / Crypto / Stocks tabs |
+| `components/GoldDesk.tsx` | Tokenized gold tape (PAXG, XAUt) |
+| `components/GoldSwapModal.tsx` | USDC ↔ gold, exact approve |
 | `components/CryptoDesk.tsx` | Dashboard spot-crypto tape, sorted by 24h change |
 | `components/CryptoSwapModal.tsx` | USDC ↔ spot crypto, exact approve (native ETH skips approve) |
 | `components/UsdcCashPanel.tsx` | Combined USDC total + Buy / Cash out / Move |
