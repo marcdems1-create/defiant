@@ -58,3 +58,61 @@ export function formatTokenAmount(amount: bigint, decimals: number, maxFractionD
   const trimmed = fractionStr.replace(/0+$/, '');
   return trimmed ? `${whole}.${trimmed}` : whole.toString();
 }
+
+/** Dollar totals (holdings). Always two fraction digits. */
+export function formatUsd(n: number): string {
+  return n.toLocaleString(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
+ * Live last-mark formatting. Sub-cent tokens (SHIB-class) must not round to
+ * $0.00. Unparseable values return null — we never invent a price.
+ */
+export function formatTapePrice(n: number): string | null {
+  if (!Number.isFinite(n) || n < 0) return null;
+  let min = 2;
+  let max = 2;
+  if (n > 0 && n < 1) {
+    if (n >= 0.01) {
+      min = 2;
+      max = 4;
+    } else if (n >= 0.0001) {
+      min = 4;
+      max = 6;
+    } else {
+      const mag = Math.floor(Math.log10(n));
+      max = Math.min(8, Math.max(2, 2 - mag));
+      min = max;
+    }
+  }
+  return n.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: min,
+    maximumFractionDigits: max,
+  });
+}
+
+export function formatTapeMarketCap(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return '';
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return formatUsd(n);
+}
+
+export function formatTapeChangePct(n: number): string {
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+}
+
+export function tapeChangeClass(n: number): string {
+  if (n > 0) return 'text-accent';
+  if (n < 0) return 'text-danger';
+  return 'text-ink/45';
+}
