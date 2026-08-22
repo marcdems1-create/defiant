@@ -558,7 +558,9 @@ What is in the product now:
 - `/terms` incorporates Transak ToS (and US ToS) by reference; Transak is merchant of
   record for CAD↔USDC; Openhand never receives those funds.
 - `OnrampModal` does **not** load the iframe until an unchecked-by-default checkbox
-  acknowledging Openhand Terms + Transak ToS.
+  acknowledging Openhand Terms + Transak ToS + Transak Privacy.
+- Widget BFF: CORS lock, production `x-user-ip` required, server-only API key, allowlisted
+  `referrerDomain` (not a raw Referer).
 - Operator identity is `NEXT_PUBLIC_OPERATOR_*` (legal name, address, jurisdiction,
   email, phone). Do not invent an entity in code — set env to match the KYB form
   before resubmitting.

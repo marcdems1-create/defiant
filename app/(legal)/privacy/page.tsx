@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { LegalDoc, LegalH2, LegalLink } from '@/components/LegalDoc';
+import { OperatorCard } from '@/components/OperatorCard';
 import {
   CONTACT_EMAIL,
   LEGAL_ENTITY,
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <LegalDoc title="Privacy policy" updated={LEGAL_UPDATED}>
+      <OperatorCard />
       <p>
         {SITE_NAME} ({SITE_URL}) is a non-custodial web interface operated by {LEGAL_ENTITY}{' '}
         in {LEGAL_JURISDICTION}. This page describes what this site itself does — and does
