@@ -175,9 +175,33 @@ inside Transak.
 `POST /api/onramp/widget` mints a Partner Access Token from the secret (cached in
 memory; Transak tokens last ~7 days) and then a **single-use widget URL** (~5 minutes).
 The modal fetches a fresh session on every open. Transak requires the end-user IP as
-`x-user-ip` for KYC/geo; Openhand forwards it and does not store it. `referrerDomain`
-matches the page host (`localhost` locally, `www.openhand.online` in production) so
-Transak’s Referer check passes. Allowlist those hosts in the Transak dashboard.
+`x-user-ip` for KYC/geo; Openhand forwards it (Vercel / Cloudflare client headers) and
+does not store it. Production refuses the session if that IP is missing. `referrerDomain`
+is an allowlisted Origin host (`localhost` locally, `www.openhand.online` in production),
+not a raw `Referer` copy. Allowlist those hosts in the Transak dashboard.
+
+**Transak production checkpoints — the widget code is not enough**
+
+Transak will not turn on real CAD until these are true. Deadline for the security
+items was 15 July 2026 ([mandatory security changes](https://docs.transak.com/guides/mandatory-security-changes)).
+
+| Checkpoint | In this repo? | You still have to |
+|---|---|---|
+| Create Widget URL from the **backend** (`POST /api/v2/auth/session`) | Yes | — |
+| `x-api-key` on every Transak call | Yes | Production API key after KYB |
+| `x-user-ip` = the shopper, not Vercel | Yes (required in production) | — |
+| CORS / Origin lock on `/api/onramp/widget` | Yes (allowlisted hosts only) | — |
+| Widget locked to the connected wallet | Yes (`walletAddress` + `disableWalletAddressForm`) | Allowlist `openhand.online` **and** `www.openhand.online` in the Transak dashboard |
+| Corporate email signup | No | `hello@openhand.online` at [dashboard.transak.com](https://dashboard.transak.com) — Gmail is rejected |
+| [Integration checklist](https://share.hsforms.com/1gqzzzz4cTVWGZYjiKXP2ZQ45oa1) | No | Submit the form |
+| Partner KYB | No | [forms.transak.com/kyb](https://forms.transak.com/kyb) with that same email. Needs a legal entity, terms, privacy. This site does not have those pages yet. |
+| Production API key + secret on Vercel | No | Server env only. `NEXT_PUBLIC_NETWORK_MODE=mainnet` |
+| **Static egress IPs** allowlisted at Transak | No | Vercel functions use rotating IPs. Enable [Vercel Static IPs](https://vercel.com/docs/networking/static-ips) (Pro) and paste those IPs into [transak.link/partner-security-checklist](https://transak.link/partner-security-checklist). Without this, production `Create Widget URL` is rejected (`Source IP not in your partner allowlist`). |
+| SELL / cash out | Code is there | Enable **SELL** on the Transak partner app |
+| Partner fee | Dashboard, not code | After KYB; keep the in-app deposit treasury off |
+
+Staging can be tested without KYB (`TRANSAK_STAGING=true`) and sends **TRNSK**, not USDC.
+It does **not** prove production checkpoints.
 
 **Test (staging — no production KYB):**
 

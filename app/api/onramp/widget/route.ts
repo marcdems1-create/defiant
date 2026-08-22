@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { isAddress } from 'viem';
 import { NETWORK_MODE } from '@/lib/wagmi';
 import {
+  corsHeadersForOrigin,
+  parseAllowedOrigin,
   requestClientIp,
   transakApiKey,
   transakConfigured,
@@ -18,6 +20,18 @@ import {
 
 export const dynamic = 'force-dynamic';
 
+function widgetJson(request: Request, body: unknown, status: number) {
+  const origin = parseAllowedOrigin(request);
+  return NextResponse.json(body, { status, headers: corsHeadersForOrigin(origin) });
+}
+
+/** CORS preflight for the BFF that calls Transak — never `*`. */
+export async function OPTIONS(request: Request) {
+  const origin = parseAllowedOrigin(request);
+  if (!origin) return new NextResponse(null, { status: 403 });
+  return new NextResponse(null, { status: 204, headers: corsHeadersForOrigin(origin) });
+}
+
 /**
  * Creates a one-shot Transak widget URL locked to the connected wallet.
  * Funds go to that address — Openhand never receives them.
@@ -30,18 +44,23 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   const staging = transakStaging();
+  const origin = parseAllowedOrigin(request);
+  if (!origin && !staging) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
   if (!transakConfigured() || (NETWORK_MODE !== 'mainnet' && !staging)) {
-    return NextResponse.json({ error: 'Onramp is not configured' }, { status: 503 });
+    return widgetJson(request, { error: 'Onramp is not configured' }, 503);
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: 'invalid' }, { status: 400 });
+    return widgetJson(request, { error: 'invalid' }, 400);
   }
   if (!body || typeof body !== 'object') {
-    return NextResponse.json({ error: 'invalid' }, { status: 400 });
+    return widgetJson(request, { error: 'invalid' }, 400);
   }
 
   const record = body as Record<string, unknown>;
@@ -51,15 +70,18 @@ export async function POST(request: Request) {
   const product = productRaw === 'SELL' ? 'SELL' : 'BUY';
   const network = transakNetwork(chainId);
   if (!isAddress(address) || !network) {
-    return NextResponse.json({ error: 'invalid' }, { status: 400 });
+    return widgetJson(request, { error: 'invalid' }, 400);
   }
 
   const apiKey = transakApiKey();
   if (!apiKey) {
-    return NextResponse.json({ error: 'Onramp is not configured' }, { status: 503 });
+    return widgetJson(request, { error: 'Onramp is not configured' }, 503);
   }
 
   const userIp = requestClientIp(request);
+  if (!userIp && !staging) {
+    return widgetJson(request, { error: 'Could not verify client IP' }, 400);
+  }
 
   try {
     const url = await createWidgetSession({
@@ -70,11 +92,11 @@ export async function POST(request: Request) {
       userIp,
       referrerDomain: transakReferrerDomainFromRequest(request),
     });
-    return NextResponse.json({ url, staging });
+    return widgetJson(request, { url, staging }, 200);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Transak unreachable';
     const status = message === 'Onramp is not configured' ? 503 : 502;
-    return NextResponse.json({ error: message }, { status });
+    return widgetJson(request, { error: message }, status);
   }
 }
 
