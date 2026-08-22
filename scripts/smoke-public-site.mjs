@@ -53,6 +53,9 @@ async function main() {
   if (!html.includes('/terms') || !html.includes('/privacy')) {
     failures.push('Homepage HTML is missing Terms/Privacy footer links (needed before JS).');
   }
+  if (!/Transak/i.test(html)) {
+    failures.push('Homepage HTML does not name Transak for CAD/USDC checkout.');
+  }
 
   const staticAssets = extractStaticAssets(html, wwwUrl.origin);
   if (staticAssets.length === 0) {
@@ -83,8 +86,20 @@ async function main() {
     if (path === '/terms' && !body.includes('https://transak.com/terms-of-service')) {
       failures.push('/terms does not include Transak Terms of Service.');
     }
+    if (path === '/terms' && !/merchant of record/i.test(body)) {
+      failures.push('/terms does not name Transak as merchant of record.');
+    }
     if (path === '/privacy' && !body.includes('https://transak.com/privacy-policy')) {
       failures.push('/privacy does not include Transak Privacy Policy.');
+    }
+    if (path === '/privacy' && !body.includes('hello@openhand.online')) {
+      failures.push('/privacy is missing the corporate contact email.');
+    }
+    if (path === '/about' && !body.includes('hello@openhand.online')) {
+      failures.push('/about is missing the corporate contact email.');
+    }
+    if (path === '/contact' && !body.includes('hello@openhand.online')) {
+      failures.push('/contact is missing the corporate contact email.');
     }
     if (path === '/refunds' && !/Transak/i.test(body)) {
       failures.push('/refunds does not name Transak as the refund handler.');

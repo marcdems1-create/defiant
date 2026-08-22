@@ -193,25 +193,28 @@ Transak’s Referer check passes. Allowlist those hosts in the Transak dashboard
 
 Production keys + KYB are still required before real CAD hits a real wallet.
 
-**Transak KYB — do not resubmit until production smoke is green**
+**Transak KYB — run production smoke before you file**
 
-The last rejection cited a **non-functional site**. As of this writing, live
-`https://www.openhand.online` can still 404 `/terms` and show a CSS-chunk error on `/`
-until this branch is **merged and redeployed**. Do not send Transak that URL until:
+The last rejection cited a **non-functional site**. Legal pages are on production now.
+Do not send Transak the URL until:
 
 ```bash
 npm run smoke:public
 ```
 
-passes against production (scheduled in `.github/workflows/production-smoke.yml`). That
-check fails if `/terms` is missing, if Transak’s ToS is not in the HTML, or if the
-homepage looks like the error boundary.
+passes (scheduled in `.github/workflows/production-smoke.yml`). That check fails if
+`/terms` is missing, Transak’s ToS is not in the HTML, or the homepage looks like the
+error boundary.
 
 Transak’s API docs require partners to include [Transak’s Terms of Service](https://transak.com/terms-of-service) in their own terms, and to let users **review and acknowledge** those terms in the user journey ([integration/api](https://docs.transak.com/integration/api)). A previous site polish that invented operator details (`HYPERFLEX`, `hello@openhand.money`) was reverted — KYB identity must match the documents you upload, on **www.openhand.online**, not an abandoned domain.
 
+Widget BFF (`POST /api/onramp/widget`) follows Transak [mandatory security changes](https://docs.transak.com/guides/mandatory-security-changes): backend session, `x-api-key`, shopper `x-user-ip` (required in production), CORS locked to our hosts (never `*`), `referrerDomain` from an allowlisted Origin. Keys are server-only (`TRANSAK_API_KEY` / `TRANSAK_API_SECRET`, never `NEXT_PUBLIC_*`).
+
 | Checkpoint | In this repo? | You still have to |
 |---|---|---|
-| Live site actually loads (no CSS-chunk white-screen) | Auto-reload + smoke | Merge/redeploy, then `npm run smoke:public` |
+| CORS / Origin lock on `/api/onramp/widget` | Yes (allowlisted hosts, never `*`) | — |
+| `x-user-ip` = the shopper | Yes (required in production) | — |
+| Live site actually loads (no CSS-chunk white-screen) | Auto-reload + smoke | `npm run smoke:public` |
 | Public Terms that incorporate Transak ToS by reference | Yes — `/terms` (`/tos` redirects) | Same legal name as the KYB form |
 | Public Privacy | Yes — `/privacy` | — |
 | Refunds (Transak handles fiat; we never received the funds) | Yes — `/refunds` | — |

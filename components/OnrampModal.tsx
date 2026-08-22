@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { NETWORK_MODE } from '@/lib/wagmi';
 import { chainName } from '@/lib/format';
 import { track } from '@/lib/analytics/track';
-import { TRANSAK_TERMS_URL, TRANSAK_TERMS_US_URL } from '@/lib/config/site';
+import { TRANSAK_PRIVACY_URL, TRANSAK_TERMS_URL, TRANSAK_TERMS_US_URL } from '@/lib/config/site';
 
 export function OnrampModal({
   address,
@@ -95,8 +95,8 @@ export function OnrampModal({
                 I have read and agree to Openhand&apos;s{' '}
                 <Link href="/terms" className="text-accent hover:underline" target="_blank">
                   Terms of use
-                </Link>{' '}
-                and Transak&apos;s{' '}
+                </Link>
+                , Transak&apos;s{' '}
                 <a
                   href={TRANSAK_TERMS_URL}
                   className="text-accent hover:underline"
@@ -115,7 +115,16 @@ export function OnrampModal({
                 >
                   US terms
                 </a>
-                ). Unchecked by default.
+                ), and Transak&apos;s{' '}
+                <a
+                  href={TRANSAK_PRIVACY_URL}
+                  className="text-accent hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Privacy Policy
+                </a>
+                . Unchecked by default.
               </span>
             </label>
             <button
