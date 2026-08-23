@@ -35,7 +35,7 @@ function FilterPill({
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+      className={`shrink-0 min-h-9 px-3.5 rounded-full text-sm border touch-manipulation transition-colors ${
         active
           ? 'bg-accent text-paper border-accent'
           : 'border-border text-ink/70 hover:border-ink/40'
@@ -81,7 +81,45 @@ export function OpportunityFilters({
   }
 
   return (
-    <div className={`flex flex-col gap-4 ${className}`}>
+    <div className={`flex flex-col gap-3 md:gap-4 ${className}`}>
+      <div className="md:hidden flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {SORT_FILTER_OPTIONS.map((option) => (
+          <FilterPill
+            key={option.id}
+            active={filters.sort === option.id}
+            onClick={() => patch({ sort: option.id as SortFilter })}
+          >
+            {option.label}
+          </FilterPill>
+        ))}
+        {chains.map((option) => (
+          <FilterPill
+            key={option.id}
+            active={filters.chain === option.id}
+            onClick={() => patch({ chain: option.id as ChainFilter })}
+          >
+            {option.label}
+          </FilterPill>
+        ))}
+        {assets.length > 1 && (
+          <>
+            <FilterPill active={filters.asset === 'all'} onClick={() => patch({ asset: 'all' })}>
+              All assets
+            </FilterPill>
+            {assets.map((symbol) => (
+              <FilterPill
+                key={symbol}
+                active={filters.asset === symbol}
+                onClick={() => patch({ asset: symbol as AssetFilter })}
+              >
+                {symbol}
+              </FilterPill>
+            ))}
+          </>
+        )}
+      </div>
+
+      <div className="hidden md:flex md:flex-col md:gap-4">
       <FilterGroup label="Yield">
         {SORT_FILTER_OPTIONS.map((option) => (
           <FilterPill
@@ -125,6 +163,7 @@ export function OpportunityFilters({
             ))}
           </FilterGroup>
         )}
+      </div>
       </div>
 
       {showCount && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
 import { useOpportunities } from '@/lib/hooks/useOpportunities';
@@ -16,9 +16,19 @@ import { chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { GrowthChart } from '@/components/GrowthChart';
 import { PositionActions } from '@/components/PositionActions';
+import { ScreenTitle, SegmentedControl } from '@/components/AppChrome';
 import { CryptoDesk } from '@/components/CryptoDesk';
 import { StockDesk } from '@/components/StockDesk';
 import { UsdcCashPanel } from '@/components/UsdcCashPanel';
+
+const DASH_TABS = [
+  { id: 'wallet', label: 'Wallet' },
+  { id: 'crypto', label: 'Crypto' },
+  { id: 'stocks', label: 'Stocks' },
+] as const;
+
+type DashTab = (typeof DASH_TABS)[number]['id'];
+const DASH_TAB_KEY = 'oh.dash.tab';
 
 function StatCard({
   label,
@@ -30,7 +40,7 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-white/[0.02] p-5 flex flex-col gap-1">
+    <div className="rounded-xl md:rounded-2xl border border-border bg-white/[0.02] p-4 md:p-5 flex flex-col gap-1">
       <div className="text-[11px] uppercase tracking-[0.14em] text-ink/45 font-mono">{label}</div>
       <div className="text-2xl font-mono text-accent leading-tight">{value}</div>
       {sub && <div className="text-xs text-ink/50 mt-1">{sub}</div>}
@@ -43,6 +53,7 @@ const PROJECTION_DISCLAIMER =
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount();
+  const [tab, setTab] = useState<DashTab>('wallet');
   const { data: opportunities, isLoading, isError } = useOpportunities();
   const { positions, isLoading: positionsLoading } = usePositions(opportunities, {
     catalogLoading: isLoading,
@@ -66,23 +77,42 @@ export default function DashboardPage() {
     analytics.totalStableValue > 0 &&
     analytics.weightedApy !== null;
 
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem(DASH_TAB_KEY);
+      if (saved === 'wallet' || saved === 'crypto' || saved === 'stocks') setTab(saved);
+    } catch {
+      /* private mode */
+    }
+  }, []);
+
+  function selectTab(next: DashTab) {
+    setTab(next);
+    try {
+      window.sessionStorage.setItem(DASH_TAB_KEY, next);
+    } catch {
+      /* private mode */
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-10">
-      <header className="flex flex-col gap-4">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-            Your yield journey
-          </p>
-          <h1 className="text-3xl font-medium tracking-tight">Dashboard</h1>
-          <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
-            Track where you stand and stay the course. Live on-chain reads only — Openhand never
-            holds your keys or funds. Spot crypto and tokenized stocks on this page are separate
-            LI.FI tapes, not yield, and not recommendations.
-          </p>
-        </div>
+    <div className="flex flex-col gap-5 md:gap-8">
+      <header className="flex flex-col gap-3">
+        <ScreenTitle subtitle="On-chain reads only. Crypto and stocks are LI.FI tapes, not yield.">
+          Dashboard
+        </ScreenTitle>
+        <SegmentedControl
+          ariaLabel="Dashboard sections"
+          value={tab}
+          onChange={selectTab}
+          options={DASH_TABS}
+        />
       </header>
 
-      {!isConnected && (
+      {tab === 'crypto' && <CryptoDesk />}
+      {tab === 'stocks' && <StockDesk />}
+
+      {tab === 'wallet' && !isConnected && (
         <div className="rounded-2xl border border-border bg-gradient-to-br from-accent/10 via-transparent to-transparent p-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
           <div>
             <h2 className="text-lg font-medium mb-1">Deposit to see your portfolio</h2>
@@ -95,13 +125,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {isConnected && <UsdcCashPanel />}
+      {tab === 'wallet' && isConnected && <UsdcCashPanel />}
 
-      {isConnected && positionsLoading && (
+      {tab === 'wallet' && isConnected && positionsLoading && (
         <div className="text-ink/50 text-sm">Reading your on-chain positions…</div>
       )}
 
-      {isConnected && !positionsLoading && positions.length === 0 && (
+      {tab === 'wallet' && isConnected && !positionsLoading && positions.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center">
           {idleOrMoving ? (
             <>
@@ -124,7 +154,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {isConnected && !positionsLoading && positions.length > 0 && (
+      {tab === 'wallet' && isConnected && !positionsLoading && positions.length > 0 && (
         <>
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
@@ -268,11 +298,8 @@ export default function DashboardPage() {
         </>
       )}
 
-      <CryptoDesk />
-
-      <StockDesk />
-
-      <section className="rounded-2xl border border-border bg-white/[0.02] p-6">
+      {tab === 'wallet' && (
+      <section className="rounded-2xl border border-border bg-white/[0.02] p-4 md:p-6">
         <h2 className="text-lg font-medium mb-1">
           {isConnected ? 'Market snapshot' : 'Live market stats'}
         </h2>
@@ -317,6 +344,7 @@ export default function DashboardPage() {
           </p>
         )}
       </section>
+      )}
     </div>
   );
 }

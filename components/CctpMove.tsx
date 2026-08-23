@@ -250,9 +250,13 @@ export function CctpMove() {
   return (
     <div className="max-w-md mx-auto flex flex-col gap-5">
       <header>
-        <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">Move</p>
-        <h1 className="text-3xl font-medium tracking-tight">Move USDC</h1>
-        <p className="text-ink/55 text-sm mt-2 leading-relaxed">
+        <h1 className="text-[28px] md:text-3xl font-semibold md:font-medium tracking-tight leading-none">
+          Move USDC
+        </h1>
+        <p className="md:hidden text-xs text-ink/45 mt-2 leading-relaxed">
+          Circle CCTP. You sign both transactions. Openhand never holds the tokens.
+        </p>
+        <p className="hidden md:block text-ink/55 text-sm mt-2 leading-relaxed">
           Native USDC via Circle CCTP — burn on one network, mint the same USDC on another.
           Openhand never holds the tokens. You sign both transactions. This is not a yield
           strategy and not a lockbox bridge. No Circle account.
@@ -266,35 +270,46 @@ export function CctpMove() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-xs text-ink/50">
-              From
-              <select
-                value={sourceId}
-                onChange={(e) => setSourceId(Number(e.target.value))}
-                className="bg-transparent border border-border rounded px-2 py-2 text-sm text-ink"
-              >
+          <div className="flex flex-col gap-3">
+            <div>
+              <div className="text-xs text-ink/50 mb-1.5">From</div>
+              <div className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {chains.map((c) => (
-                  <option key={c.chainId} value={c.chainId}>
+                  <button
+                    key={`from-${c.chainId}`}
+                    type="button"
+                    onClick={() => setSourceId(c.chainId)}
+                    className={`shrink-0 min-h-11 px-3.5 rounded-xl text-sm border touch-manipulation ${
+                      sourceId === c.chainId
+                        ? 'bg-accent text-paper border-accent'
+                        : 'border-border text-ink/70'
+                    }`}
+                  >
                     {c.label}
-                  </option>
+                  </button>
                 ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-ink/50">
-              To
-              <select
-                value={destId}
-                onChange={(e) => setDestId(Number(e.target.value))}
-                className="bg-transparent border border-border rounded px-2 py-2 text-sm text-ink"
-              >
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-ink/50 mb-1.5">To</div>
+              <div className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {chains.map((c) => (
-                  <option key={c.chainId} value={c.chainId} disabled={c.chainId === sourceId}>
+                  <button
+                    key={`to-${c.chainId}`}
+                    type="button"
+                    disabled={c.chainId === sourceId}
+                    onClick={() => setDestId(c.chainId)}
+                    className={`shrink-0 min-h-11 px-3.5 rounded-xl text-sm border touch-manipulation disabled:opacity-30 ${
+                      destId === c.chainId
+                        ? 'bg-accent text-paper border-accent'
+                        : 'border-border text-ink/70'
+                    }`}
+                  >
                     {c.label}
-                  </option>
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -303,7 +318,7 @@ export function CctpMove() {
               <span>Wallet: ${formatUnits(balance, 6)} USDC</span>
             </div>
             <div className="flex gap-2">
-              <div className="flex-1 flex items-center border border-border rounded px-3">
+              <div className="flex-1 flex items-center min-h-12 border border-border rounded-xl px-3">
                 <span className="text-ink/45 font-mono text-sm mr-1">$</span>
                 <input
                   type="text"
@@ -311,13 +326,13 @@ export function CctpMove() {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="50"
-                  className="flex-1 bg-transparent py-2 text-sm font-mono outline-none"
+                  className="flex-1 bg-transparent py-2 text-base font-mono outline-none"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setAmount(formatUnits(balance, 6))}
-                className="px-3 py-2 rounded border border-border text-xs text-ink/70"
+                className="min-h-12 px-4 rounded-xl border border-border text-sm text-ink/70 touch-manipulation"
               >
                 Max
               </button>
@@ -335,7 +350,7 @@ export function CctpMove() {
             type="button"
             disabled={busy || amountBig === 0n || amountBig > balance || !destOk || overCap}
             onClick={() => void burn()}
-            className="w-full py-2.5 rounded-xl bg-accent text-paper font-medium text-sm disabled:opacity-30"
+            className="w-full min-h-12 rounded-xl bg-accent text-paper font-medium text-sm disabled:opacity-30 touch-manipulation"
           >
             {step === 'switching'
               ? 'Switching network…'

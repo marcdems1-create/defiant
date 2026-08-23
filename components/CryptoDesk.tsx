@@ -10,60 +10,12 @@ import {
   stockChainLabel,
   type StockChainId,
 } from '@/lib/config/lifi';
-import { formatTokenAmount } from '@/lib/format';
+import { formatTokenAmount, formatUsd } from '@/lib/format';
 import { useCryptoCatalog } from '@/lib/hooks/useCryptoCatalog';
 import { CRYPTO_TAPE_SIZE, type CryptoToken } from '@/lib/lifi/crypto';
 import { NETWORK_MODE } from '@/lib/wagmi';
 import { CryptoSwapModal } from './CryptoSwapModal';
-
-function formatUsd(n: number): string {
-  return n.toLocaleString(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatMarketCap(n: number): string {
-  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return formatUsd(n);
-}
-
-function formatChangePct(n: number): string {
-  const sign = n > 0 ? '+' : '';
-  return `${sign}${n.toFixed(2)}%`;
-}
-
-function changeClass(n: number): string {
-  if (n > 0) return 'text-accent';
-  if (n < 0) return 'text-danger';
-  return 'text-ink/45';
-}
-
-function Pill({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-        active ? 'bg-accent text-paper border-accent' : 'border-border text-ink/70 hover:border-ink/40'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
+import { TapeFilterRow, TapePill, TapeRow, tapeSearchClassName } from './TapeRow';
 
 export function CryptoDesk() {
   const { address, isConnected } = useAccount();
@@ -73,6 +25,7 @@ export function CryptoDesk() {
 
   const [query, setQuery] = useState('');
   const [chainId, setChainId] = useState<StockChainId | 'all'>('all');
+  const [about, setAbout] = useState(false);
   const [active, setActive] = useState<{ token: CryptoToken; side: 'buy' | 'sell' } | null>(null);
 
   const filtered = useMemo(() => {
@@ -140,42 +93,50 @@ export function CryptoDesk() {
   const holdingUsd = holdings.reduce((sum, h) => sum + h.usd, 0);
 
   return (
-    <section className="rounded-2xl border border-border bg-white/[0.02] p-6 flex flex-col gap-5">
-      <div>
-        <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-          Spot crypto
+    <section className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs text-ink/45 leading-relaxed">
+          LI.FI last marks · CoinGecko 24h. Tap a row to trade.
         </p>
-        <h2 className="text-lg font-medium">Live tape via LI.FI</h2>
-        <p className="text-sm text-ink/50 mt-1 max-w-2xl leading-relaxed">
+        <button
+          type="button"
+          onClick={() => setAbout((v) => !v)}
+          className="shrink-0 text-xs text-accent touch-manipulation"
+          aria-expanded={about}
+        >
+          {about ? 'Hide' : 'About'}
+        </button>
+      </div>
+      {about && (
+        <p className="text-xs text-ink/50 leading-relaxed">
           Largest coins by CoinGecko market cap that LI.FI can route against USDC, sorted by 24h
           change. This tape is not Transak. Transak is only used for USDC buy and cash out.
-          That order is live market data — not a recommendation, and nothing here is featured.
-          Stables are omitted. Prices are LI.FI last marks; 24h % is CoinGecko. You sign every
-          swap. Openhand never holds the tokens.
+          Live market data — not a recommendation, and nothing here is featured. Stables are
+          omitted. You sign every swap. Openhand never holds the tokens.
         </p>
-      </div>
+      )}
 
       {isConnected && mainnet && holdings.length > 0 && (
-        <div className="rounded-xl border border-accent/25 bg-accent/5 px-4 py-3">
-          <div className="flex items-baseline justify-between gap-3 mb-2">
+        <div className="rounded-xl bg-accent/5 px-3 py-2.5">
+          <div className="flex items-baseline justify-between gap-3 mb-1.5">
             <h3 className="text-sm font-medium">In this wallet</h3>
             <span className="text-xs font-mono text-accent">≈ {formatUsd(holdingUsd)}</span>
           </div>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-1.5">
             {holdings.map((h) => (
               <li key={h.token.id} className="flex items-center justify-between gap-3 text-sm">
-                <span>
+                <span className="min-w-0 truncate">
                   {h.token.symbol}
                   <span className="text-ink/40 text-xs ml-2">{stockChainLabel(h.token.chainId)}</span>
                 </span>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-xs">
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="font-mono text-xs tabular-nums">
                     {formatTokenAmount(h.balance, h.token.decimals)} · {formatUsd(h.usd)}
                   </span>
                   <button
                     type="button"
                     onClick={() => setActive({ token: h.token, side: 'sell' })}
-                    className="text-xs text-accent hover:underline"
+                    className="min-h-9 px-2 text-sm text-accent touch-manipulation"
                   >
                     Sell
                   </button>
@@ -186,24 +147,24 @@ export function CryptoDesk() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="sticky top-[4.75rem] z-20 -mx-4 px-4 py-2 bg-paper/95 backdrop-blur-md md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none flex flex-col gap-2.5">
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter by ticker or name"
-          className="w-full bg-transparent border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-accent"
+          placeholder="Search ticker or name"
+          className={tapeSearchClassName}
         />
-        <div className="flex flex-wrap gap-2">
-          <Pill active={chainId === 'all'} onClick={() => setChainId('all')}>
-            All chains
-          </Pill>
+        <TapeFilterRow>
+          <TapePill active={chainId === 'all'} onClick={() => setChainId('all')}>
+            All
+          </TapePill>
           {STOCK_CHAIN_IDS.map((id) => (
-            <Pill key={id} active={chainId === id} onClick={() => setChainId(id)}>
+            <TapePill key={id} active={chainId === id} onClick={() => setChainId(id)}>
               {STOCK_CHAIN_LABELS[id]}
-            </Pill>
+            </TapePill>
           ))}
-        </div>
+        </TapeFilterRow>
       </div>
 
       {isLoading && <div className="text-ink/50 text-sm">Loading LI.FI catalog…</div>}
@@ -220,70 +181,25 @@ export function CryptoDesk() {
       )}
 
       {visible.length > 0 && (
-        <ul className="flex flex-col divide-y divide-border/80">
+        <ul className="-mx-4 md:mx-0 flex flex-col divide-y divide-border/80">
           {visible.map((t) => (
-            <li key={t.id} className="py-3 flex items-center gap-3">
-              {t.logoURI ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={t.logoURI}
-                  alt=""
-                  width={32}
-                  height={32}
-                  className="h-8 w-8 rounded-full bg-white/5 shrink-0"
-                />
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-white/5 text-[10px] font-mono flex items-center justify-center text-ink/50 shrink-0">
-                  {t.symbol.slice(0, 3)}
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="font-medium text-sm truncate">{t.symbol}</div>
-                <div className="text-xs text-ink/45 truncate">
-                  {t.name} · {stockChainLabel(t.chainId)}
-                </div>
-              </div>
-              <div className="text-right shrink-0 min-w-[5.5rem]">
-                <div className="font-mono text-sm">{formatUsd(t.priceUsd)}</div>
-                <div className="text-[10px] uppercase tracking-wide text-ink/35">
-                  Cap {formatMarketCap(t.marketCapUsd)}
-                </div>
-              </div>
-              <div className="text-right shrink-0 min-w-[4.25rem]">
-                {t.changePct24h !== undefined ? (
-                  <>
-                    <div className={`font-mono text-sm ${changeClass(t.changePct24h)}`}>
-                      {formatChangePct(t.changePct24h)}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-wide text-ink/35">24h</div>
-                  </>
-                ) : (
-                  <div className="font-mono text-sm text-ink/25">—</div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setActive({ token: t, side: 'buy' })}
-                className="shrink-0 px-3 py-1.5 rounded-lg bg-accent text-paper text-xs font-medium"
-              >
-                Buy
-              </button>
-            </li>
+            <TapeRow
+              key={t.id}
+              logoURI={t.logoURI}
+              symbol={t.symbol}
+              name={t.name}
+              detail={stockChainLabel(t.chainId)}
+              priceUsd={t.priceUsd}
+              marketCapUsd={t.marketCapUsd}
+              changePct24h={t.changePct24h}
+              onOpen={() => setActive({ token: t, side: 'buy' })}
+            />
           ))}
         </ul>
       )}
 
-      {visible.length > 0 && (
-        <p className="text-xs text-ink/40">
-          Sorted by 24h change among CoinGecko&apos;s largest coins LI.FI can route. Not a
-          recommendation.
-        </p>
-      )}
-
       {!mainnet && (
-        <p className="text-xs text-warn/90 border border-warn/20 bg-warn/5 rounded-lg px-4 py-3 leading-relaxed">
-          Practice mode. The tape is live; buying or selling requires mainnet.
-        </p>
+        <p className="text-xs text-warn/90">Practice mode. Buying or selling needs mainnet.</p>
       )}
 
       {active && (

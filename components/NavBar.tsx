@@ -14,11 +14,11 @@ export function NavBar() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-border">
-      <Link href="/" className="font-mono text-lg tracking-tight text-ink">
+    <nav className="flex items-center justify-between px-4 md:px-6 py-2.5 md:py-4 border-b border-border">
+      <Link href="/" className="font-mono text-[17px] md:text-lg tracking-tight text-ink">
         openhand<span className="text-accent">.</span>
       </Link>
-      <div className="flex items-center gap-6 text-sm">
+      <div className="flex items-center gap-5 md:gap-6 text-sm">
         {links.map((link) => {
           const active = pathname === link.href;
           return (

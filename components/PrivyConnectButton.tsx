@@ -24,17 +24,17 @@ export function PrivyConnectButton({
 
   if (authenticated && address) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 rounded-full border border-border bg-white/[0.04] pl-2.5 pr-1 py-0.5">
         {chainStatus !== 'none' && chain && (
-          <span className="text-xs text-ink/50">{chain.name}</span>
+          <span className="hidden sm:inline text-[11px] text-ink/45">{chain.name}</span>
         )}
-        <span className="font-mono text-sm text-ink">{shortAddress(address)}</span>
+        <span className="font-mono text-xs text-ink">{shortAddress(address)}</span>
         <button
           type="button"
           onClick={() => void logout()}
-          className="text-xs text-ink/50 hover:text-ink transition-colors"
+          className="min-h-8 px-2 rounded-full text-[11px] text-ink/45 hover:text-ink touch-manipulation"
         >
-          Disconnect
+          Out
         </button>
       </div>
     );

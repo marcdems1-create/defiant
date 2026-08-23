@@ -32,20 +32,21 @@ export function UsdcCashPanel() {
   const modalChainId = product === 'SELL' ? sellChainId : buyChainId;
 
   return (
-    <section className="rounded-2xl border border-border bg-white/[0.02] p-6 flex flex-col gap-4">
+    <section className="flex flex-col gap-4 md:rounded-2xl md:border md:border-border md:bg-white/[0.02] md:p-6">
       <div>
-        <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-          USDC in this wallet
-        </p>
-        <h2 className="text-3xl font-mono text-accent tracking-tight">
+        <p className="text-xs text-ink/45 mb-1">USDC in this wallet</p>
+        <h2 className="text-[34px] md:text-3xl font-semibold font-mono text-ink tracking-tight leading-none">
           {isLoading ? '…' : `$${formatUsdcUsd(displayTotal)}`}
         </h2>
         {inTransit > 0n && (
-          <p className="text-xs text-accent mt-1 font-mono">
+          <p className="text-xs text-accent mt-1.5 font-mono">
             ${formatUsdcUsd(inTransit)} moving between networks
           </p>
         )}
-        <p className="text-sm text-ink/50 mt-1 leading-relaxed max-w-xl">
+        <p className="md:hidden text-xs text-ink/40 mt-2">
+          In your wallet · not a yield position. Cash out is Transak.
+        </p>
+        <p className="hidden md:block text-sm text-ink/50 mt-2 leading-relaxed max-w-xl">
           Native USDC on Ethereum, Base, and Arbitrum. Openhand never holds it. Cash out is Transak
           (CAD / Interac) — they process the fiat, not us. Idle USDC here is not a yield position.
         </p>
@@ -68,25 +69,25 @@ export function UsdcCashPanel() {
 
       {address && <PendingUsdcMoves address={address} />}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <button
           type="button"
           onClick={() => setProduct('BUY')}
-          className="rounded-xl bg-accent text-paper font-medium text-sm px-4 py-2 hover:bg-accent/90"
+          className="min-h-11 rounded-xl bg-accent text-paper font-medium text-sm touch-manipulation"
         >
-          Buy USDC
+          Buy
         </button>
         <button
           type="button"
           onClick={() => setProduct('SELL')}
           disabled={mainnet && total === 0n}
-          className="rounded-xl border border-border text-sm px-4 py-2 hover:border-ink/40 disabled:opacity-40"
+          className="min-h-11 rounded-xl border border-border text-sm touch-manipulation disabled:opacity-40"
         >
           Cash out
         </button>
         <Link
           href="/move"
-          className="rounded-xl border border-border text-sm px-4 py-2 hover:border-ink/40"
+          className="min-h-11 rounded-xl border border-border text-sm flex items-center justify-center touch-manipulation"
         >
           Move
         </Link>
