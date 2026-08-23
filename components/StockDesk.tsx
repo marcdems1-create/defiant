@@ -35,6 +35,7 @@ export function StockDesk() {
   const [query, setQuery] = useState('');
   const [issuer, setIssuer] = useState<StockIssuer | 'all'>('all');
   const [chainId, setChainId] = useState<StockChainId | 'all'>('all');
+  const [about, setAbout] = useState(false);
   const [active, setActive] = useState<{ token: StockToken; side: 'buy' | 'sell' } | null>(null);
 
   const filtered = useMemo(() => {
@@ -90,36 +91,37 @@ export function StockDesk() {
   const holdingUsd = holdings.reduce((sum, h) => sum + h.usd, 0);
 
   return (
-    <section className="rounded-2xl border border-border bg-white/[0.02] p-4 md:p-6 flex flex-col gap-5">
-      <div>
-        <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-          Tokenized stocks
+    <section className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs text-ink/45 leading-relaxed">
+          LI.FI last marks · CoinGecko 24h. Not a broker. Tap a row to trade.
         </p>
-        <h2 className="text-lg font-medium">Live tape via LI.FI</h2>
-        <p className="text-sm text-ink/50 mt-1 leading-relaxed md:hidden">
-          LI.FI last marks · CoinGecko 24h. Not Transak, not a broker. You sign every swap.
-        </p>
-        <p className="hidden md:block text-sm text-ink/50 mt-1 max-w-2xl leading-relaxed">
-          Browse tokenized stocks and ETFs routed by LI.FI (xStocks, Ondo, Backed). This tape
-          is not Transak, not a broker, and not the listed share. Transak is only used for
-          USDC buy and cash out. The tape lists the top {STOCK_TAPE_SIZE} by CoinGecko token
-          market cap — not the listed company&apos;s equity cap, not a recommendation. Prices
-          are LI.FI last marks; 24h % is CoinGecko. A row is skipped when price or cap cannot
-          be parsed. You sign every swap. Openhand never holds the tokens. Availability
+        <button
+          type="button"
+          onClick={() => setAbout((v) => !v)}
+          className="shrink-0 text-xs text-accent touch-manipulation"
+          aria-expanded={about}
+        >
+          {about ? 'Hide' : 'About'}
+        </button>
+      </div>
+      {about && (
+        <p className="text-xs text-ink/50 leading-relaxed">
+          Tokenized stocks and ETFs routed by LI.FI (xStocks, Ondo, Backed). This tape is not
+          Transak, not a broker, and not the listed share. Transak is only used for USDC buy
+          and cash out. Top {STOCK_TAPE_SIZE} by CoinGecko token market cap — not the listed
+          company&apos;s equity cap, not a recommendation. A row is skipped when price or cap
+          cannot be parsed. You sign every swap. Openhand never holds the tokens. Availability
           varies by issuer and jurisdiction.
         </p>
-      </div>
+      )}
 
       {isConnected && mainnet && holdings.length > 0 && (
-        <div className="rounded-xl border border-accent/25 bg-accent/5 px-4 py-3">
-          <div className="flex items-baseline justify-between gap-3 mb-2">
+        <div className="rounded-xl bg-accent/5 px-3 py-2.5">
+          <div className="flex items-baseline justify-between gap-3 mb-1.5">
             <h3 className="text-sm font-medium">In this wallet</h3>
             <span className="text-xs font-mono text-accent">≈ {formatUsd(holdingUsd)}</span>
           </div>
-          <p className="text-[11px] text-ink/45 mb-3">
-            Approximate, using LI.FI last price on the rows currently in view. Search to check a
-            holding that is not in the top {STOCK_TAPE_SIZE}.
-          </p>
           <ul className="flex flex-col gap-2">
             {holdings.map((h) => (
               <li key={h.token.id} className="flex items-center justify-between gap-3 text-sm">
@@ -134,7 +136,7 @@ export function StockDesk() {
                   <button
                     type="button"
                     onClick={() => setActive({ token: h.token, side: 'sell' })}
-                    className="min-h-9 px-2 text-sm text-accent hover:underline touch-manipulation"
+                    className="min-h-9 px-2 text-sm text-accent touch-manipulation"
                   >
                     Sell
                   </button>
@@ -145,12 +147,12 @@ export function StockDesk() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="sticky top-[4.75rem] z-20 -mx-4 px-4 py-2 bg-paper/95 backdrop-blur-md md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none flex flex-col gap-2.5">
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter by ticker or name"
+          placeholder="Search ticker or name"
           className={tapeSearchClassName}
         />
         <TapeFilterRow>
@@ -162,10 +164,8 @@ export function StockDesk() {
               {STOCK_ISSUER_LABEL[id]}
             </TapePill>
           ))}
-        </TapeFilterRow>
-        <TapeFilterRow>
           <TapePill active={chainId === 'all'} onClick={() => setChainId('all')}>
-            All chains
+            All
           </TapePill>
           {STOCK_CHAIN_IDS.map((id) => (
             <TapePill key={id} active={chainId === id} onClick={() => setChainId(id)}>
@@ -193,7 +193,7 @@ export function StockDesk() {
       )}
 
       {visible.length > 0 && (
-        <ul className="-mx-4 md:-mx-6 flex flex-col divide-y divide-border/80">
+        <ul className="-mx-4 md:mx-0 flex flex-col divide-y divide-border/80">
           {visible.map((t) => (
             <TapeRow
               key={t.id}
@@ -205,25 +205,14 @@ export function StockDesk() {
               marketCapUsd={t.marketCapUsd}
               marketCapLabel={t.marketCapUsd === undefined ? 'LI.FI last' : undefined}
               changePct24h={t.changePct24h}
-              onBuy={() => setActive({ token: t, side: 'buy' })}
+              onOpen={() => setActive({ token: t, side: 'buy' })}
             />
           ))}
         </ul>
       )}
 
-      {filtered.length > 0 && (
-        <p className="text-xs text-ink/40">
-          {query.trim()
-            ? `Showing ${visible.length} of ${filtered.length} matches, market-cap first when a cap parsed.`
-            : `Top ${visible.length} by CoinGecko token market cap. Search to find names outside this list. Not a recommendation.`}
-        </p>
-      )}
-
       {!mainnet && (
-        <p className="text-xs text-warn/90 border border-warn/20 bg-warn/5 rounded-lg px-4 py-3 leading-relaxed">
-          Practice mode. The tape is live from LI.FI; buying or selling tokenized stocks requires
-          mainnet.
-        </p>
+        <p className="text-xs text-warn/90">Practice mode. Buying or selling needs mainnet.</p>
       )}
 
       {active && (

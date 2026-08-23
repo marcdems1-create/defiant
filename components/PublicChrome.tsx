@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { NavBar } from '@/components/NavBar';
 import { NetworkBanner } from '@/components/NetworkBanner';
 import { MobileTabBar } from '@/components/MobileTabBar';
@@ -21,7 +22,14 @@ export function PublicChrome({ children }: { children: React.ReactNode }) {
         <NetworkBanner />
         <NavBar />
       </div>
-      <main className="max-w-6xl mx-auto px-4 py-6 md:px-6 md:py-10">{children}</main>
+      <main className="max-w-6xl mx-auto px-4 py-4 md:px-6 md:py-10">{children}</main>
+      <p className="md:hidden px-4 pb-3 text-[11px] text-ink/35 text-center">
+        <Link href="/terms" className="hover:text-ink/55">Terms</Link>
+        {' · '}
+        <Link href="/privacy" className="hover:text-ink/55">Privacy</Link>
+        {' · '}
+        <Link href="/risk" className="hover:text-ink/55">Risk</Link>
+      </p>
       <InstallAppBanner />
       <MobileTabBar />
     </Providers>

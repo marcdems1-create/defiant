@@ -11,7 +11,8 @@ import {
   type OpportunityFilterState,
 } from '@/lib/opportunityFilters';
 import { pickStarterOpportunity } from '@/lib/firstRun';
-import { OpportunityCard } from '@/components/OpportunityCard';
+import { OpportunityCard, OpportunityListRow } from '@/components/OpportunityCard';
+import { ScreenTitle } from '@/components/AppChrome';
 import { OpportunityFilters } from '@/components/OpportunityFilters';
 import { HowItWorks } from '@/components/HowItWorks';
 import { RiskDisclaimer } from '@/components/RiskDisclaimer';
@@ -46,7 +47,7 @@ export default function CollectionPage() {
   );
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-6 md:gap-10">
       {firstRun ? (
         <>
           <FirstRunHero
@@ -56,22 +57,17 @@ export default function CollectionPage() {
             usdcBalance={usdcValue}
             usdcReady={usdcReady}
           />
-          <HowItWorks />
+          <div className="hidden md:block">
+            <HowItWorks />
+          </div>
           <RiskDisclaimer compact />
         </>
       ) : (
-        <header className="flex flex-col gap-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-              Your cards
-            </p>
-            <h1 className="text-3xl font-medium tracking-tight">Yield decks</h1>
-            <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
-              Live on-chain rates. You sign every deposit and withdrawal. Openhand never holds
-              your funds.
-            </p>
+        <header className="flex flex-col gap-3">
+          <ScreenTitle subtitle="Live on-chain rates. You sign every deposit.">Collection</ScreenTitle>
+          <div className="hidden md:block">
+            <RiskDisclaimer />
           </div>
-          <RiskDisclaimer />
         </header>
       )}
 
@@ -97,8 +93,8 @@ export default function CollectionPage() {
       )}
 
       <section>
-        <div className="flex items-baseline justify-between mb-4">
-          <h2 className="text-lg font-medium">Collection</h2>
+        <div className="flex items-baseline justify-between mb-3 md:mb-4">
+          <h2 className="text-lg font-medium">{firstRun ? 'Collection' : 'Browse'}</h2>
         </div>
 
         <OpportunityFilters
@@ -107,7 +103,7 @@ export default function CollectionPage() {
           opportunities={allCards}
           visibleCount={filtered.length}
           totalCount={allCards.length}
-          className="mb-6"
+          className="mb-4 md:mb-6"
         />
 
         {isLoading && <div className="text-ink/50 text-sm">Loading live rates…</div>}
@@ -122,7 +118,12 @@ export default function CollectionPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <ul className="md:hidden -mx-4 px-4 divide-y divide-border/80">
+          {filtered.map((opp) => (
+            <OpportunityListRow key={opp.id} opportunity={opp} />
+          ))}
+        </ul>
+        <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((opp) => (
             <OpportunityCard key={opp.id} opportunity={opp} />
           ))}

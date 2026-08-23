@@ -18,6 +18,7 @@ import { STOCK_ISSUER_LABEL, type StockToken } from '@/lib/lifi/stocks';
 import { estimateCappedGas, formatTxError, MAX_TX_GAS } from '@/lib/tx/gas';
 import { getWagmiConfig, NETWORK_MODE } from '@/lib/wagmi';
 import { ConnectButtonClient } from './ConnectButtonClient';
+import { SheetFrame } from './AppChrome';
 
 type Side = 'buy' | 'sell';
 type Step = 'idle' | 'quoting' | 'approving' | 'swapping' | 'done' | 'error';
@@ -207,8 +208,7 @@ export function StockSwapModal({
   const slippagePct = (LIFI_STOCK_SLIPPAGE * 100).toFixed(1);
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 sm:px-4">
-      <div className="w-full max-w-md bg-paper border border-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-lg p-6 max-h-[min(92dvh,100%)] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <SheetFrame onClose={onClose}>
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="text-lg font-medium">{token.symbol}</div>
@@ -232,14 +232,14 @@ export function StockSwapModal({
           </div>
         )}
 
-        <div className="flex gap-2 mb-4">
+        <div className="flex p-0.5 mb-4 rounded-xl bg-white/[0.06] border border-border">
           {(['buy', 'sell'] as Side[]).map((s) => (
             <button
               key={s}
               type="button"
               onClick={() => setSide(s)}
-              className={`flex-1 py-1.5 rounded text-sm capitalize border ${
-                side === s ? 'bg-accent text-paper border-accent' : 'border-border text-ink/70'
+              className={`flex-1 min-h-10 rounded-[10px] text-sm font-medium touch-manipulation ${
+                side === s ? 'bg-white/12 text-ink' : 'text-ink/45'
               }`}
             >
               {s === 'buy' ? 'Buy with USDC' : 'Sell to USDC'}
@@ -338,7 +338,6 @@ export function StockSwapModal({
             )}
           </>
         )}
-      </div>
-    </div>
+    </SheetFrame>
   );
 }

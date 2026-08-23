@@ -25,6 +25,7 @@ export function CryptoDesk() {
 
   const [query, setQuery] = useState('');
   const [chainId, setChainId] = useState<StockChainId | 'all'>('all');
+  const [about, setAbout] = useState(false);
   const [active, setActive] = useState<{ token: CryptoToken; side: 'buy' | 'sell' } | null>(null);
 
   const filtered = useMemo(() => {
@@ -92,45 +93,50 @@ export function CryptoDesk() {
   const holdingUsd = holdings.reduce((sum, h) => sum + h.usd, 0);
 
   return (
-    <section className="rounded-2xl border border-border bg-white/[0.02] p-4 md:p-6 flex flex-col gap-5">
-      <div>
-        <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
-          Spot crypto
+    <section className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs text-ink/45 leading-relaxed">
+          LI.FI last marks · CoinGecko 24h. Tap a row to trade.
         </p>
-        <h2 className="text-lg font-medium">Live tape via LI.FI</h2>
-        <p className="text-sm text-ink/50 mt-1 leading-relaxed md:hidden">
-          LI.FI last marks · CoinGecko 24h. Not Transak. You sign every swap.
-        </p>
-        <p className="hidden md:block text-sm text-ink/50 mt-1 max-w-2xl leading-relaxed">
+        <button
+          type="button"
+          onClick={() => setAbout((v) => !v)}
+          className="shrink-0 text-xs text-accent touch-manipulation"
+          aria-expanded={about}
+        >
+          {about ? 'Hide' : 'About'}
+        </button>
+      </div>
+      {about && (
+        <p className="text-xs text-ink/50 leading-relaxed">
           Largest coins by CoinGecko market cap that LI.FI can route against USDC, sorted by 24h
           change. This tape is not Transak. Transak is only used for USDC buy and cash out.
-          That order is live market data — not a recommendation, and nothing here is featured.
-          Stables are omitted. Prices are LI.FI last marks; 24h % is CoinGecko. You sign every
-          swap. Openhand never holds the tokens.
+          Live market data — not a recommendation, and nothing here is featured. Stables are
+          omitted. You sign every swap. Openhand never holds the tokens.
         </p>
-      </div>
+      )}
 
       {isConnected && mainnet && holdings.length > 0 && (
-        <div className="rounded-xl border border-accent/25 bg-accent/5 px-4 py-3">
-          <div className="flex items-baseline justify-between gap-3 mb-2">
+        <div className="rounded-xl bg-accent/5 px-3 py-2.5">
+          <div className="flex items-baseline justify-between gap-3 mb-1.5">
             <h3 className="text-sm font-medium">In this wallet</h3>
             <span className="text-xs font-mono text-accent">≈ {formatUsd(holdingUsd)}</span>
           </div>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-1.5">
             {holdings.map((h) => (
               <li key={h.token.id} className="flex items-center justify-between gap-3 text-sm">
                 <span className="min-w-0 truncate">
                   {h.token.symbol}
                   <span className="text-ink/40 text-xs ml-2">{stockChainLabel(h.token.chainId)}</span>
                 </span>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <span className="font-mono text-xs tabular-nums">
                     {formatTokenAmount(h.balance, h.token.decimals)} · {formatUsd(h.usd)}
                   </span>
                   <button
                     type="button"
                     onClick={() => setActive({ token: h.token, side: 'sell' })}
-                    className="min-h-9 px-2 text-sm text-accent hover:underline touch-manipulation"
+                    className="min-h-9 px-2 text-sm text-accent touch-manipulation"
                   >
                     Sell
                   </button>
@@ -141,17 +147,17 @@ export function CryptoDesk() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="sticky top-[4.75rem] z-20 -mx-4 px-4 py-2 bg-paper/95 backdrop-blur-md md:static md:mx-0 md:px-0 md:py-0 md:bg-transparent md:backdrop-blur-none flex flex-col gap-2.5">
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter by ticker or name"
+          placeholder="Search ticker or name"
           className={tapeSearchClassName}
         />
         <TapeFilterRow>
           <TapePill active={chainId === 'all'} onClick={() => setChainId('all')}>
-            All chains
+            All
           </TapePill>
           {STOCK_CHAIN_IDS.map((id) => (
             <TapePill key={id} active={chainId === id} onClick={() => setChainId(id)}>
@@ -175,7 +181,7 @@ export function CryptoDesk() {
       )}
 
       {visible.length > 0 && (
-        <ul className="-mx-4 md:-mx-6 flex flex-col divide-y divide-border/80">
+        <ul className="-mx-4 md:mx-0 flex flex-col divide-y divide-border/80">
           {visible.map((t) => (
             <TapeRow
               key={t.id}
@@ -186,23 +192,14 @@ export function CryptoDesk() {
               priceUsd={t.priceUsd}
               marketCapUsd={t.marketCapUsd}
               changePct24h={t.changePct24h}
-              onBuy={() => setActive({ token: t, side: 'buy' })}
+              onOpen={() => setActive({ token: t, side: 'buy' })}
             />
           ))}
         </ul>
       )}
 
-      {visible.length > 0 && (
-        <p className="text-xs text-ink/40">
-          Sorted by 24h change among CoinGecko&apos;s largest coins LI.FI can route. Not a
-          recommendation.
-        </p>
-      )}
-
       {!mainnet && (
-        <p className="text-xs text-warn/90 border border-warn/20 bg-warn/5 rounded-lg px-4 py-3 leading-relaxed">
-          Practice mode. The tape is live; buying or selling requires mainnet.
-        </p>
+        <p className="text-xs text-warn/90">Practice mode. Buying or selling needs mainnet.</p>
       )}
 
       {active && (

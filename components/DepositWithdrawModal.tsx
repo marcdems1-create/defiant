@@ -35,6 +35,7 @@ import { OnrampModal } from './OnrampModal';
 import { ConnectButtonClient } from './ConnectButtonClient';
 import { MoveUsdcButton } from './MoveUsdcButton';
 import { isStableDollarAsset } from '@/lib/firstRun';
+import { SheetFrame } from './AppChrome';
 
 type Tab = 'deposit' | 'withdraw';
 type Step = 'idle' | 'sendingFee' | 'approving' | 'acting' | 'done' | 'error';
@@ -819,8 +820,7 @@ export function DepositWithdrawModal({
 
   return (
     <>
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 sm:px-4">
-      <div className="w-full max-w-md bg-paper border border-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-lg p-6 max-h-[min(92dvh,100%)] overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <SheetFrame onClose={onClose}>
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="text-lg font-medium">{opportunity.protocolLabel}</div>
@@ -875,20 +875,19 @@ export function DepositWithdrawModal({
         )}
 
         {address && (
-          <div className="flex gap-2 mb-4">
+          <div className="flex p-0.5 mb-4 rounded-xl bg-white/[0.06] border border-border">
             {(['deposit', 'withdraw'] as Tab[]).map((t) => (
               <button
                 key={t}
+                type="button"
                 onClick={() => {
                   setTab(t);
                   setStep('idle');
                   setErrorMsg(null);
                   setAmount('');
                 }}
-                className={`flex-1 py-1.5 rounded text-sm capitalize border ${
-                  tab === t
-                    ? 'bg-accent text-paper border-accent'
-                    : 'border-border text-ink/70'
+                className={`flex-1 min-h-10 rounded-[10px] text-sm font-medium capitalize touch-manipulation ${
+                  tab === t ? 'bg-white/12 text-ink' : 'text-ink/45'
                 }`}
               >
                 {t}
@@ -1155,8 +1154,7 @@ export function DepositWithdrawModal({
             )}
           </>
         )}
-      </div>
-    </div>
+    </SheetFrame>
     {buyOpen && address && (
       <OnrampModal
         address={address}

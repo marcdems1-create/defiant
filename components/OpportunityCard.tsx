@@ -17,7 +17,7 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
   return (
     <>
       <article
-        className={`relative rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-5 flex flex-col gap-4 min-h-[260px] transition-transform hover:-translate-y-0.5 hover:border-accent/40`}
+        className={`relative rounded-2xl border border-border bg-gradient-to-br ${PROTOCOL_TINT[opportunity.protocol]} p-5 flex flex-col gap-4 min-h-[260px] md:transition-transform md:hover:-translate-y-0.5 hover:border-accent/40`}
       >
         <Link
           href={`/opportunities/${opportunity.id}`}
@@ -75,5 +75,45 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
         <DepositWithdrawModal opportunity={opportunity} onClose={() => setModalOpen(false)} />
       )}
     </>
+  );
+}
+
+export function OpportunityListRow({ opportunity }: { opportunity: Opportunity }) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const badges = getCardBadges(opportunity);
+
+  return (
+    <li className="flex items-center gap-3 py-3.5">
+      <button
+        type="button"
+        onClick={() => setModalOpen(true)}
+        className="min-w-0 flex-1 flex items-center gap-3 text-left touch-manipulation"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-[15px] leading-tight truncate">
+            {opportunity.protocolLabel}
+          </div>
+          <div className="text-xs text-ink/45 truncate mt-0.5">
+            {chainName(opportunity.chainId)} · {opportunity.asset.symbol} · {badges.risk.label}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className="font-mono text-[15px] text-accent tabular-nums leading-tight">
+            {formatApy(opportunity.apy)}
+          </div>
+          <div className="text-[11px] text-ink/40 mt-0.5">{apyCaption(opportunity)}</div>
+        </div>
+      </button>
+      <Link
+        href={`/opportunities/${opportunity.id}`}
+        className="shrink-0 min-h-11 px-2 text-xs text-ink/40 flex items-center touch-manipulation"
+        aria-label={`Details for ${opportunity.protocolLabel}`}
+      >
+        Details
+      </Link>
+      {modalOpen && (
+        <DepositWithdrawModal opportunity={opportunity} onClose={() => setModalOpen(false)} />
+      )}
+    </li>
   );
 }

@@ -26,12 +26,12 @@ export function FirstRunHero({
   const funded = connected && usdcReady && usdcBalance > 0n;
 
   return (
-    <section className="rounded-2xl border border-border bg-white/[0.02] p-6 flex flex-col gap-5">
+    <section className="flex flex-col gap-4 md:rounded-2xl md:border md:border-border md:bg-white/[0.02] md:p-6 md:gap-5">
       <div>
-        <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
+        <p className="hidden md:block text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
           First session
         </p>
-        <h1 className="text-3xl font-medium tracking-tight">
+        <h1 className="text-[28px] md:text-3xl font-semibold md:font-medium tracking-tight leading-tight">
           {!connected && 'Get a wallet, add dollars, put them to work'}
           {empty && 'Add USDC to this wallet'}
           {funded && 'Put your USDC to work'}
@@ -49,7 +49,7 @@ export function FirstRunHero({
         </p>
       </div>
 
-      <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+      <ol className="hidden md:grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <Step n={1} done={connected} label="Wallet" detail="Email or passkey" />
         <Step n={2} done={funded} label="Add USDC" detail="Transak (CAD) or send" />
         <Step n={3} done={false} label="Deposit" detail="Pick a card" />
@@ -61,7 +61,7 @@ export function FirstRunHero({
           <button
             type="button"
             onClick={() => setBuyOpen(true)}
-            className="rounded-xl bg-accent text-paper font-medium text-sm px-4 py-2 hover:bg-accent/90 transition-colors"
+            className="min-h-11 rounded-xl bg-accent text-paper font-medium text-sm px-4 touch-manipulation"
           >
             Buy USDC
           </button>

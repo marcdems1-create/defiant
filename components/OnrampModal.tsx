@@ -6,6 +6,7 @@ import { NETWORK_MODE } from '@/lib/wagmi';
 import { chainName } from '@/lib/format';
 import { track } from '@/lib/analytics/track';
 import { TRANSAK_PRIVACY_URL, TRANSAK_TERMS_URL, TRANSAK_TERMS_US_URL } from '@/lib/config/site';
+import { SheetFrame } from './AppChrome';
 
 export function OnrampModal({
   address,
@@ -60,8 +61,7 @@ export function OnrampModal({
   const buying = product !== 'SELL';
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/70 sm:p-4">
-      <div className="bg-paper border border-border border-b-0 sm:border-b rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 max-h-[min(96dvh,100%)] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+    <SheetFrame onClose={onClose} wide zClass="z-[300]">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
             <h2 className="text-lg font-medium">{buying ? 'Add USDC' : 'Cash out USDC'}</h2>
@@ -172,7 +172,6 @@ export function OnrampModal({
             referrerPolicy="strict-origin-when-cross-origin"
           />
         )}
-      </div>
-    </div>
+    </SheetFrame>
   );
 }
