@@ -85,6 +85,9 @@ export function DepositWithdrawModal({
   const [moveTxHash, setMoveTxHash] = useState<`0x${string}` | null>(null);
   const [moveFromChainId, setMoveFromChainId] = useState<number | null>(null);
   const [moveFinished, setMoveFinished] = useState(false);
+  const [useOtherChain, setUseOtherChain] = useState(false);
+  const [moveSourceId, setMoveSourceId] = useState<number | null>(null);
+  const destUsdcAtMoveStart = useRef<bigint | null>(null);
   const dollarInput = isStableDollarAsset(opportunity.asset.symbol, opportunity.asset.decimals);
   const isUsdc = opportunity.asset.symbol.toUpperCase() === 'USDC';
 
@@ -167,15 +170,19 @@ export function DepositWithdrawModal({
   const canSeeOtherChains =
     NETWORK_MODE === 'mainnet' && isUsdc && Boolean(bridgeChainById(opportunity.chainId));
   const crossChain = useCrossChainUsdc(canSeeOtherChains ? address : undefined);
-  const bestOtherChainUsdc = useMemo(
+  const otherChainUsdc = useMemo(
     () =>
       crossChain.balances
         .filter((b) => b.chainId !== opportunity.chainId && b.balance > 0n)
-        .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0))[0],
+        .sort((a, b) => (b.balance > a.balance ? 1 : b.balance < a.balance ? -1 : 0)),
     [crossChain.balances, opportunity.chainId],
   );
+  const selectedOtherChainUsdc =
+    otherChainUsdc.find((b) => b.chainId === moveSourceId) ?? otherChainUsdc[0];
   const sourcingFromOtherChain =
-    tab === 'deposit' && walletBalance === 0n && Boolean(bestOtherChainUsdc);
+    tab === 'deposit' &&
+    Boolean(selectedOtherChainUsdc) &&
+    (walletBalance === 0n || useOtherChain);
 
   const positionBalance = useErc20Balance(opportunity.positionToken, address, opportunity.chainId);
   const positionBalanceValue = (positionBalance.data as bigint | undefined) ?? 0n;
@@ -367,11 +374,21 @@ export function DepositWithdrawModal({
   const insufficientBalance = amountBig > 0n && amountBig > maxAmount;
 
   function setMax() {
-    if (tab === 'deposit' && walletBalance === 0n && bestOtherChainUsdc) {
-      setAmount(formatUnits(bestOtherChainUsdc.balance, amountDecimals));
+    if (tab === 'deposit' && selectedOtherChainUsdc && (walletBalance === 0n || useOtherChain)) {
+      setUseOtherChain(true);
+      setMoveSourceId(selectedOtherChainUsdc.chainId);
+      setAmount(formatUnits(selectedOtherChainUsdc.balance, amountDecimals));
       return;
     }
+    setUseOtherChain(false);
     setAmount(formatUnits(maxAmount, amountDecimals));
+  }
+
+  function useOtherChainBalance(chainId: number, balance: bigint) {
+    setMoveSourceId(chainId);
+    setUseOtherChain(true);
+    setAmount(formatUnits(balance, amountDecimals));
+    setErrorMsg(null);
   }
 
   async function refreshBalances() {
@@ -417,17 +434,19 @@ export function DepositWithdrawModal({
   ]);
 
   useEffect(() => {
-    if (walletBalance > 0n && awaitingMove) {
-      setAwaitingMove(false);
-      setMoveFinished(true);
-      try {
-        const typed = amount ? parseUnits(amount, amountDecimals) : 0n;
-        if (typed === 0n || typed > walletBalance) {
-          setAmount(formatUnits(walletBalance, amountDecimals));
-        }
-      } catch {
+    if (!awaitingMove) return;
+    const baseline = destUsdcAtMoveStart.current ?? 0n;
+    if (walletBalance <= baseline) return;
+    setAwaitingMove(false);
+    setMoveFinished(true);
+    destUsdcAtMoveStart.current = null;
+    try {
+      const typed = amount ? parseUnits(amount, amountDecimals) : 0n;
+      if (typed === 0n || typed > walletBalance) {
         setAmount(formatUnits(walletBalance, amountDecimals));
       }
+    } catch {
+      setAmount(formatUnits(walletBalance, amountDecimals));
     }
   }, [walletBalance, awaitingMove, amount, amountDecimals]);
 
@@ -812,8 +831,8 @@ export function DepositWithdrawModal({
   const shouldMoveUsdc =
     tab === 'deposit' &&
     isUsdc &&
-    Boolean(address && bestOtherChainUsdc) &&
-    (walletBalance === 0n || insufficientBalance);
+    Boolean(address && selectedOtherChainUsdc) &&
+    (walletBalance === 0n || useOtherChain || insufficientBalance);
   const stillCheckingOtherChains =
     tab === 'deposit' && isUsdc && canSeeOtherChains && crossChain.isLoading && walletBalance === 0n;
 
@@ -884,6 +903,7 @@ export function DepositWithdrawModal({
                   setStep('idle');
                   setErrorMsg(null);
                   setAmount('');
+                  setUseOtherChain(false);
                 }}
                 className={`flex-1 py-1.5 rounded text-sm capitalize border ${
                   tab === t
@@ -918,16 +938,9 @@ export function DepositWithdrawModal({
               <span>Amount{dollarInput && tab === 'deposit' ? ' (USD)' : ''}</span>
               <span className="text-right leading-relaxed">
                 {tab === 'deposit' && dollarInput ? (
-                  <>
-                    <span className="block">
-                      ${formatUsdcUsd(walletBalance)} on {chainName(opportunity.chainId)}
-                    </span>
-                    {bestOtherChainUsdc && (
-                      <span className="block text-ink/70">
-                        ${formatUsdcUsd(bestOtherChainUsdc.balance)} on {bestOtherChainUsdc.label}
-                      </span>
-                    )}
-                  </>
+                  <span className="block">
+                    ${formatUsdcUsd(walletBalance)} on {chainName(opportunity.chainId)}
+                  </span>
                 ) : (
                   <>
                     {tab === 'deposit' ? 'Wallet' : 'Deposited'}:{' '}
@@ -945,8 +958,11 @@ export function DepositWithdrawModal({
                   type="text"
                   inputMode="decimal"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder={dollarInput && tab === 'deposit' ? '50' : '0.0'}
+                  onChange={(e) => {
+                    setAmount(e.target.value);
+                    setUseOtherChain(false);
+                  }}
+                  placeholder={dollarInput && tab === 'deposit' ? '0' : '0.0'}
                   className="flex-1 bg-transparent py-2 text-sm font-mono outline-none"
                 />
               </div>
@@ -963,12 +979,47 @@ export function DepositWithdrawModal({
                   <button
                     key={preset}
                     type="button"
-                    onClick={() => setAmount(preset)}
+                    onClick={() => {
+                      setAmount(preset);
+                      try {
+                        const n = parseUnits(preset, amountDecimals);
+                        setUseOtherChain(Boolean(selectedOtherChainUsdc && n > walletBalance));
+                      } catch {
+                        setUseOtherChain(false);
+                      }
+                    }}
                     className="px-3 py-1 rounded-full border border-border text-xs text-ink/70 hover:text-ink"
                   >
                     ${preset}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {tab === 'deposit' && isUsdc && otherChainUsdc.length > 0 && (
+              <div className="border border-accent/25 bg-accent/5 rounded-xl px-3 py-3 mb-3">
+                <p className="text-xs text-ink/65 leading-relaxed mb-2">
+                  This card takes USDC on {chainName(opportunity.chainId)}. Move it here first — it
+                  lands in this wallet, not yet in {opportunity.protocolLabel}. You sign both
+                  steps.
+                </p>
+                <ul className="flex flex-col gap-2">
+                  {otherChainUsdc.map((row) => (
+                    <li key={row.chainId} className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-mono">
+                        ${formatUsdcUsd(row.balance)}
+                        <span className="font-sans text-ink/50 text-xs ml-1.5">on {row.label}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => useOtherChainBalance(row.chainId, row.balance)}
+                        className="shrink-0 min-h-9 px-3 rounded-lg bg-accent text-paper text-sm font-medium touch-manipulation"
+                      >
+                        Use this
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -1021,14 +1072,6 @@ export function DepositWithdrawModal({
                 syrup.fi, then come back — we cannot sign Maple&apos;s allowlist for you.
               </div>
             )}
-            {shouldMoveUsdc && bestOtherChainUsdc && (
-              <div className="text-xs text-ink/65 border border-accent/25 bg-accent/5 rounded px-3 py-2 mb-3 leading-relaxed">
-                Your USDC is on {bestOtherChainUsdc.label}. Moving it to{' '}
-                {chainName(opportunity.chainId)} is step 1 of 2 — it will sit in this wallet there,
-                not yet in {opportunity.protocolLabel}. After it arrives, you sign a second
-                transaction to deposit.
-              </div>
-            )}
             {moveFinished && walletBalance > 0n && tab === 'deposit' && (
               <div className="text-xs text-ink/65 border border-accent/25 bg-accent/5 rounded px-3 py-2 mb-3 leading-relaxed">
                 USDC is on {chainName(opportunity.chainId)}. Step 2 of 2: deposit into{' '}
@@ -1061,7 +1104,7 @@ export function DepositWithdrawModal({
               >
                 Checking wallet…
               </button>
-            ) : awaitingMove && walletBalance === 0n ? (
+            ) : awaitingMove ? (
               <div className="flex flex-col gap-2 py-1">
                 <p className="text-xs text-accent text-center leading-relaxed">
                   USDC is on the way to {chainName(opportunity.chainId)}. It will land in this
@@ -1079,24 +1122,45 @@ export function DepositWithdrawModal({
                   </a>
                 )}
               </div>
-            ) : shouldMoveUsdc && address && bestOtherChainUsdc ? (
-              <MoveUsdcButton
-                address={address}
-                destChainId={opportunity.chainId}
-                destLabel={chainName(opportunity.chainId)}
-                source={bestOtherChainUsdc}
-                requestedAmount={amountBig}
-                protocolLabel={opportunity.protocolLabel}
-                opportunityId={opportunity.id}
-                disabled={busy && !moving}
-                onBusy={setMoving}
-                onMoved={({ txHash }) => {
-                  setMoveTxHash(txHash);
-                  setMoveFromChainId(bestOtherChainUsdc.chainId);
-                  setAwaitingMove(true);
-                  void refreshBalances();
-                }}
-              />
+            ) : shouldMoveUsdc && address && selectedOtherChainUsdc ? (
+              <div className="flex flex-col gap-2">
+                <MoveUsdcButton
+                  address={address}
+                  destChainId={opportunity.chainId}
+                  destLabel={chainName(opportunity.chainId)}
+                  source={selectedOtherChainUsdc}
+                  requestedAmount={
+                    useOtherChain || amountBig === 0n || amountBig > selectedOtherChainUsdc.balance
+                      ? selectedOtherChainUsdc.balance
+                      : amountBig
+                  }
+                  protocolLabel={opportunity.protocolLabel}
+                  opportunityId={opportunity.id}
+                  disabled={busy && !moving}
+                  onBusy={setMoving}
+                  onMoved={({ txHash }) => {
+                    destUsdcAtMoveStart.current = walletBalance;
+                    setMoveTxHash(txHash);
+                    setMoveFromChainId(selectedOtherChainUsdc.chainId);
+                    setAwaitingMove(true);
+                    setUseOtherChain(false);
+                    void refreshBalances();
+                  }}
+                />
+                {walletBalance > 0n && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseOtherChain(false);
+                      setAmount(formatUnits(walletBalance, amountDecimals));
+                    }}
+                    className="w-full min-h-11 rounded-md border border-border text-sm text-ink/70 touch-manipulation"
+                  >
+                    Or deposit ${formatUsdcUsd(walletBalance)} already on{' '}
+                    {chainName(opportunity.chainId)}
+                  </button>
+                )}
+              </div>
             ) : tab === 'deposit' && address && walletBalance === 0n ? (
               <button
                 type="button"

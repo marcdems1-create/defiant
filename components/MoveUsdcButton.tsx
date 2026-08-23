@@ -113,7 +113,7 @@ export function MoveUsdcButton({
       >
         {busy
           ? stepLabel(step as MoveStep, destLabel)
-          : `Step 1 of 2 · Move $${formatUsdcUsd(moveAmount)} to ${destLabel}`}
+          : `Move $${formatUsdcUsd(moveAmount)} from ${source.label} to ${destLabel}`}
       </button>
       {error && <p className="text-xs text-danger mt-2 break-words">{error}</p>}
     </div>
