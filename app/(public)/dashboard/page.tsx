@@ -16,8 +16,7 @@ import { chainName, formatApy, formatTokenAmount } from '@/lib/format';
 import { ConnectButtonClient } from '@/components/ConnectButtonClient';
 import { GrowthChart } from '@/components/GrowthChart';
 import { PositionActions } from '@/components/PositionActions';
-import { CryptoDesk } from '@/components/CryptoDesk';
-import { StockDesk } from '@/components/StockDesk';
+import { UpsideDesk } from '@/components/UpsideDesk';
 import { UsdcCashPanel } from '@/components/UsdcCashPanel';
 import { WalletOnly } from '@/components/WalletOnly';
 
@@ -101,8 +100,8 @@ function DashboardLive() {
           <h1 className="text-3xl font-medium tracking-tight">Dashboard</h1>
           <p className="text-ink/55 text-sm mt-2 max-w-xl leading-relaxed">
             Track where you stand and stay the course. Live on-chain reads only — Openhand never
-            holds your keys or funds. Spot crypto and tokenized stocks on this page are separate
-            LI.FI tapes, not yield, and not recommendations.
+            holds your keys or funds. Gold, crypto, and stocks on this page are LI.FI tapes, not
+            yield, and not recommendations.
           </p>
         </div>
       </header>
@@ -121,6 +120,8 @@ function DashboardLive() {
       )}
 
       {isConnected && <UsdcCashPanel />}
+
+      <UpsideDesk />
 
       {isConnected && positionsLoading && (
         <div className="text-ink/50 text-sm">Reading your on-chain positions…</div>
@@ -292,10 +293,6 @@ function DashboardLive() {
           </section>
         </>
       )}
-
-      <CryptoDesk />
-
-      <StockDesk />
 
       <section className="rounded-2xl border border-border bg-white/[0.02] p-6">
         <h2 className="text-lg font-medium mb-1">

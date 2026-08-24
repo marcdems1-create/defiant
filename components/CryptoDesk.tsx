@@ -65,7 +65,7 @@ function Pill({
   );
 }
 
-export function CryptoDesk() {
+export function CryptoDesk({ embedded = false }: { embedded?: boolean }) {
   const { address, isConnected } = useAccount();
   const { data, isLoading, isError } = useCryptoCatalog();
   const tokens = useMemo(() => data ?? [], [data]);
@@ -140,7 +140,13 @@ export function CryptoDesk() {
   const holdingUsd = holdings.reduce((sum, h) => sum + h.usd, 0);
 
   return (
-    <section className="rounded-2xl border border-border bg-white/[0.02] p-6 flex flex-col gap-5">
+    <section
+      className={
+        embedded
+          ? 'flex flex-col gap-5'
+          : 'rounded-2xl border border-border bg-white/[0.02] p-6 flex flex-col gap-5'
+      }
+    >
       <div>
         <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono mb-2">
           Spot crypto

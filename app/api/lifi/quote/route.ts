@@ -2,15 +2,15 @@ import { NextResponse } from 'next/server';
 import { getAddress, isAddress } from 'viem';
 import { isStockChainId, usdcOnStockChain } from '@/lib/config/lifi';
 import { fetchCryptoCatalog } from '@/lib/lifi/crypto';
+import { isAllowlistedGoldToken } from '@/lib/lifi/gold';
 import { fetchLifiQuote, fetchStockCatalog, isUsdcOnChain } from '@/lib/lifi/stocks';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Builds a LI.FI swap quote for USDC ↔ a catalogued stock or spot-crypto token.
+ * Builds a LI.FI swap quote for USDC ↔ a catalogued stock, gold, or spot-crypto token.
  * The connected wallet signs the returned tx — Openhand never does.
- * Restricted to the stock tape or the crypto tape + Circle USDC on that chain
- * (not a generic swap proxy).
+ * Restricted to those tapes + Circle USDC on that chain (not a generic swap proxy).
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -62,6 +62,7 @@ export async function POST(request: Request) {
 
   const [stocks, coins] = await Promise.all([fetchStockCatalog(), fetchCryptoCatalog()]);
   const listed =
+    isAllowlistedGoldToken(chainId, listedAddress) ||
     stocks.some(
       (t) => t.chainId === chainId && t.address.toLowerCase() === listedAddress.toLowerCase(),
     ) ||
