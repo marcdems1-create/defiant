@@ -91,8 +91,20 @@ async function main() {
   const faviconRes = await fetchWithRetries(new URL('/favicon.ico', wwwUrl.origin).toString(), {
     redirect: 'follow',
   });
+  const faviconBytes = Buffer.from(await faviconRes.arrayBuffer());
+  const faviconIsIco =
+    faviconBytes.length >= 4 &&
+    faviconBytes[0] === 0 &&
+    faviconBytes[1] === 0 &&
+    faviconBytes[2] === 1 &&
+    faviconBytes[3] === 0;
+  const faviconHead = faviconBytes.subarray(0, 24).toString('utf8').replace(/\s+/g, ' ').trim();
   if (faviconRes.status !== 200) {
     failures.push(`Favicon check failed: /favicon.ico (status=${faviconRes.status})`);
+  } else if (!faviconIsIco) {
+    failures.push(
+      `favicon.ico is not a real ICO (status=${faviconRes.status}, ${faviconBytes.length} bytes, starts ${JSON.stringify(faviconHead)}). Generate public/favicon.ico and do not rewrite the path to SVG.`,
+    );
   }
 
   const staticAssets = extractStaticAssets(html, wwwUrl.origin);
@@ -169,7 +181,7 @@ async function main() {
   console.log(`- Homepage status: ${pageRes.status}`);
   console.log(`- Static assets checked: ${staticAssets.length}`);
   console.log(`- Manifest status: ${manifestRes.status}`);
-  console.log(`- Favicon status: ${faviconRes.status}`);
+  console.log(`- Favicon status: ${faviconRes.status} (${faviconBytes.length} bytes, ICO)`);
   console.log(`- KYB pages: ${KYB_PATHS.join(', ')}`);
 }
 
