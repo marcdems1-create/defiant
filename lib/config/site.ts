@@ -72,7 +72,7 @@ function compactOperator(value: string): string {
 function displayOperatorAddress(value: string | undefined): string | undefined {
   if (!value) return undefined;
   if (compactOperator(value) === '89newportcrescentottawaontario') {
-    return '89 Newport Crescent, Ottawa, Ontario';
+    return '89 Newport Crescent, Ottawa';
   }
   return value;
 }
