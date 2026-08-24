@@ -81,6 +81,19 @@ async function main() {
   if (!/Transak/i.test(html)) {
     failures.push('Homepage HTML does not name Transak for CAD/USDC checkout.');
   }
+  if (/currently in beta/i.test(html)) {
+    failures.push('Homepage still says the product is in beta — KYB reads that as not live.');
+  }
+  if (/Practice mode/i.test(html)) {
+    failures.push('Production homepage is in practice/testnet mode. KYB needs the live mainnet site.');
+  }
+
+  const faviconRes = await fetchWithRetries(new URL('/favicon.ico', wwwUrl.origin).toString(), {
+    redirect: 'follow',
+  });
+  if (faviconRes.status !== 200) {
+    failures.push(`Favicon check failed: /favicon.ico (status=${faviconRes.status})`);
+  }
 
   const staticAssets = extractStaticAssets(html, wwwUrl.origin);
   if (staticAssets.length === 0) {
@@ -129,6 +142,9 @@ async function main() {
     if (path === '/refunds' && !/Transak/i.test(body)) {
       failures.push('/refunds does not name Transak as the refund handler.');
     }
+    if (path === '/refunds' && !/merchant of record/i.test(body)) {
+      failures.push('/refunds does not name Transak as merchant of record.');
+    }
     if (/HYPERFLEX|openhand\.money/i.test(body)) {
       failures.push(`${path} still contains reverted KYB identity (HYPERFLEX / openhand.money).`);
     }
@@ -153,6 +169,7 @@ async function main() {
   console.log(`- Homepage status: ${pageRes.status}`);
   console.log(`- Static assets checked: ${staticAssets.length}`);
   console.log(`- Manifest status: ${manifestRes.status}`);
+  console.log(`- Favicon status: ${faviconRes.status}`);
   console.log(`- KYB pages: ${KYB_PATHS.join(', ')}`);
 }
 

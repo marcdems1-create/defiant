@@ -11,7 +11,7 @@ export function NetworkBanner() {
 
   return (
     <div className="w-full bg-white/[0.04] border-b border-border text-ink/60 text-sm text-center py-1.5 px-4">
-      Openhand is currently in beta. Use at your own risk.
+      Live non-custodial interface. You sign every transaction. Capital is at risk.
     </div>
   );
 }

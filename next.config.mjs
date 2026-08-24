@@ -14,6 +14,12 @@ const nextConfig = {
       { source: '/contact-us', destination: '/contact', permanent: true },
     ];
   },
+  async rewrites() {
+    return [
+      // Diligence crawlers request /favicon.ico. The mark lives at /icons/icon.svg.
+      { source: '/favicon.ico', destination: '/icons/icon.svg' },
+    ];
+  },
   async headers() {
     return [
       {

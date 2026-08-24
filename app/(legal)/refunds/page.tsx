@@ -13,7 +13,8 @@ export default function RefundsPage() {
     <LegalDoc title="Refunds" updated={LEGAL_UPDATED}>
       <p>
         {SITE_NAME} never receives CAD or USDC from Buy USDC or cash out. Those checkouts are
-        Transak&apos;s. We cannot refund a payment we did not take.
+        Transak&apos;s — Transak is the merchant of record. We cannot refund a payment we did
+        not take.
       </p>
 
       <LegalH2>CAD / Interac / card (Transak)</LegalH2>
