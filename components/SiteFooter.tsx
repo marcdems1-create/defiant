@@ -2,10 +2,11 @@ import Link from 'next/link';
 import {
   CONTACT_EMAIL,
   CONTACT_PHONE,
+  CONTACT_PHONE_DISPLAY,
   FOOTER_LINKS,
-  LEGAL_ADDRESS,
+  LEGAL_ADDRESS_DISPLAY,
   LEGAL_ENTITY,
-  LEGAL_JURISDICTION,
+  LEGAL_JURISDICTION_DISPLAY,
   SITE_NAME,
 } from '@/lib/config/site';
 
@@ -47,14 +48,14 @@ export function SiteFooter() {
             </p>
             <p className="text-ink/60 leading-relaxed">
               {LEGAL_ENTITY}
-              {LEGAL_ADDRESS ? (
+              {LEGAL_ADDRESS_DISPLAY ? (
                 <>
                   <br />
-                  {LEGAL_ADDRESS}
+                  {LEGAL_ADDRESS_DISPLAY}
                 </>
               ) : null}
               <br />
-              {LEGAL_JURISDICTION}
+              {LEGAL_JURISDICTION_DISPLAY}
             </p>
             <a
               href={`mailto:${CONTACT_EMAIL}`}
@@ -64,7 +65,7 @@ export function SiteFooter() {
             </a>
             {CONTACT_PHONE ? (
               <a href={`tel:${CONTACT_PHONE.replace(/\s+/g, '')}`} className="text-ink/60 font-mono text-[13px]">
-                {CONTACT_PHONE}
+                {CONTACT_PHONE_DISPLAY}
               </a>
             ) : null}
           </div>

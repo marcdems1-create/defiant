@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/config/site';
+import { KybNoscript } from '@/components/KybNoscript';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -46,7 +47,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-paper text-ink font-sans">{children}</body>
+      <body className="min-h-screen bg-paper text-ink font-sans">
+        <KybNoscript />
+        {children}
+      </body>
     </html>
   );
 }

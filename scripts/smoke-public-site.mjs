@@ -53,6 +53,11 @@ async function main() {
       'Homepage HTML bailed out to client rendering. KYB crawlers see an empty page. Do not wrap the public page tree in dynamic(..., { ssr: false }).',
     );
   }
+  if (html.includes('89newportcrescent') || html.includes('ontario,canada')) {
+    failures.push(
+      'Homepage HTML still shows compacted operator env (address/jurisdiction). Display helpers should restore spaces.',
+    );
+  }
   if (!html.includes('how-it-works-heading') || !html.includes('How it works')) {
     failures.push('Homepage HTML is missing the How it works section (must be in first HTML, not only after JS).');
   }

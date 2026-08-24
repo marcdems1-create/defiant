@@ -1,9 +1,9 @@
-import { LEGAL_ENTITY, LEGAL_JURISDICTION, SITE_NAME } from '@/lib/config/site';
+import { LEGAL_ENTITY, LEGAL_JURISDICTION_DISPLAY, SITE_NAME } from '@/lib/config/site';
 
 const MARKS = [
   { label: 'Non-custodial', detail: `${SITE_NAME} never holds your funds` },
   { label: 'You sign', detail: 'Every deposit and withdrawal' },
-  { label: 'Operator', detail: `${LEGAL_ENTITY} · ${LEGAL_JURISDICTION}` },
+  { label: 'Operator', detail: `${LEGAL_ENTITY} · ${LEGAL_JURISDICTION_DISPLAY}` },
   { label: 'USDC onramp', detail: 'Transak, a third party' },
 ] as const;
 

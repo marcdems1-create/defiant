@@ -55,6 +55,47 @@ export const LEGAL_ADDRESS = publicEnv('NEXT_PUBLIC_OPERATOR_ADDRESS');
 
 export const CONTACT_PHONE = publicEnv('NEXT_PUBLIC_OPERATOR_PHONE');
 
+/**
+ * Display-only. Vercel env was pasted without spaces (`89newportcrescentottawaontario`,
+ * `ontario,canada`, `6136970257`). That reads as a broken site to a KYB reviewer.
+ * Do not invent a different street or city — only restore punctuation for the
+ * known compacted production values, or light formatting for a 10-digit phone.
+ */
+export const LEGAL_ADDRESS_DISPLAY = displayOperatorAddress(LEGAL_ADDRESS);
+export const LEGAL_JURISDICTION_DISPLAY = displayJurisdiction(LEGAL_JURISDICTION);
+export const CONTACT_PHONE_DISPLAY = displayPhone(CONTACT_PHONE);
+
+function compactOperator(value: string): string {
+  return value.replace(/[\s,]+/g, '').toLowerCase();
+}
+
+function displayOperatorAddress(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (compactOperator(value) === '89newportcrescentottawaontario') {
+    return '89 Newport Crescent, Ottawa, Ontario';
+  }
+  return value;
+}
+
+function displayJurisdiction(value: string): string {
+  if (compactOperator(value) === 'ontariocanada') {
+    return 'Ontario, Canada';
+  }
+  return value;
+}
+
+function displayPhone(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+1 ${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return value;
+}
+
 export const LEGAL_UPDATED = '21 August 2026';
 
 export const TRANSAK_TERMS_URL = 'https://transak.com/terms-of-service';

@@ -3,7 +3,7 @@ import { LegalDoc, LegalH2, LegalLink } from '@/components/LegalDoc';
 import {
   CONTACT_EMAIL,
   LEGAL_ENTITY,
-  LEGAL_JURISDICTION,
+  LEGAL_JURISDICTION_DISPLAY,
   LEGAL_UPDATED,
   PRIVY_TERMS_URL,
   SITE_NAME,
@@ -25,7 +25,7 @@ export default function TermsPage() {
     <LegalDoc title="Terms of use" updated={LEGAL_UPDATED}>
       <p>
         These terms govern your use of {SITE_NAME} at {SITE_URL}, a software interface
-        operated by {LEGAL_ENTITY} ({LEGAL_JURISDICTION}). By using the site you agree to
+        operated by {LEGAL_ENTITY} ({LEGAL_JURISDICTION_DISPLAY}). By using the site you agree to
         them. If you do not agree, do not use the interface.
       </p>
 
@@ -138,7 +138,7 @@ export default function TermsPage() {
 
       <LegalH2>Governing law</LegalH2>
       <p>
-        These terms are governed by the laws of {LEGAL_JURISDICTION}, without regard to
+        These terms are governed by the laws of {LEGAL_JURISDICTION_DISPLAY}, without regard to
         conflict-of-law rules. If a court finds a part unenforceable, the rest still applies.
         Transak checkout remains governed by Transak&apos;s own terms.
       </p>

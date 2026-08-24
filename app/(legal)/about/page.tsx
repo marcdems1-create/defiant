@@ -7,9 +7,11 @@ import { LegalH2, LegalLink } from '@/components/LegalDoc';
 import {
   CONTACT_EMAIL,
   CONTACT_PHONE,
+  CONTACT_PHONE_DISPLAY,
   LEGAL_ADDRESS,
+  LEGAL_ADDRESS_DISPLAY,
   LEGAL_ENTITY,
-  LEGAL_JURISDICTION,
+  LEGAL_JURISDICTION_DISPLAY,
   LEGAL_UPDATED,
   SITE_NAME,
   SITE_URL,
@@ -34,8 +36,8 @@ export default function AboutPage() {
       ? {
           address: {
             '@type': 'PostalAddress',
-            streetAddress: LEGAL_ADDRESS,
-            addressCountry: LEGAL_JURISDICTION,
+            streetAddress: LEGAL_ADDRESS_DISPLAY,
+            addressCountry: LEGAL_JURISDICTION_DISPLAY,
           },
         }
       : {}),
@@ -72,14 +74,14 @@ export default function AboutPage() {
         <LegalH2>Who operates this</LegalH2>
         <p>
           The site is operated by <span className="text-ink">{LEGAL_ENTITY}</span>
-          {LEGAL_ADDRESS ? (
+          {LEGAL_ADDRESS_DISPLAY ? (
             <>
-              , {LEGAL_ADDRESS},
+              , {LEGAL_ADDRESS_DISPLAY},
             </>
           ) : null}{' '}
-          ({LEGAL_JURISDICTION}). Contact{' '}
+          ({LEGAL_JURISDICTION_DISPLAY}). Contact{' '}
           <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>
-          {CONTACT_PHONE ? <> or {CONTACT_PHONE}</> : null}.
+          {CONTACT_PHONE ? <> or {CONTACT_PHONE_DISPLAY}</> : null}.
         </p>
 
         <LegalH2>Nature of the business</LegalH2>

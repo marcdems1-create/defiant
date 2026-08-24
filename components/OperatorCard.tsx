@@ -1,9 +1,10 @@
 import {
   CONTACT_EMAIL,
   CONTACT_PHONE,
-  LEGAL_ADDRESS,
+  CONTACT_PHONE_DISPLAY,
+  LEGAL_ADDRESS_DISPLAY,
   LEGAL_ENTITY,
-  LEGAL_JURISDICTION,
+  LEGAL_JURISDICTION_DISPLAY,
 } from '@/lib/config/site';
 
 /** Public operator block for KYB reviewers. Address only when env matches the filing. */
@@ -19,13 +20,13 @@ export function OperatorCard({ className = '' }: { className?: string }) {
       <p className="text-sm text-ink/80 leading-relaxed">
         {LEGAL_ENTITY}
         <br />
-        {LEGAL_ADDRESS ? (
+        {LEGAL_ADDRESS_DISPLAY ? (
           <>
-            {LEGAL_ADDRESS}
+            {LEGAL_ADDRESS_DISPLAY}
             <br />
           </>
         ) : null}
-        {LEGAL_JURISDICTION}
+        {LEGAL_JURISDICTION_DISPLAY}
       </p>
       <p className="text-sm mt-2">
         <a href={`mailto:${CONTACT_EMAIL}`} className="text-accent hover:underline font-mono">
@@ -35,7 +36,7 @@ export function OperatorCard({ className = '' }: { className?: string }) {
           <>
             <br />
             <a href={`tel:${CONTACT_PHONE.replace(/\s+/g, '')}`} className="text-ink/70 font-mono">
-              {CONTACT_PHONE}
+              {CONTACT_PHONE_DISPLAY}
             </a>
           </>
         ) : null}

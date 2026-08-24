@@ -4,7 +4,7 @@ import { OperatorCard } from '@/components/OperatorCard';
 import {
   CONTACT_EMAIL,
   LEGAL_ENTITY,
-  LEGAL_JURISDICTION,
+  LEGAL_JURISDICTION_DISPLAY,
   LEGAL_UPDATED,
   PRIVY_PRIVACY_URL,
   SITE_NAME,
@@ -24,13 +24,13 @@ export default function PrivacyPage() {
       <OperatorCard />
       <p>
         {SITE_NAME} ({SITE_URL}) is a non-custodial web interface operated by {LEGAL_ENTITY}{' '}
-        in {LEGAL_JURISDICTION}. This page describes what this site itself does — and does
+        in {LEGAL_JURISDICTION_DISPLAY}. This page describes what this site itself does — and does
         not — collect.
       </p>
 
       <LegalH2>Operator</LegalH2>
       <p>
-        For this website, {LEGAL_ENTITY} ({LEGAL_JURISDICTION}) is the operator. We are not
+        For this website, {LEGAL_ENTITY} ({LEGAL_JURISDICTION_DISPLAY}) is the operator. We are not
         the onramp, the wallet vendor, or any yield protocol. Third parties listed below
         process their own data under their own policies.
       </p>
