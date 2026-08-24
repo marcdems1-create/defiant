@@ -136,8 +136,20 @@ async function main() {
     if (path === '/terms' && !body.includes('https://transak.com/terms-of-service')) {
       failures.push('/terms does not include Transak Terms of Service.');
     }
+    if (path === '/terms' && !body.includes('https://transak.com/terms-of-service-us')) {
+      failures.push('/terms does not include Transak US Terms of Service.');
+    }
+    if (path === '/terms' && !body.includes('https://transak.com/acceptable-use-policy')) {
+      failures.push('/terms does not include Transak Acceptable Use Policy.');
+    }
     if (path === '/terms' && !/merchant of record/i.test(body)) {
       failures.push('/terms does not name Transak as merchant of record.');
+    }
+    if (path === '/buy-usdc' && /until that is approved/i.test(body)) {
+      failures.push('/buy-usdc still says Transak is unapproved — KYB reads that as not live.');
+    }
+    if (path === '/buy-usdc' && !body.includes('https://transak.com/terms-of-service')) {
+      failures.push('/buy-usdc does not link Transak Terms of Service.');
     }
     if (path === '/privacy' && !body.includes('https://transak.com/privacy-policy')) {
       failures.push('/privacy does not include Transak Privacy Policy.');

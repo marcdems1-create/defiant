@@ -75,8 +75,9 @@ export default function PartnersPage() {
       <LegalH2>Transak</LegalH2>
       <p>
         Hosted widget only (not Transak Whitelabel). Prefill is CAD, country CA, USDC, and
-        the connected wallet. We do not pass identity data to skip KYC. Users must review
-        and acknowledge{' '}
+        the connected wallet. Transak is an independent merchant of record — not a joint
+        venture or agency with {LEGAL_ENTITY}. We do not pass identity data to skip KYC.
+        Users must review and acknowledge{' '}
         <LegalLink href={TRANSAK_TERMS_URL} external>
           Transak&apos;s Terms of Service
         </LegalLink>{' '}

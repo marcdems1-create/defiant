@@ -4,6 +4,7 @@ import {
   CONTACT_EMAIL,
   LEGAL_UPDATED,
   SITE_NAME,
+  TRANSAK_AUP_URL,
   TRANSAK_PRIVACY_URL,
   TRANSAK_SUPPORT_URL,
   TRANSAK_TERMS_URL,
@@ -80,6 +81,16 @@ export default function BuyUsdcPage() {
           </li>
           <li>
             <a
+              href={TRANSAK_AUP_URL}
+              className="text-accent hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Transak Acceptable Use Policy
+            </a>
+          </li>
+          <li>
+            <a
               href={TRANSAK_PRIVACY_URL}
               className="text-accent hover:underline"
               target="_blank"
@@ -98,8 +109,9 @@ export default function BuyUsdcPage() {
           <li>Continue — Transak&apos;s widget then loads in an iframe. Complete KYC and payment with Transak.</li>
         </ol>
         <p>
-          Production buys need a live Transak partner app. Until that is approved, the sheet
-          still shows this wallet address so you can send USDC yourself.
+          Production checkout is Transak&apos;s live widget. If Transak cannot complete an
+          order (unsupported region, identity check, or payment issue), you can still send
+          USDC to the connected wallet yourself. Openhand never receives those funds.
         </p>
 
         <h2 className="text-base font-medium text-ink mt-2">Problems with a payment</h2>

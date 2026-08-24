@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { NETWORK_MODE } from '@/lib/wagmi';
 import { chainName } from '@/lib/format';
 import { track } from '@/lib/analytics/track';
-import { TRANSAK_PRIVACY_URL, TRANSAK_TERMS_URL, TRANSAK_TERMS_US_URL } from '@/lib/config/site';
+import { TRANSAK_AUP_URL, TRANSAK_PRIVACY_URL, TRANSAK_TERMS_URL, TRANSAK_TERMS_US_URL } from '@/lib/config/site';
 
 export function OnrampModal({
   address,
@@ -115,7 +115,16 @@ export function OnrampModal({
                 >
                   US terms
                 </a>
-                ), and Transak&apos;s{' '}
+                ), Transak&apos;s{' '}
+                <a
+                  href={TRANSAK_AUP_URL}
+                  className="text-accent hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Acceptable Use Policy
+                </a>
+                , and Transak&apos;s{' '}
                 <a
                   href={TRANSAK_PRIVACY_URL}
                   className="text-accent hover:underline"

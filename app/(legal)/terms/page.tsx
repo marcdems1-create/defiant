@@ -8,6 +8,7 @@ import {
   PRIVY_TERMS_URL,
   SITE_NAME,
   SITE_URL,
+  TRANSAK_AUP_URL,
   TRANSAK_PRIVACY_URL,
   TRANSAK_SUPPORT_URL,
   TRANSAK_TERMS_URL,
@@ -82,7 +83,11 @@ export default function TermsPage() {
         <LegalLink href={TRANSAK_TERMS_US_URL} external>
           US Terms of Service
         </LegalLink>
-        ) are <strong className="text-ink font-medium">incorporated into these terms by
+        ) and Transak&apos;s{' '}
+        <LegalLink href={TRANSAK_AUP_URL} external>
+          Acceptable Use Policy
+        </LegalLink>{' '}
+        are <strong className="text-ink font-medium">incorporated into these terms by
         reference</strong> and apply to that checkout. Transak&apos;s{' '}
         <LegalLink href={TRANSAK_PRIVACY_URL} external>
           Privacy Policy
@@ -95,7 +100,8 @@ export default function TermsPage() {
         <LegalLink href={TRANSAK_SUPPORT_URL} external>
           Transak support
         </LegalLink>
-        .
+        . Transak is an independent service provider, not a joint venture, partnership, or
+        agency with {LEGAL_ENTITY}.
       </p>
       <p>
         {SITE_NAME} does not skip Transak KYC, does not collect government ID on Transak&apos;s

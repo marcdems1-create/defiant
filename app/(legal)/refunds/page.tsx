@@ -20,12 +20,14 @@ export default function RefundsPage() {
       <LegalH2>CAD / Interac / card (Transak)</LegalH2>
       <p>
         Cancelled orders, failed payments, missing USDC, and chargebacks are processed by
-        Transak under Transak&apos;s terms. Open{' '}
+        Transak under Transak&apos;s terms. When Transak can refund Official Currency, they
+        send it back to the payment account you paid from — not to {SITE_NAME}. Open{' '}
         <LegalLink href={TRANSAK_SUPPORT_URL} external>
           Transak support
         </LegalLink>{' '}
         with your order email or order ID. Confirm any refund wallet address with them —
-        not with {SITE_NAME}.
+        not with {SITE_NAME}. Once Transak has paid CAD out on a cash-out, they say that
+        fiat cannot be reversed.
       </p>
 
       <LegalH2>On-chain deposits and swaps</LegalH2>

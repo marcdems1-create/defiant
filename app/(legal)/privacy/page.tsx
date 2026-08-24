@@ -63,9 +63,10 @@ export default function PrivacyPage() {
         <LegalLink href={TRANSAK_PRIVACY_URL} external>
           Transak&apos;s privacy policy
         </LegalLink>
-        . {SITE_NAME} forwards your IP address to Transak for that checkout (Transak
-        requires it for geo/KYC) and does not store it. We do not pass identity documents
-        or a pre-filled KYC profile to skip Transak&apos;s screens.
+        . When you open that checkout, {SITE_NAME} sends Transak the connected wallet
+        address (so they can lock delivery to it) and your IP address (Transak requires it
+        for geo/KYC). We do not store that IP. We do not pass identity documents or a
+        pre-filled KYC profile to skip Transak&apos;s screens.
       </p>
 
       <LegalH2>On-chain activity</LegalH2>
