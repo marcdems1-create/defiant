@@ -23,9 +23,11 @@ export type SupportedChainId = (typeof chains)[number]['id'];
  * graph in Node to collect page metadata.
  *
  * Fix: make it a lazy singleton. Only ever call getWagmiConfig() from code
- * that runs in the browser — inside a component already excluded from SSR
- * (app/providers.tsx, itself loaded via dynamic(ssr:false)) or inside a
- * client event handler (never at module scope).
+ * that runs in the browser — inside `app/providers.tsx` after `WalletApp`
+ * dynamically imports it on the client, or inside a client event handler
+ * (never at module scope). Do not wrap page children in
+ * `dynamic(..., { ssr: false })` to “solve” this; that empties the homepage
+ * HTML for KYB crawlers.
  *
  * When NEXT_PUBLIC_PRIVY_APP_ID is set, the config comes from @privy-io/wagmi
  * so email/passkey embedded wallets share the same wagmi client as deposits.

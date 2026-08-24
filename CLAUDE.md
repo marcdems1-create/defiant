@@ -106,9 +106,15 @@ Rules:
 - `chains`, `NETWORK_MODE`, `SupportedChainId` in `lib/wagmi.ts` are safe to import anywhere
   (no RainbowKit dependency) — keep it that way.
 - Only ever call `getWagmiConfig()` from code that executes in the browser: inside
-  `app/providers.tsx` (itself loaded via `dynamic(() => import('./providers'), { ssr: false })`
-  in `app/layout.tsx`), or inside a client event handler (`components/DepositWithdrawModal.tsx`,
+  `app/providers.tsx` (loaded from `WalletApp` via a client `import()` in `useEffect`,
+  never as `dynamic(..., { ssr: false })` wrapping page children), or inside a client
+  event handler (`components/DepositWithdrawModal.tsx`,
   `components/LidoWithdrawalRequests.tsx`). Never at module scope.
+- **Never wrap `app/(public)` page children in `next/dynamic(..., { ssr: false })`.**
+  That makes Next emit `BAILOUT_TO_CLIENT_SIDE_RENDERING` for `/`, so KYB crawlers
+  see an empty homepage. Header/footer/product copy must SSR; wallet providers mount
+  after hydration (`components/WalletApp.tsx`). Legal pages stay outside wallet
+  providers (`app/(legal)`).
 - `ConnectButton` from `@rainbow-me/rainbowkit` is never imported directly — use
   `components/ConnectButtonClient.tsx`, which isolates it behind its own
   `dynamic(..., { ssr: false })` so no page's static import graph pulls RainbowKit into a

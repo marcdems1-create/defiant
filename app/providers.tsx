@@ -1,17 +1,17 @@
 'use client';
 
 import { Component, type ReactNode } from 'react';
-import dynamic from 'next/dynamic';
 import { privyAppId } from '@/lib/config/privy';
 import { RainbowAppProviders } from './providers-rainbow';
+import { PrivyAppProviders } from './providers-privy';
 import { WalletModeContext, type WalletMode } from '@/lib/walletMode';
 
-const PrivyAppProviders = dynamic(
-  () => import('./providers-privy').then((m) => m.PrivyAppProviders),
-  { ssr: false },
-);
-
 /**
+ * Wallet providers. Loaded only from `WalletApp` via a client `import()` in
+ * useEffect — never from a server module and never as
+ * `dynamic(..., { ssr: false })` wrapping page children (that bails `/` out
+ * to client rendering and fails Transak KYB).
+ *
  * Privy throws on an origin that is not in its dashboard allowlist (www vs
  * apex is the usual miss). That used to white-screen the whole public app.
  * Catch it and keep RainbowKit connect working.

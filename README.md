@@ -195,16 +195,22 @@ Production keys + KYB are still required before real CAD hits a real wallet.
 
 **Transak KYB — run production smoke before you file**
 
-The last rejection cited a **non-functional site**. Legal pages are on production now.
-Do not send Transak the URL until:
+The last rejection cited a **non-functional / inaccessible site**. Legal pages SSR, but
+the homepage used to bail out to client rendering (`BAILOUT_TO_CLIENT_SIDE_RENDERING`)
+because wallet providers wrapped the page tree in `dynamic(..., { ssr: false })`. A
+reviewer who curls the URL, disables JS, or screenshots first paint then saw a dark
+empty page plus a footer — which reads as “the website is down.”
+
+Do not send Transak the URL until production HTML includes **How it works** and
+**never holds** *before* the footer, and:
 
 ```bash
 npm run smoke:public
 ```
 
 passes (scheduled in `.github/workflows/production-smoke.yml`). That check fails if
-`/terms` is missing, Transak’s ToS is not in the HTML, or the homepage looks like the
-error boundary.
+the homepage bailed out to client rendering, `/terms` is missing, Transak’s ToS is
+not in the HTML, or the homepage looks like the error boundary.
 
 Transak’s API docs require partners to include [Transak’s Terms of Service](https://transak.com/terms-of-service) in their own terms, and to let users **review and acknowledge** those terms in the user journey ([integration/api](https://docs.transak.com/integration/api)). A previous site polish that invented operator details (`HYPERFLEX`, `hello@openhand.money`) was reverted — KYB identity must match the documents you upload, on **www.openhand.online**, not an abandoned domain.
 
@@ -214,7 +220,7 @@ Widget BFF (`POST /api/onramp/widget`) follows Transak [mandatory security chang
 |---|---|---|
 | CORS / Origin lock on `/api/onramp/widget` | Yes (allowlisted hosts, never `*`) | — |
 | `x-user-ip` = the shopper | Yes (required in production) | — |
-| Live site actually loads (no CSS-chunk white-screen) | Auto-reload + smoke | `npm run smoke:public` |
+| Live site actually loads (product HTML in first response, no CSR bailout) | Auto-reload + smoke | `npm run smoke:public`; view-source on `/` must contain How it works |
 | Public Terms that incorporate Transak ToS by reference | Yes — `/terms` (`/tos` redirects) | Same legal name as the KYB form |
 | Public Privacy | Yes — `/privacy` | — |
 | Refunds (Transak handles fiat; we never received the funds) | Yes — `/refunds` | — |

@@ -2,8 +2,9 @@
 
 /**
  * Production smoke for Transak KYB + deploys.
- * Fails if the live site 404s legal pages or serves a wallet-chunk error
- * as the homepage — that is what got the last KYB filing rejected.
+ * Fails if the live site 404s legal pages, the homepage bails out to
+ * client-only rendering (empty first paint), or the first HTML is missing
+ * the product explanation a reviewer can verify without JavaScript.
  */
 
 const DEFAULT_APEX_URL = 'https://openhand.online';
@@ -46,6 +47,25 @@ async function main() {
   const html = await pageRes.text();
   if (!html.includes('<title>Openhand')) {
     failures.push('Homepage response is missing the expected Openhand title.');
+  }
+  if (html.includes('BAILOUT_TO_CLIENT_SIDE_RENDERING')) {
+    failures.push(
+      'Homepage HTML bailed out to client rendering. KYB crawlers see an empty page. Do not wrap the public page tree in dynamic(..., { ssr: false }).',
+    );
+  }
+  if (!html.includes('how-it-works-heading') || !html.includes('How it works')) {
+    failures.push('Homepage HTML is missing the How it works section (must be in first HTML, not only after JS).');
+  }
+  if (!/never holds/i.test(html)) {
+    failures.push('Homepage HTML does not say Openhand never holds funds.');
+  }
+  if (!/merchant of record/i.test(html)) {
+    failures.push('Homepage HTML does not name Transak as merchant of record.');
+  }
+  const footerIndex = html.search(/<footer\b/i);
+  const howIndex = html.indexOf('how-it-works-heading');
+  if (footerIndex !== -1 && (howIndex === -1 || howIndex > footerIndex)) {
+    failures.push('How it works must appear in the document before the footer, not only as a client island.');
   }
   if (/Openhand could not load/i.test(html) && !html.includes('Yield')) {
     failures.push('Homepage HTML looks like the error boundary, not the product.');

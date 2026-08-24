@@ -9,21 +9,24 @@ import { apyCaption, assetMark, chainName, formatApy } from '@/lib/format';
 import { CardBadgeChip } from './CardBadgeChip';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
 import { ApyHistoryChart } from './ApyHistoryChart';
+import { useWalletReady } from './WalletApp';
 
 export function OpportunityDetail({ opportunity }: { opportunity: Opportunity }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [prefillWallet, setPrefillWallet] = useState(false);
+  const walletReady = useWalletReady();
   const badges = getCardBadges(opportunity);
   const details = getOpportunityDetails(opportunity);
   const asset = assetMark(opportunity.asset.symbol);
 
   useEffect(() => {
+    if (!walletReady) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('deposit') === '1') {
       setPrefillWallet(true);
       setModalOpen(true);
     }
-  }, []);
+  }, [walletReady]);
 
   return (
     <>
@@ -73,7 +76,11 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
         </article>
 
         <div className="flex flex-col gap-6">
-          <ApyHistoryChart opportunity={opportunity} />
+          {walletReady ? (
+            <ApyHistoryChart opportunity={opportunity} />
+          ) : (
+            <p className="text-sm text-ink/50">APY history loads in the browser.</p>
+          )}
           <section className="rounded-2xl border border-border bg-white/[0.02] p-5 sm:p-6">
             <h2 className="text-sm font-medium uppercase tracking-[0.12em] text-accent mb-3">
               How yield works here
@@ -137,7 +144,9 @@ export function OpportunityDetail({ opportunity }: { opportunity: Opportunity })
 
           <div className="sticky bottom-20 md:bottom-6 z-10 pt-2 pb-4 bg-gradient-to-t from-paper via-paper/95 to-transparent -mx-6 px-6">
             <button
+              type="button"
               onClick={() => {
+                if (!walletReady) return;
                 setPrefillWallet(false);
                 setModalOpen(true);
               }}

@@ -384,7 +384,7 @@ export function DepositWithdrawModal({
     setAmount(formatUnits(maxAmount, amountDecimals));
   }
 
-  function useOtherChainBalance(chainId: number, balance: bigint) {
+  function applyOtherChainBalance(chainId: number, balance: bigint) {
     setMoveSourceId(chainId);
     setUseOtherChain(true);
     setAmount(formatUnits(balance, amountDecimals));
@@ -1012,7 +1012,7 @@ export function DepositWithdrawModal({
                       </span>
                       <button
                         type="button"
-                        onClick={() => useOtherChainBalance(row.chainId, row.balance)}
+                        onClick={() => applyOtherChainBalance(row.chainId, row.balance)}
                         className="shrink-0 min-h-9 px-3 rounded-lg bg-accent text-paper text-sm font-medium touch-manipulation"
                       >
                         Use this

@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { track } from '@/lib/analytics/track';
 import { useWalletMode } from '@/lib/walletMode';
+import { useWalletReady } from './WalletApp';
 
 // RainbowKit / Privy touch browser-only APIs at module-eval time (indexedDB,
 // WebSocket) which crashes Next's Node-side static page-data collection if
@@ -18,6 +19,22 @@ const RainbowWalletButton = dynamic(
 );
 
 export function ConnectButtonClient(props: {
+  showBalance?: boolean;
+  chainStatus?: 'icon' | 'full' | 'none';
+  label?: string;
+}) {
+  const ready = useWalletReady();
+  if (!ready) {
+    return (
+      <span className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-sm text-ink/50">
+        {props.label ?? 'Connect'}
+      </span>
+    );
+  }
+  return <ConnectButtonLive {...props} />;
+}
+
+function ConnectButtonLive(props: {
   showBalance?: boolean;
   chainStatus?: 'icon' | 'full' | 'none';
   label?: string;

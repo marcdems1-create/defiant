@@ -19,6 +19,7 @@ import { PositionActions } from '@/components/PositionActions';
 import { CryptoDesk } from '@/components/CryptoDesk';
 import { StockDesk } from '@/components/StockDesk';
 import { UsdcCashPanel } from '@/components/UsdcCashPanel';
+import { WalletOnly } from '@/components/WalletOnly';
 
 function StatCard({
   label,
@@ -42,6 +43,30 @@ const PROJECTION_DISCLAIMER =
   'Illustration only. APY changes daily. Not a forecast or guarantee.';
 
 export default function DashboardPage() {
+  return (
+    <WalletOnly fallback={<DashboardFallback />}>
+      <DashboardLive />
+    </WalletOnly>
+  );
+}
+
+function DashboardFallback() {
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-[11px] uppercase tracking-[0.18em] text-ink/45 font-mono">
+        Your yield journey
+      </p>
+      <h1 className="text-3xl font-medium tracking-tight">Dashboard</h1>
+      <p className="text-ink/55 text-sm max-w-xl leading-relaxed">
+        Track positions from your own wallet. Live on-chain reads only — Openhand never holds
+        your keys or funds. Spot crypto and tokenized stocks on this page are separate LI.FI
+        tapes, not yield, and not recommendations.
+      </p>
+    </div>
+  );
+}
+
+function DashboardLive() {
   const { address, isConnected } = useAccount();
   const { data: opportunities, isLoading, isError } = useOpportunities();
   const { positions, isLoading: positionsLoading } = usePositions(opportunities, {

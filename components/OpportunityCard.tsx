@@ -8,9 +8,11 @@ import { PROTOCOL_TINT } from '@/lib/protocols/opportunityDetails';
 import { apyCaption, assetMark, chainName, formatApy } from '@/lib/format';
 import { CardBadgeChip } from './CardBadgeChip';
 import { DepositWithdrawModal } from './DepositWithdrawModal';
+import { useWalletReady } from './WalletApp';
 
 export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const walletReady = useWalletReady();
   const badges = getCardBadges(opportunity);
   const asset = assetMark(opportunity.asset.symbol);
 
@@ -64,7 +66,10 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
         </Link>
 
         <button
-          onClick={() => setModalOpen(true)}
+          type="button"
+          onClick={() => {
+            if (walletReady) setModalOpen(true);
+          }}
           className="relative z-[1] w-full py-2.5 rounded-xl bg-accent text-paper font-medium text-sm hover:bg-accent/90 transition-colors"
         >
           Deposit {opportunity.asset.symbol}
