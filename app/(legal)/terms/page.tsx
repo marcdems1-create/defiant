@@ -3,6 +3,7 @@ import { LegalDoc, LegalH2, LegalLink } from '@/components/LegalDoc';
 import {
   CONTACT_EMAIL,
   LEGAL_ENTITY,
+  LEGAL_ENTITY_IS_TRADE_NAME,
   LEGAL_JURISDICTION_DISPLAY,
   LEGAL_UPDATED,
   PRIVY_TERMS_URL,
@@ -21,8 +22,10 @@ export default function TermsPage() {
     <LegalDoc title="Terms of use" updated={LEGAL_UPDATED}>
       <p>
         These terms govern your use of {SITE_NAME} at {SITE_URL}, a software interface
-        operated by {LEGAL_ENTITY} ({LEGAL_JURISDICTION_DISPLAY}). By using the site you agree to
-        them. If you do not agree, do not use the interface.
+        operated by {LEGAL_ENTITY}
+        {!LEGAL_ENTITY_IS_TRADE_NAME ? <>, doing business as {SITE_NAME}</> : null}{' '}
+        ({LEGAL_JURISDICTION_DISPLAY}). By using the site you agree to them. If you do not
+        agree, do not use the interface.
       </p>
 
       <LegalH2>What this product is</LegalH2>

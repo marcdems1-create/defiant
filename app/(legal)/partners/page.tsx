@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { LegalDoc, LegalH2, LegalLink } from '@/components/LegalDoc';
-import { CONTACT_EMAIL, LEGAL_ENTITY, LEGAL_UPDATED, SITE_NAME } from '@/lib/config/site';
+import { CONTACT_EMAIL, LEGAL_ENTITY, LEGAL_ENTITY_IS_TRADE_NAME, LEGAL_UPDATED, SITE_NAME } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   title: 'Partners',
@@ -12,7 +12,9 @@ export default function PartnersPage() {
   return (
     <LegalDoc title="Partners and fund flow" updated={LEGAL_UPDATED}>
       <p>
-        {LEGAL_ENTITY} operates {SITE_NAME} as a non-custodial interface. The table below is
+        {LEGAL_ENTITY}
+        {!LEGAL_ENTITY_IS_TRADE_NAME ? <>, doing business as {SITE_NAME},</> : null} operates
+        this site as a non-custodial interface. The table below is
         what a partner review should verify: we never receive CAD or USDC.
       </p>
 

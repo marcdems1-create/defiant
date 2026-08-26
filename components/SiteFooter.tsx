@@ -6,6 +6,7 @@ import {
   FOOTER_LINKS,
   LEGAL_ADDRESS_DISPLAY,
   LEGAL_ENTITY,
+  LEGAL_ENTITY_IS_TRADE_NAME,
   LEGAL_JURISDICTION_DISPLAY,
   SITE_NAME,
 } from '@/lib/config/site';
@@ -47,6 +48,12 @@ export function SiteFooter() {
             </p>
             <p className="text-ink/60 leading-relaxed">
               {LEGAL_ENTITY}
+              {!LEGAL_ENTITY_IS_TRADE_NAME ? (
+                <>
+                  <br />
+                  doing business as {SITE_NAME}
+                </>
+              ) : null}
               {LEGAL_ADDRESS_DISPLAY ? (
                 <>
                   <br />

@@ -11,6 +11,8 @@ import {
   LEGAL_ADDRESS,
   LEGAL_ADDRESS_DISPLAY,
   LEGAL_ENTITY,
+  LEGAL_ENTITY_IS_TRADE_NAME,
+  IS_CBCA_NUMBERED_COMPANY,
   LEGAL_JURISDICTION_DISPLAY,
   LEGAL_UPDATED,
   SITE_NAME,
@@ -27,8 +29,8 @@ export default function AboutPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    name: LEGAL_ENTITY,
-    alternateName: SITE_NAME,
+    name: SITE_NAME,
+    legalName: LEGAL_ENTITY,
     url: SITE_URL,
     email: CONTACT_EMAIL,
     ...(CONTACT_PHONE ? { telephone: CONTACT_PHONE } : {}),
@@ -74,6 +76,12 @@ export default function AboutPage() {
         <LegalH2>Who operates this</LegalH2>
         <p>
           The site is operated by <span className="text-ink">{LEGAL_ENTITY}</span>
+          {IS_CBCA_NUMBERED_COMPANY ? (
+            <>, a federal corporation under the Canada Business Corporations Act</>
+          ) : null}
+          {!LEGAL_ENTITY_IS_TRADE_NAME ? (
+            <>, doing business as {SITE_NAME}</>
+          ) : null}
           {LEGAL_ADDRESS_DISPLAY ? (
             <>
               , {LEGAL_ADDRESS_DISPLAY},

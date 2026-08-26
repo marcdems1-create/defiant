@@ -1,10 +1,10 @@
-# DEFIANT — Claude Session Memory
+# OPENHAND (repo: defiant) — Claude Session Memory
 
 > Read this before touching anything in this repo.
 
 ## What this is
 
-**Openhand (repo: Defiant) is a non-custodial DeFi yield interface for a global audience.**
+**Openhand (GitHub repo: `defiant`) is a non-custodial DeFi yield interface for a global audience.**
 Public host is `https://openhand.online`. Connect your
 own wallet, compare live on-chain yield across Aave v3, Lido, and Yearn v3, deposit or
 withdraw with transactions you sign yourself. The app never holds funds — no pooled
@@ -12,6 +12,13 @@ contract, no admin key, no custody. See `README.md` for the full rationale and r
 framing; the short version: custody is what turns this into a heavily-regulated financial
 product in nearly every jurisdiction, so custody is the thing this build refuses to add.
 Not scoped to any one country — don't add region-specific framing without a reason.
+
+**Public brand is Openhand. Legal entity is 18177708 CANADA INC.** (federal CBCA numbered
+company), DBA Openhand. **Defiant Labs is not a registered name** — never put it on legal
+pages, the footer, operator env, or as if it were the company. The GitHub repo and npm
+package `"name": "defiant"` stay as internal identifiers; do not rename the GitHub repo
+for this. Netlify project slug `defiantlabs` is dashboard-only (no `netlify.toml` in
+this repo).
 
 **Not called a "savings app" anywhere in the product.** DeFi yield is not deposit-insured
 and carries real smart-contract/market/liquidity risk. Calling it "savings" would misstate
@@ -595,12 +602,20 @@ What is in the product now:
 - Widget BFF: CORS lock, production `x-user-ip` required, server-only API key, allowlisted
   `referrerDomain` (not a raw Referer).
 - Operator identity is `NEXT_PUBLIC_OPERATOR_*` (legal name, address, jurisdiction,
-  email, phone). Do not invent an entity in code — set env to match the KYB form
-  before resubmitting.
+  email, phone). Default legal name in code is **18177708 CANADA INC.** (federal CBCA),
+  DBA Openhand. Do not set env to “Defiant Labs”. Address/phone still come from env.
 - Footer company links; How it works on first session; LI.FI tapes labeled as not Transak.
 
 Still ops, not code: corporate inbox, HubSpot integration checklist, KYB form with the
 `/partners` nature-of-business paragraph, Transak host allowlist, Vercel static IPs,
 SELL enabled, partner fee in Transak dashboard. Do not turn on `NEXT_PUBLIC_TREASURY_ADDRESS`.
+
+## Session update (2026-08-26) — Openhand, not Defiant Labs
+
+Defiant Labs is **not a registered name**. Public product is Openhand. Legal entity is
+**18177708 CANADA INC.** (federal CBCA), DBA Openhand. GitHub repo remains `defiant`.
+Netlify preview comments used project slug `defiantlabs` — that slug lives in the
+Netlify dashboard, not in this repo (no `netlify.toml`). Rename the Netlify site to
+`openhand` in Site configuration → Site details if preview URLs should match the brand.
 
 

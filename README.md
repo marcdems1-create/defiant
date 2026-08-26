@@ -1,11 +1,16 @@
 # Openhand
 
-Public site: [openhand.online](https://openhand.online). GitHub repo: `defiant`.
+Public site: [openhand.online](https://openhand.online). GitHub repo: `defiant` (internal identifier, not the company name).
 
 A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
 across Aave v3, Lido, Yearn v3, and Curve, and deposit or withdraw with transactions you sign
 yourself. Openhand never takes custody of user funds — there is no pooled contract, no admin
 key, no path for the app itself to move anyone's money.
+
+> **Operator:** the public product is **Openhand**. The legal entity is **18177708 CANADA INC.**
+> (federal CBCA numbered company), doing business as Openhand. **Defiant Labs is not a
+> registered name** — do not use it as the company, in legal copy, or as a Netlify site
+> identity. The GitHub repo `defiant` and npm `"name": "defiant"` are internal only.
 
 > **Naming note:** this is deliberately *not* marketed as a "savings app" anywhere in the
 > product. DeFi yield carries smart-contract, market, and liquidity risk and is not deposit-
@@ -26,6 +31,16 @@ zone at Vercel (not the parking page) and add the domain on the Vercel project:
 5. Set `NEXT_PUBLIC_SITE_URL=https://openhand.online` on the Vercel project.
 6. Register that origin in Reown / WalletConnect, Privy, and Transak’s
    allowlist. `*.vercel.app` preview URLs are not the production host.
+
+Production is Vercel. A Netlify Git integration may still post PR comments with
+preview URLs like `deploy-preview-N--defiantlabs.netlify.app`. That **`defiantlabs`
+slug is the Netlify project name**, set in the Netlify dashboard (Site configuration →
+Site details), not in this repo — there is no `netlify.toml` and no in-repo site
+name. Rename the Netlify site to `openhand` in the dashboard if preview URLs should
+match the public brand. Do not treat Defiant Labs as a registered company.
+
+Set `NEXT_PUBLIC_OPERATOR_LEGAL_NAME` on Vercel to `18177708 CANADA INC.` (or leave it
+unset — that is the code default). Do not set it to Defiant Labs.
 
 ## Why non-custodial
 
@@ -224,7 +239,7 @@ Widget BFF (`POST /api/onramp/widget`) follows Transak [mandatory security chang
 | Public Terms that incorporate Transak ToS by reference | Yes — `/terms` (`/tos` redirects) | Same legal name as the KYB form |
 | Public Privacy | Yes — `/privacy` | — |
 | Refunds (Transak handles fiat; we never received the funds) | Yes — `/refunds` | — |
-| Contact / operator | Yes — `/contact`, `/about` | Set `NEXT_PUBLIC_OPERATOR_*` on Vercel to the **exact** KYB name, mailing address, and phone, then redeploy |
+| Contact / operator | Yes — `/contact`, `/about` | Legal default is **18177708 CANADA INC.**, DBA Openhand. Set `NEXT_PUBLIC_OPERATOR_*` address/phone to the filing, then redeploy. Never “Defiant Labs”. |
 | About / Partners / Support / Risk / Buy USDC | Yes | Nature of business: paste the paragraph below |
 | Unchecked-by-default Transak T&C acknowledgement before the widget iframe | Yes — `OnrampModal` | — |
 | Legal pages load **without** wallet providers | Yes — `app/(legal)` | — |
@@ -557,7 +572,7 @@ npm run dev
 | `lib/wagmi.ts` | Chain list + wallet connector config, testnet/mainnet switch |
 | `lib/config/addresses.ts` | All verified contract addresses, per chain |
 | `lib/config/fees.ts` | Fee bps constants, treasury address resolution/validation |
-| `lib/config/site.ts` | Public name, URL, operator env (`NEXT_PUBLIC_OPERATOR_*`), Transak/Privy legal URLs |
+| `lib/config/site.ts` | Public name Openhand, URL, operator (`18177708 CANADA INC.` default; `NEXT_PUBLIC_OPERATOR_*`) |
 | `app/(legal)/*` | About, terms, privacy, risk, partners, support, buy-usdc — no wallet providers |
 | `lib/config/transak.ts` | Transak env, CAD default, USDC network map. Server-only secrets. |
 | `lib/transak/accessToken.ts` | Partner access-token cache. Never import from a client component. |

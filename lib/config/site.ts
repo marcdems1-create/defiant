@@ -2,13 +2,20 @@
  * Public site identity. Production host is openhand.online.
  * Override with NEXT_PUBLIC_SITE_URL on previews.
  *
- * Operator fields must match the Transak KYB filing (legal name, mailing
- * address, email). Do not invent an entity or use a personal Gmail — the
- * last KYB polish that hardcoded HYPERFLEX / hello@openhand.money was
- * reverted for that reason. Set NEXT_PUBLIC_OPERATOR_* on Vercel before
- * resubmitting KYB.
+ * Public brand / DBA is Openhand. The registered operator is the federal
+ * CBCA numbered company 18177708 CANADA INC. "Defiant Labs" is not a
+ * registered name — never present it as the company. GitHub repo `defiant`
+ * and package.json "name" are internal identifiers only.
+ *
+ * Operator mailing address / phone still come from NEXT_PUBLIC_OPERATOR_*
+ * when they match the filing. Do not invent a street address or use a
+ * personal Gmail — the last KYB polish that hardcoded HYPERFLEX /
+ * hello@openhand.money was reverted for that reason.
  */
 export const SITE_NAME = 'Openhand';
+
+/** Registered federal CBCA corporation. Not a trade name. */
+export const DEFAULT_LEGAL_ENTITY = '18177708 CANADA INC.';
 
 export const SITE_URL = normalizeSiteUrl(
   process.env.NEXT_PUBLIC_SITE_URL || 'https://www.openhand.online',
@@ -42,10 +49,29 @@ export const CONTACT_EMAIL =
   publicEnv('NEXT_PUBLIC_OPERATOR_EMAIL') ?? 'hello@openhand.online';
 
 /**
- * Legal / trade name on the Transak KYB form. Defaults to the public product
- * name until the operator publishes the filing name via env.
+ * Registered legal name. Defaults to the CBCA numbered company.
+ * Env may override to the exact KYB filing string; "Defiant Labs" is
+ * rejected because that name is not registered.
  */
-export const LEGAL_ENTITY = publicEnv('NEXT_PUBLIC_OPERATOR_LEGAL_NAME') ?? SITE_NAME;
+export const LEGAL_ENTITY =
+  registeredLegalName(publicEnv('NEXT_PUBLIC_OPERATOR_LEGAL_NAME')) ??
+  DEFAULT_LEGAL_ENTITY;
+
+/** True when the legal name is the public DBA (should not happen in prod). */
+export const LEGAL_ENTITY_IS_TRADE_NAME =
+  compactOperator(LEGAL_ENTITY) === compactOperator(SITE_NAME);
+
+/** Numbered federal CBCA company — show the statute only for this entity. */
+export const IS_CBCA_NUMBERED_COMPANY =
+  compactOperator(LEGAL_ENTITY) === '18177708canadainc';
+
+function registeredLegalName(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (/defiant\s*labs/i.test(value) || compactOperator(value) === 'defiantlabs') {
+    return undefined;
+  }
+  return value;
+}
 
 export const LEGAL_JURISDICTION =
   publicEnv('NEXT_PUBLIC_OPERATOR_JURISDICTION') ?? 'Canada';

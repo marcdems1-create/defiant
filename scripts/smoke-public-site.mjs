@@ -82,6 +82,14 @@ async function main() {
   if (/Transak/i.test(html)) {
     failures.push('Homepage HTML names Transak. Do not mention that vendor without a signed deal.');
   }
+  if (/Defiant Labs|defiantlabs/i.test(html)) {
+    failures.push(
+      'Homepage HTML presents Defiant Labs. That name is not registered — public brand is Openhand; legal entity is 18177708 CANADA INC.',
+    );
+  }
+  if (!html.includes('18177708 CANADA INC.')) {
+    failures.push('Homepage HTML is missing the registered legal entity 18177708 CANADA INC.');
+  }
   if (/currently in beta/i.test(html)) {
     failures.push('Homepage still says the product is in beta — KYB reads that as not live.');
   }
@@ -136,6 +144,17 @@ async function main() {
     }
     if (/Transak/i.test(body)) {
       failures.push(`${path} names Transak. Do not mention that vendor on public pages without a signed deal.`);
+    }
+    if (/Defiant Labs|defiantlabs/i.test(body)) {
+      failures.push(
+        `${path} presents Defiant Labs. That name is not registered — use Openhand (DBA) and 18177708 CANADA INC.`,
+      );
+    }
+    if (
+      (path === '/about' || path === '/contact' || path === '/privacy' || path === '/terms') &&
+      !body.includes('18177708 CANADA INC.')
+    ) {
+      failures.push(`${path} is missing the registered legal entity 18177708 CANADA INC.`);
     }
     if (path === '/privacy' && !body.includes('hello@openhand.online')) {
       failures.push('/privacy is missing the corporate contact email.');
