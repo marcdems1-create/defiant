@@ -21,7 +21,6 @@ export function FirstRunHero({
   usdcReady: boolean;
 }) {
   const [buyOpen, setBuyOpen] = useState(false);
-  const [cashOpen, setCashOpen] = useState(false);
   const empty = connected && usdcReady && usdcBalance === 0n;
   const funded = connected && usdcReady && usdcBalance > 0n;
 
@@ -42,7 +41,7 @@ export function FirstRunHero({
             'Email or a passkey creates a wallet. You sign every move. Openhand never holds your keys or funds.'}
           {empty &&
             (NETWORK_MODE === 'mainnet'
-              ? `This wallet has no USDC on ${starter ? chainName(starter.chainId) : 'Base'} yet.`
+              ? `This wallet has no USDC on ${starter ? chainName(starter.chainId) : 'Base'} yet. Add USDC shows the address to send to.`
               : 'Practice mode. Use a Base Sepolia USDC faucet.')}
           {funded &&
             'Your USDC is in this wallet. Browse the collection and deposit into any card you choose.'}
@@ -51,7 +50,7 @@ export function FirstRunHero({
 
       <ol className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <Step n={1} done={connected} label="Wallet" detail="Email or passkey" />
-        <Step n={2} done={funded} label="Add USDC" detail="Transak (CAD) or send" />
+        <Step n={2} done={funded} label="Add USDC" detail="Send to this wallet" />
         <Step n={3} done={false} label="Deposit" detail="Pick a card" />
       </ol>
 
@@ -63,16 +62,7 @@ export function FirstRunHero({
             onClick={() => setBuyOpen(true)}
             className="rounded-xl bg-accent text-paper font-medium text-sm px-4 py-2 hover:bg-accent/90 transition-colors"
           >
-            Buy USDC
-          </button>
-        )}
-        {funded && address && starter && (
-          <button
-            type="button"
-            onClick={() => setCashOpen(true)}
-            className="rounded-xl border border-border text-sm px-4 py-2 hover:border-ink/40"
-          >
-            Cash out
+            Add USDC
           </button>
         )}
       </div>
@@ -83,14 +73,6 @@ export function FirstRunHero({
           chainId={starter.chainId}
           product="BUY"
           onClose={() => setBuyOpen(false)}
-        />
-      )}
-      {cashOpen && address && starter && (
-        <OnrampModal
-          address={address}
-          chainId={starter.chainId}
-          product="SELL"
-          onClose={() => setCashOpen(false)}
         />
       )}
     </section>

@@ -4,7 +4,7 @@ import { LEGAL_UPDATED, SITE_NAME } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   title: 'Risk disclosure',
-  description: `${SITE_NAME} is not a bank. On-chain yield is not insured. Transak checkout is a separate third-party product.`,
+  description: `${SITE_NAME} is not a bank. On-chain yield is not insured.`,
   alternates: { canonical: '/risk' },
 };
 
@@ -32,20 +32,19 @@ export default function RiskPage() {
         you. Higher-risk cards are labeled; that badge is coarse, not a rating.
       </p>
 
-      <LegalH2>Transak is separate</LegalH2>
+      <LegalH2>USDC</LegalH2>
       <p>
-        Buying or cashing out USDC with CAD / Interac is Transak&apos;s product. Transak
-        decides whether you pass KYC, which payment methods you can use, and when USDC
-        arrives. A failed or delayed Transak order is not an {SITE_NAME} custody event —
-        we never held the funds. See <LegalLink href="/terms">Terms</LegalLink> (Transak
-        terms incorporated) and <LegalLink href="/buy-usdc">Buy USDC</LegalLink>.
+        {SITE_NAME} does not sell USDC. A failed or delayed purchase at another venue is
+        not an {SITE_NAME} custody event — we never held the funds. See{' '}
+        <LegalLink href="/terms">Terms</LegalLink> and{' '}
+        <LegalLink href="/buy-usdc">Add USDC</LegalLink>.
       </p>
 
       <LegalH2>Tokenized stocks and spot crypto</LegalH2>
       <p>
-        Dashboard tapes routed by LI.FI are not Transak, not the listed share, and not a
-        brokerage. Issuers often exclude US retail. Availability varies. You sign every
-        swap. Do not treat a sort order as a recommendation.
+        Dashboard tapes routed by LI.FI are not the listed share and not a brokerage.
+        Issuers often exclude US retail. Availability varies. You sign every swap. Do not
+        treat a sort order as a recommendation.
       </p>
 
       <LegalH2>You sign</LegalH2>

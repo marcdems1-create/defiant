@@ -19,7 +19,7 @@ import {
 
 export const metadata: Metadata = {
   title: 'About',
-  description: `${SITE_NAME} is a non-custodial yield interface operated by ${LEGAL_ENTITY}. Transak processes CAD / Interac USDC checkout. ${SITE_NAME} never holds funds.`,
+  description: `${SITE_NAME} is a non-custodial yield interface operated by ${LEGAL_ENTITY}. ${SITE_NAME} never holds funds.`,
   alternates: { canonical: '/about' },
 };
 
@@ -42,7 +42,7 @@ export default function AboutPage() {
         }
       : {}),
     description:
-      'Non-custodial software interface for on-chain yield. Users sign their own transactions. Fiat on/off ramp is Transak.',
+      'Non-custodial software interface for on-chain yield. Users sign their own transactions.',
   };
 
   return (
@@ -92,10 +92,9 @@ export default function AboutPage() {
           vault and we do not take a cut inside protocol deposit or withdraw calls.
         </p>
         <p>
-          Fiat on-ramp and off-ramp (CAD / Interac ↔ USDC) is provided exclusively by
-          Transak. Transak is the merchant of record for that checkout, runs user identity
-          checks, and sends USDC to — or receives USDC from — the wallet you connect.{' '}
-          {SITE_NAME} does not receive CAD or USDC from that checkout.
+          {SITE_NAME} does not sell USDC and does not process CAD. Send USDC you already
+          hold to the wallet you connect, then deposit. {SITE_NAME} never receives that
+          USDC.
         </p>
 
         <LegalH2>What this is not</LegalH2>
@@ -103,8 +102,8 @@ export default function AboutPage() {
           Yield is not a deposit and is not insured. Returns change and are not guaranteed.
           Nothing here is investment, tax, or legal advice, and the catalog is not a
           recommendation — we do not score or feature a “best” opportunity. Dashboard tapes
-          of tokenized stocks or spot crypto are wallet-signed LI.FI routes, not Transak,
-          and not a brokerage.
+          of tokenized stocks or spot crypto are wallet-signed LI.FI routes, not a
+          brokerage.
         </p>
       </div>
 

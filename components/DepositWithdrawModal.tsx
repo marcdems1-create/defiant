@@ -1167,7 +1167,7 @@ export function DepositWithdrawModal({
                 onClick={() => setBuyOpen(true)}
                 className="w-full py-2 rounded-md bg-accent text-paper font-medium text-sm"
               >
-                {dollarInput ? 'Buy USDC' : `Get ${opportunity.asset.symbol} first`}
+                {dollarInput ? 'Add USDC' : `Get ${opportunity.asset.symbol} first`}
               </button>
             ) : (
               <button

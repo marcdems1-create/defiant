@@ -9,12 +9,11 @@ import {
   PRIVY_PRIVACY_URL,
   SITE_NAME,
   SITE_URL,
-  TRANSAK_PRIVACY_URL,
 } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   title: 'Privacy policy',
-  description: `How ${SITE_NAME} handles information. We do not collect KYC and we do not hold your wallet keys. Transak is the onramp.`,
+  description: `How ${SITE_NAME} handles information. We do not collect KYC and we do not hold your wallet keys.`,
   alternates: { canonical: '/privacy' },
 };
 
@@ -55,18 +54,11 @@ export default function PrivacyPage() {
         . {SITE_NAME} does not persist that email.
       </p>
 
-      <LegalH2>Buying and cashing out USDC (Transak)</LegalH2>
+      <LegalH2>USDC</LegalH2>
       <p>
-        CAD / Interac purchases and sales of USDC are processed by Transak, a third-party
-        onramp and offramp. Transak performs its own identity checks and sends USDC to — or
-        receives USDC from — the wallet address you connect. See{' '}
-        <LegalLink href={TRANSAK_PRIVACY_URL} external>
-          Transak&apos;s privacy policy
-        </LegalLink>
-        . When you open that checkout, {SITE_NAME} sends Transak the connected wallet
-        address (so they can lock delivery to it) and your IP address (Transak requires it
-        for geo/KYC). We do not store that IP. We do not pass identity documents or a
-        pre-filled KYC profile to skip Transak&apos;s screens.
+        {SITE_NAME} does not sell USDC and does not process CAD. You send USDC you already
+        hold to the wallet you connect. We do not collect identity documents for that
+        transfer and we do not receive the USDC.
       </p>
 
       <LegalH2>On-chain activity</LegalH2>
@@ -90,14 +82,13 @@ export default function PrivacyPage() {
       <p>
         The site may use browser storage for wallet connection, a pending Move-USDC list on
         this device, an install-prompt snooze, and an admin session cookie if you log into
-        the operator dashboard. Third-party wallet and onramp widgets may set their own
-        storage.
+        the operator dashboard. Third-party wallet widgets may set their own storage.
       </p>
 
       <LegalH2>Your requests</LegalH2>
       <p>
         Because we do not keep a wallet-linked customer file, we typically cannot look up
-        “your account.” For data Transak or Privy hold, contact them. Questions about this
+        “your account.” For data Privy holds, contact Privy. Questions about this
         policy:{' '}
         <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>.
       </p>

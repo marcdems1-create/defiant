@@ -96,13 +96,7 @@ function displayPhone(value: string | undefined): string | undefined {
   return value;
 }
 
-export const LEGAL_UPDATED = '24 August 2026';
-
-export const TRANSAK_TERMS_URL = 'https://transak.com/terms-of-service';
-export const TRANSAK_TERMS_US_URL = 'https://transak.com/terms-of-service-us';
-export const TRANSAK_PRIVACY_URL = 'https://transak.com/privacy-policy';
-export const TRANSAK_AUP_URL = 'https://transak.com/acceptable-use-policy';
-export const TRANSAK_SUPPORT_URL = 'https://support.transak.com/en';
+export const LEGAL_UPDATED = '26 August 2026';
 
 export const PRIVY_TERMS_URL = 'https://www.privy.io/user-terms-of-service';
 export const PRIVY_PRIVACY_URL = 'https://www.privy.io/privacy-policy';
@@ -111,7 +105,7 @@ export const FOOTER_LINKS = [
   { href: '/about', label: 'About' },
   { href: '/contact', label: 'Contact' },
   { href: '/partners', label: 'Partners' },
-  { href: '/buy-usdc', label: 'Buy USDC' },
+  { href: '/buy-usdc', label: 'Add USDC' },
   { href: '/support', label: 'Support' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },

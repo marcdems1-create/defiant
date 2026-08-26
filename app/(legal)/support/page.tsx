@@ -1,15 +1,10 @@
 import type { Metadata } from 'next';
 import { LegalDoc, LegalH2, LegalLink } from '@/components/LegalDoc';
-import {
-  CONTACT_EMAIL,
-  LEGAL_UPDATED,
-  SITE_NAME,
-  TRANSAK_SUPPORT_URL,
-} from '@/lib/config/site';
+import { CONTACT_EMAIL, LEGAL_UPDATED, SITE_NAME } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   title: 'Support',
-  description: `How to reach ${SITE_NAME} and Transak. Fiat checkout issues go to Transak; we never held those funds.`,
+  description: `How to reach ${SITE_NAME}. We cannot reverse a blockchain transaction.`,
   alternates: { canonical: '/support' },
 };
 
@@ -18,7 +13,7 @@ export default function SupportPage() {
     <LegalDoc title="Support" updated={LEGAL_UPDATED}>
       <p>
         {SITE_NAME} is a software interface. We can help with how the site works. We cannot
-        reverse a blockchain transaction or a Transak payment.
+        reverse a blockchain transaction.
       </p>
 
       <LegalH2>Contact {SITE_NAME}</LegalH2>
@@ -29,14 +24,10 @@ export default function SupportPage() {
         is a corporate address on openhand.online — not a personal Gmail.
       </p>
 
-      <LegalH2>Buy USDC / cash out (Transak)</LegalH2>
+      <LegalH2>USDC</LegalH2>
       <p>
-        Identity checks, Interac/card payments, missing USDC, refunds, and limits are
-        Transak&apos;s. Open{' '}
-        <LegalLink href={TRANSAK_SUPPORT_URL} external>
-          Transak support
-        </LegalLink>{' '}
-        (chat on that site). We never received the CAD or USDC, so we cannot issue a refund
+        {SITE_NAME} does not sell USDC. If a purchase or withdrawal at another venue went
+        wrong, contact that venue. We never received the funds, so we cannot issue a refund
         from {SITE_NAME}.
       </p>
 

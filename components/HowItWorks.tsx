@@ -18,7 +18,7 @@ export function HowItWorks({ className = '' }: { className?: string }) {
         <Step
           n={2}
           title="Add USDC"
-          body="Buy with CAD through Transak (their checkout, their identity checks) or send USDC you already hold. Funds arrive in your wallet, not ours."
+          body="Buy USDC wherever you already can, then send it to this wallet on Ethereum, Base, or Arbitrum. Openhand does not sell USDC and never holds it."
         />
         <Step
           n={3}

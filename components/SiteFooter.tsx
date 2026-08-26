@@ -24,8 +24,7 @@ export function SiteFooter() {
             </p>
             <p className="text-ink/50 leading-relaxed text-[13px]">
               A non-custodial interface for on-chain yield. You connect a wallet and sign
-              every transaction. {SITE_NAME} never holds your funds. CAD / Interac USDC
-              checkout is Transak, a third party.
+              every transaction. {SITE_NAME} never holds your funds.
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -74,8 +73,8 @@ export function SiteFooter() {
           © {year} {LEGAL_ENTITY}. {SITE_NAME} is a non-custodial software interface, not a
           bank, broker, exchange, or custodian. Yield is not a deposit, is not insured, and
           is not guaranteed. Capital is at risk, including from smart-contract failure. Not
-          an offer of securities or investment advice. Buy and cash out of USDC are processed
-          by Transak — Openhand never receives that CAD or USDC.
+          an offer of securities or investment advice. Openhand does not sell USDC and does
+          not process CAD.
         </p>
       </div>
     </footer>

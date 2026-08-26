@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Production smoke for Transak KYB + deploys.
+ * Production smoke for deploys.
  * Fails if the live site 404s legal pages, the homepage bails out to
  * client-only rendering (empty first paint), or the first HTML is missing
- * the product explanation a reviewer can verify without JavaScript.
+ * the product explanation a crawler can verify without JavaScript.
+ * Public copy must not name an unsigned onramp vendor.
  */
 
 const DEFAULT_APEX_URL = 'https://openhand.online';
@@ -64,8 +65,8 @@ async function main() {
   if (!/never holds/i.test(html)) {
     failures.push('Homepage HTML does not say Openhand never holds funds.');
   }
-  if (!/merchant of record/i.test(html)) {
-    failures.push('Homepage HTML does not name Transak as merchant of record.');
+  if (/merchant of record/i.test(html)) {
+    failures.push('Homepage HTML still claims a merchant of record for checkout that is not live.');
   }
   const footerIndex = html.search(/<footer\b/i);
   const howIndex = html.indexOf('how-it-works-heading');
@@ -78,8 +79,8 @@ async function main() {
   if (!html.includes('/terms') || !html.includes('/privacy')) {
     failures.push('Homepage HTML is missing Terms/Privacy footer links (needed before JS).');
   }
-  if (!/Transak/i.test(html)) {
-    failures.push('Homepage HTML does not name Transak for CAD/USDC checkout.');
+  if (/Transak/i.test(html)) {
+    failures.push('Homepage HTML names Transak. Do not mention that vendor without a signed deal.');
   }
   if (/currently in beta/i.test(html)) {
     failures.push('Homepage still says the product is in beta — KYB reads that as not live.');
@@ -133,26 +134,8 @@ async function main() {
       failures.push(`KYB page ${path} returned ${res.status}`);
       continue;
     }
-    if (path === '/terms' && !body.includes('https://transak.com/terms-of-service')) {
-      failures.push('/terms does not include Transak Terms of Service.');
-    }
-    if (path === '/terms' && !body.includes('https://transak.com/terms-of-service-us')) {
-      failures.push('/terms does not include Transak US Terms of Service.');
-    }
-    if (path === '/terms' && !body.includes('https://transak.com/acceptable-use-policy')) {
-      failures.push('/terms does not include Transak Acceptable Use Policy.');
-    }
-    if (path === '/terms' && !/merchant of record/i.test(body)) {
-      failures.push('/terms does not name Transak as merchant of record.');
-    }
-    if (path === '/buy-usdc' && /until that is approved/i.test(body)) {
-      failures.push('/buy-usdc still says Transak is unapproved — KYB reads that as not live.');
-    }
-    if (path === '/buy-usdc' && !body.includes('https://transak.com/terms-of-service')) {
-      failures.push('/buy-usdc does not link Transak Terms of Service.');
-    }
-    if (path === '/privacy' && !body.includes('https://transak.com/privacy-policy')) {
-      failures.push('/privacy does not include Transak Privacy Policy.');
+    if (/Transak/i.test(body)) {
+      failures.push(`${path} names Transak. Do not mention that vendor on public pages without a signed deal.`);
     }
     if (path === '/privacy' && !body.includes('hello@openhand.online')) {
       failures.push('/privacy is missing the corporate contact email.');
@@ -162,12 +145,6 @@ async function main() {
     }
     if (path === '/contact' && !body.includes('hello@openhand.online')) {
       failures.push('/contact is missing the corporate contact email.');
-    }
-    if (path === '/refunds' && !/Transak/i.test(body)) {
-      failures.push('/refunds does not name Transak as the refund handler.');
-    }
-    if (path === '/refunds' && !/merchant of record/i.test(body)) {
-      failures.push('/refunds does not name Transak as merchant of record.');
     }
     if (/HYPERFLEX|openhand\.money/i.test(body)) {
       failures.push(`${path} still contains reverted KYB identity (HYPERFLEX / openhand.money).`);

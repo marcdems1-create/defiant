@@ -46,12 +46,12 @@ export function UsdcCashPanel() {
           </p>
         )}
         <p className="text-sm text-ink/50 mt-1 leading-relaxed max-w-xl">
-          Native USDC on Ethereum, Base, and Arbitrum. Openhand never holds it. Cash out is Transak
-          (CAD / Interac) — they process the fiat, not us. Idle USDC here is not a yield position.
+          Native USDC on Ethereum, Base, and Arbitrum. Openhand never holds it. Send more USDC
+          to this wallet to deposit. Idle USDC here is not a yield position.
         </p>
         {!mainnet && (
           <p className="text-xs text-warn mt-2">
-            Practice mode. Live USDC totals and cash out need mainnet.
+            Practice mode. Live USDC totals need mainnet.
           </p>
         )}
       </div>
@@ -74,15 +74,7 @@ export function UsdcCashPanel() {
           onClick={() => setProduct('BUY')}
           className="rounded-xl bg-accent text-paper font-medium text-sm px-4 py-2 hover:bg-accent/90"
         >
-          Buy USDC
-        </button>
-        <button
-          type="button"
-          onClick={() => setProduct('SELL')}
-          disabled={mainnet && total === 0n}
-          className="rounded-xl border border-border text-sm px-4 py-2 hover:border-ink/40 disabled:opacity-40"
-        >
-          Cash out
+          Add USDC
         </button>
         <Link
           href="/move"

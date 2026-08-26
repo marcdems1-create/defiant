@@ -106,6 +106,15 @@ export function transakConfigured(): boolean {
   return Boolean(transakApiKey() && transakApiSecret());
 }
 
+/**
+ * Public widget checkout. Off until a signed partner agreement exists.
+ * Do not name the vendor on the public site while this is false — even if
+ * keys are on Vercel. Set ONRAMP_CHECKOUT=true only after that deal.
+ */
+export function onrampCheckoutEnabled(): boolean {
+  return process.env.ONRAMP_CHECKOUT?.trim().toLowerCase() === 'true';
+}
+
 export function transakStaging(): boolean {
   const flag = process.env.TRANSAK_STAGING?.trim().toLowerCase();
   if (flag === '1' || flag === 'true') return true;

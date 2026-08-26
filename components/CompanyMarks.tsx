@@ -4,7 +4,7 @@ const MARKS = [
   { label: 'Non-custodial', detail: `${SITE_NAME} never holds your funds` },
   { label: 'You sign', detail: 'Every deposit and withdrawal' },
   { label: 'Operator', detail: `${LEGAL_ENTITY} · ${LEGAL_JURISDICTION_DISPLAY}` },
-  { label: 'USDC onramp', detail: 'Transak, a third party' },
+  { label: 'Add USDC', detail: 'Send it to your wallet' },
 ] as const;
 
 export function CompanyMarks({ className = '' }: { className?: string }) {

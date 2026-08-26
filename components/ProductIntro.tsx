@@ -17,8 +17,7 @@ export function ProductIntro() {
         funds. There is no pooled vault and no admin key.
       </p>
       <p className="text-ink/55 text-sm max-w-2xl leading-relaxed">
-        CAD / Interac USDC checkout is Transak, a third party. Transak is the merchant of record
-        for that checkout. See{' '}
+        Openhand does not sell USDC. Send USDC to the wallet you connect, then deposit. See{' '}
         <Link href="/about" className="text-accent hover:underline">
           About
         </Link>
@@ -32,7 +31,7 @@ export function ProductIntro() {
         </Link>
         , and{' '}
         <Link href="/buy-usdc" className="text-accent hover:underline">
-          Buy USDC
+          Add USDC
         </Link>
         .
       </p>
