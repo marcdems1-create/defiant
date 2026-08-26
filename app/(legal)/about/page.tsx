@@ -76,18 +76,15 @@ export default function AboutPage() {
         <LegalH2>Who operates this</LegalH2>
         <p>
           The site is operated by <span className="text-ink">{LEGAL_ENTITY}</span>
+          {' '}
+          ({LEGAL_JURISDICTION_DISPLAY})
           {IS_CBCA_NUMBERED_COMPANY ? (
             <>, a federal corporation under the Canada Business Corporations Act</>
           ) : null}
           {!LEGAL_ENTITY_IS_TRADE_NAME ? (
             <>, doing business as {SITE_NAME}</>
           ) : null}
-          {LEGAL_ADDRESS_DISPLAY ? (
-            <>
-              , {LEGAL_ADDRESS_DISPLAY},
-            </>
-          ) : null}{' '}
-          ({LEGAL_JURISDICTION_DISPLAY}). Contact{' '}
+          {LEGAL_ADDRESS_DISPLAY ? <> . {LEGAL_ADDRESS_DISPLAY}</> : null}. Contact{' '}
           <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>
           {CONTACT_PHONE ? <> or {CONTACT_PHONE_DISPLAY}</> : null}.
         </p>
