@@ -63,7 +63,7 @@ export const LEGAL_ENTITY_IS_TRADE_NAME =
 
 /** Numbered federal CBCA company — show the statute only for this entity. */
 export const IS_CBCA_NUMBERED_COMPANY =
-  compactOperator(LEGAL_ENTITY) === '18177708canadainc';
+  compactOperator(LEGAL_ENTITY).replace(/\./g, '') === '18177708canadainc';
 
 function registeredLegalName(value: string | undefined): string | undefined {
   if (!value) return undefined;

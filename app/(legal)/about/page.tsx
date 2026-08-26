@@ -21,7 +21,7 @@ import {
 
 export const metadata: Metadata = {
   title: 'About',
-  description: `${SITE_NAME} is a non-custodial yield interface operated by ${LEGAL_ENTITY}. ${SITE_NAME} never holds funds.`,
+  description: `${SITE_NAME} is a non-custodial yield interface operated by ${LEGAL_ENTITY}${LEGAL_ENTITY.endsWith('.') ? '' : '.'} ${SITE_NAME} never holds funds.`,
   alternates: { canonical: '/about' },
 };
 

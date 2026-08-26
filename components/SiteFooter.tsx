@@ -77,7 +77,9 @@ export function SiteFooter() {
           </div>
         </div>
         <p className="text-[11px] leading-relaxed text-ink/40">
-          © {year} {LEGAL_ENTITY}. {SITE_NAME} is a non-custodial software interface, not a
+          © {year} {LEGAL_ENTITY}
+          {LEGAL_ENTITY.endsWith('.') ? ' ' : '. '}
+          {SITE_NAME} is a non-custodial software interface, not a
           bank, broker, exchange, or custodian. Yield is not a deposit, is not insured, and
           is not guaranteed. Capital is at risk, including from smart-contract failure. Not
           an offer of securities or investment advice. Openhand does not sell USDC and does
