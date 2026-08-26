@@ -4,7 +4,7 @@
  * handler) and so a cold launch still has an offline shell.
  *
  * Cache policy is load-bearing for a yield product:
- *   - Never cache /api/* (Transak widget URLs, analytics).
+ *   - Never cache /api/* (widget sessions, analytics).
  *   - Never cache HTML as a stand-in for live rates — navigations are
  *     network-first and fall back to /offline.html, not a stale page.
  *   - Cross-origin (RPC, protocol APIs) is not intercepted. Stale APY

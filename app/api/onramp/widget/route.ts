@@ -11,6 +11,7 @@ import {
   transakNetwork,
   transakReferrerDomainFromRequest,
   transakStaging,
+  onrampCheckoutEnabled,
 } from '@/lib/config/transak';
 import {
   getTransakAccessToken,
@@ -48,6 +49,10 @@ export async function POST(request: Request) {
   const origin = parseAllowedOrigin(request);
   if (originHeader && !origin && !staging) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
+  if (!onrampCheckoutEnabled()) {
+    return widgetJson(request, { error: 'Onramp is not configured' }, 503);
   }
 
   if (!transakConfigured() || (NETWORK_MODE !== 'mainnet' && !staging)) {
@@ -94,10 +99,8 @@ export async function POST(request: Request) {
       referrerDomain: transakReferrerDomainFromRequest(request),
     });
     return widgetJson(request, { url, staging }, 200);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Transak unreachable';
-    const status = message === 'Onramp is not configured' ? 503 : 502;
-    return widgetJson(request, { error: message }, status);
+  } catch {
+    return widgetJson(request, { error: 'Could not open buy USDC' }, 502);
   }
 }
 

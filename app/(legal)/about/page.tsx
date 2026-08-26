@@ -11,6 +11,8 @@ import {
   LEGAL_ADDRESS,
   LEGAL_ADDRESS_DISPLAY,
   LEGAL_ENTITY,
+  LEGAL_ENTITY_IS_TRADE_NAME,
+  IS_CBCA_NUMBERED_COMPANY,
   LEGAL_JURISDICTION_DISPLAY,
   LEGAL_UPDATED,
   SITE_NAME,
@@ -19,7 +21,7 @@ import {
 
 export const metadata: Metadata = {
   title: 'About',
-  description: `${SITE_NAME} is a non-custodial yield interface operated by ${LEGAL_ENTITY}. Transak processes CAD / Interac USDC checkout. ${SITE_NAME} never holds funds.`,
+  description: `${SITE_NAME} is a non-custodial yield interface operated by ${LEGAL_ENTITY}${LEGAL_ENTITY.endsWith('.') ? '' : '.'} ${SITE_NAME} never holds funds.`,
   alternates: { canonical: '/about' },
 };
 
@@ -27,8 +29,8 @@ export default function AboutPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
-    name: LEGAL_ENTITY,
-    alternateName: SITE_NAME,
+    name: SITE_NAME,
+    legalName: LEGAL_ENTITY,
     url: SITE_URL,
     email: CONTACT_EMAIL,
     ...(CONTACT_PHONE ? { telephone: CONTACT_PHONE } : {}),
@@ -42,7 +44,7 @@ export default function AboutPage() {
         }
       : {}),
     description:
-      'Non-custodial software interface for on-chain yield. Users sign their own transactions. Fiat on/off ramp is Transak.',
+      'Non-custodial software interface for on-chain yield. Users sign their own transactions.',
   };
 
   return (
@@ -74,12 +76,15 @@ export default function AboutPage() {
         <LegalH2>Who operates this</LegalH2>
         <p>
           The site is operated by <span className="text-ink">{LEGAL_ENTITY}</span>
-          {LEGAL_ADDRESS_DISPLAY ? (
-            <>
-              , {LEGAL_ADDRESS_DISPLAY},
-            </>
-          ) : null}{' '}
-          ({LEGAL_JURISDICTION_DISPLAY}). Contact{' '}
+          {' '}
+          ({LEGAL_JURISDICTION_DISPLAY})
+          {IS_CBCA_NUMBERED_COMPANY ? (
+            <>, a federal corporation under the Canada Business Corporations Act</>
+          ) : null}
+          {!LEGAL_ENTITY_IS_TRADE_NAME ? (
+            <>, doing business as {SITE_NAME}</>
+          ) : null}
+          {LEGAL_ADDRESS_DISPLAY ? <> . {LEGAL_ADDRESS_DISPLAY}</> : null}. Contact{' '}
           <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>
           {CONTACT_PHONE ? <> or {CONTACT_PHONE_DISPLAY}</> : null}.
         </p>
@@ -92,10 +97,9 @@ export default function AboutPage() {
           vault and we do not take a cut inside protocol deposit or withdraw calls.
         </p>
         <p>
-          Fiat on-ramp and off-ramp (CAD / Interac ↔ USDC) is provided exclusively by
-          Transak. Transak is the merchant of record for that checkout, runs user identity
-          checks, and sends USDC to — or receives USDC from — the wallet you connect.{' '}
-          {SITE_NAME} does not receive CAD or USDC from that checkout.
+          {SITE_NAME} does not sell USDC and does not process CAD. Send USDC you already
+          hold to the wallet you connect, then deposit. {SITE_NAME} never receives that
+          USDC.
         </p>
 
         <LegalH2>What this is not</LegalH2>
@@ -103,8 +107,8 @@ export default function AboutPage() {
           Yield is not a deposit and is not insured. Returns change and are not guaranteed.
           Nothing here is investment, tax, or legal advice, and the catalog is not a
           recommendation — we do not score or feature a “best” opportunity. Dashboard tapes
-          of tokenized stocks or spot crypto are wallet-signed LI.FI routes, not Transak,
-          and not a brokerage.
+          of tokenized stocks or spot crypto are wallet-signed LI.FI routes, not a
+          brokerage.
         </p>
       </div>
 

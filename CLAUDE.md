@@ -1,10 +1,10 @@
-# DEFIANT — Claude Session Memory
+# OPENHAND (repo: defiant) — Claude Session Memory
 
 > Read this before touching anything in this repo.
 
 ## What this is
 
-**Openhand (repo: Defiant) is a non-custodial DeFi yield interface for a global audience.**
+**Openhand (GitHub repo: `defiant`) is a non-custodial DeFi yield interface for a global audience.**
 Public host is `https://openhand.online`. Connect your
 own wallet, compare live on-chain yield across Aave v3, Lido, and Yearn v3, deposit or
 withdraw with transactions you sign yourself. The app never holds funds — no pooled
@@ -12,6 +12,13 @@ contract, no admin key, no custody. See `README.md` for the full rationale and r
 framing; the short version: custody is what turns this into a heavily-regulated financial
 product in nearly every jurisdiction, so custody is the thing this build refuses to add.
 Not scoped to any one country — don't add region-specific framing without a reason.
+
+**Public brand is Openhand. Legal entity is 18177708 CANADA INC.** (federal CBCA numbered
+company), DBA Openhand. **Defiant Labs is not a registered name** — never put it on legal
+pages, the footer, operator env, or as if it were the company. The GitHub repo and npm
+package `"name": "defiant"` stay as internal identifiers; do not rename the GitHub repo
+for this. Netlify project slug `defiantlabs` is dashboard-only (no `netlify.toml` in
+this repo).
 
 **Not called a "savings app" anywhere in the product.** DeFi yield is not deposit-insured
 and carries real smart-contract/market/liquidity risk. Calling it "savings" would misstate
@@ -544,11 +551,38 @@ Capacitor/Electron — those wrappers break WalletConnect return-to-app and Tran
 - `sw.js` is served with `Cache-Control: no-cache` so updates apply. Bump the
   `CACHE` constant in `public/sw.js` if the worker logic changes.
 
-## Session update (2026-08-21) — Transak KYB site (do not get rejected again)
+## Session update (2026-08-26) — do not name Transak on the public site without a deal
 
-Transak needs a live site that matches the KYB filing, Terms that **include Transak ToS**,
-and a user journey that lets people **review and acknowledge** those T&Cs before checkout
-(https://docs.transak.com/integration/api). The 2026-08-19 polish (PR #31 revert) hardcoded
+Owner instruction: **do not mention Transak on the public site until there is a signed
+partner agreement.** Prior KYB copy (homepage, terms, /buy-usdc, OnrampModal T&Cs,
+merchant-of-record language) named them while checkout was not live (widget 502). That
+is reversed.
+
+Public product now:
+- Add USDC is **send USDC to the connected wallet**. No vendor name. No in-app CAD
+  checkout iframe. Copy address, withdraw from wherever the user already buys.
+- Cash-out CTA is hidden. `/buy-usdc` is “Add USDC”, not a checkout vendor page.
+- `ONRAMP_CHECKOUT=true` is required before `POST /api/onramp/widget` will mint a
+  session. Keys on Vercel are not enough. Do not set that flag to paper over KYB.
+- `npm run smoke:public` **fails** if homepage or legal pages name Transak.
+
+Do not re-add Transak ToS, “Continue to Transak”, or merchant-of-record copy for a
+reviewer. After a real deal, disclosure belongs in the same PR that turns
+`ONRAMP_CHECKOUT` on — not before.
+
+In-app Buy USDC does **not** work without that deal. Protocol deposits still work if
+the wallet already holds USDC. Do not put a named Canadian exchange (NDAX, etc.) in
+the UI. Do not enable `NEXT_PUBLIC_TREASURY_ADDRESS`.
+
+
+## Session update (2026-08-21) — Transak KYB site (superseded 2026-08-26)
+
+**Do not follow the public-copy instructions in this section.** Owner 2026-08-26:
+do not name Transak on the public site without a signed deal. Keep the legal-page
+routes, operator env, and widget BFF hardening. Do not restore Transak ToS, merchant
+of record, or iframe T&C copy until `ONRAMP_CHECKOUT` is turned on after that deal.
+
+Transak KYB historically needed a live site that matches the filing. The 2026-08-19 polish (PR #31 revert) hardcoded
 HYPERFLEX / `hello@openhand.money` and was undone — do not restore that. Product domain is
 `openhand.online`; contact default is `hello@openhand.online`.
 
@@ -568,12 +602,20 @@ What is in the product now:
 - Widget BFF: CORS lock, production `x-user-ip` required, server-only API key, allowlisted
   `referrerDomain` (not a raw Referer).
 - Operator identity is `NEXT_PUBLIC_OPERATOR_*` (legal name, address, jurisdiction,
-  email, phone). Do not invent an entity in code — set env to match the KYB form
-  before resubmitting.
+  email, phone). Default legal name in code is **18177708 CANADA INC.** (federal CBCA),
+  DBA Openhand. Do not set env to “Defiant Labs”. Address/phone still come from env.
 - Footer company links; How it works on first session; LI.FI tapes labeled as not Transak.
 
 Still ops, not code: corporate inbox, HubSpot integration checklist, KYB form with the
 `/partners` nature-of-business paragraph, Transak host allowlist, Vercel static IPs,
 SELL enabled, partner fee in Transak dashboard. Do not turn on `NEXT_PUBLIC_TREASURY_ADDRESS`.
+
+## Session update (2026-08-26) — Openhand, not Defiant Labs
+
+Defiant Labs is **not a registered name**. Public product is Openhand. Legal entity is
+**18177708 CANADA INC.** (federal CBCA), DBA Openhand. GitHub repo remains `defiant`.
+Netlify preview comments used project slug `defiantlabs` — that slug lives in the
+Netlify dashboard, not in this repo (no `netlify.toml`). Rename the Netlify site to
+`openhand` in Site configuration → Site details if preview URLs should match the brand.
 
 

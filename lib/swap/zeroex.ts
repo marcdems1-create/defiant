@@ -4,7 +4,7 @@
  * into the same "approve then write" pattern already used everywhere in
  * components/DepositWithdrawModal.tsx).
  *
- * This is the mechanism behind Defiant's "convert CRV/FXS/stable and take a fee" feature
+ * This is the mechanism behind Openhand's "convert CRV/FXS/stable and take a fee" feature
  * WITHOUT reintroducing custody: the swap transaction is built here, but it is always
  * signed and sent by the connected wallet, never by a backend signer. The fee
  * (NEXT_PUBLIC_SWAP_FEE_BPS, in basis points) is paid to NEXT_PUBLIC_SWAP_FEE_RECIPIENT

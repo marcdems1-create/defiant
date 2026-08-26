@@ -3,21 +3,17 @@ import { LegalDoc, LegalH2, LegalLink } from '@/components/LegalDoc';
 import {
   CONTACT_EMAIL,
   LEGAL_ENTITY,
+  LEGAL_ENTITY_IS_TRADE_NAME,
   LEGAL_JURISDICTION_DISPLAY,
   LEGAL_UPDATED,
   PRIVY_TERMS_URL,
   SITE_NAME,
   SITE_URL,
-  TRANSAK_AUP_URL,
-  TRANSAK_PRIVACY_URL,
-  TRANSAK_SUPPORT_URL,
-  TRANSAK_TERMS_URL,
-  TRANSAK_TERMS_US_URL,
 } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   title: 'Terms of use',
-  description: `Terms of use for the ${SITE_NAME} non-custodial interface, including Transak’s terms for USDC buy and cash out.`,
+  description: `Terms of use for the ${SITE_NAME} non-custodial interface.`,
   alternates: { canonical: '/terms' },
 };
 
@@ -26,8 +22,10 @@ export default function TermsPage() {
     <LegalDoc title="Terms of use" updated={LEGAL_UPDATED}>
       <p>
         These terms govern your use of {SITE_NAME} at {SITE_URL}, a software interface
-        operated by {LEGAL_ENTITY} ({LEGAL_JURISDICTION_DISPLAY}). By using the site you agree to
-        them. If you do not agree, do not use the interface.
+        operated by {LEGAL_ENTITY}
+        {!LEGAL_ENTITY_IS_TRADE_NAME ? <>, doing business as {SITE_NAME}</> : null}{' '}
+        ({LEGAL_JURISDICTION_DISPLAY}). By using the site you agree to them. If you do not
+        agree, do not use the interface.
       </p>
 
       <LegalH2>What this product is</LegalH2>
@@ -65,47 +63,12 @@ export default function TermsPage() {
         <LegalLink href="/risk">risk disclosure</LegalLink>.
       </p>
 
-      <LegalH2>Transak Terms of Service (incorporated)</LegalH2>
+      <LegalH2>USDC</LegalH2>
       <p>
-        When you buy USDC or cash out USDC through the checkout on this site, you are
-        contracting with <strong className="text-ink font-medium">Transak</strong>, not with{' '}
-        {SITE_NAME}. Transak is the merchant of record for that fiat on-ramp and off-ramp.
-        Transak runs its own identity checks (KYC), payment processing, and crypto delivery
-        to or from the wallet address you connect. {LEGAL_ENTITY} never receives the CAD or
-        the USDC from that checkout.
-      </p>
-      <p>
-        Transak&apos;s{' '}
-        <LegalLink href={TRANSAK_TERMS_URL} external>
-          Terms of Service
-        </LegalLink>{' '}
-        (and, if you are in the United States, Transak&apos;s{' '}
-        <LegalLink href={TRANSAK_TERMS_US_URL} external>
-          US Terms of Service
-        </LegalLink>
-        ) and Transak&apos;s{' '}
-        <LegalLink href={TRANSAK_AUP_URL} external>
-          Acceptable Use Policy
-        </LegalLink>{' '}
-        are <strong className="text-ink font-medium">incorporated into these terms by
-        reference</strong> and apply to that checkout. Transak&apos;s{' '}
-        <LegalLink href={TRANSAK_PRIVACY_URL} external>
-          Privacy Policy
-        </LegalLink>{' '}
-        applies to personal data Transak collects for KYC and payments. You must review
-        those documents. The Buy USDC / Cash out flow will not open Transak&apos;s widget
-        until you acknowledge them. Refunds, payment failures, and identity-check decisions
-        for that checkout are Transak&apos;s — see{' '}
-        <LegalLink href="/refunds">Refunds</LegalLink> and{' '}
-        <LegalLink href={TRANSAK_SUPPORT_URL} external>
-          Transak support
-        </LegalLink>
-        . Transak is an independent service provider, not a joint venture, partnership, or
-        agency with {LEGAL_ENTITY}.
-      </p>
-      <p>
-        {SITE_NAME} does not skip Transak KYC, does not collect government ID on Transak&apos;s
-        behalf, and does not change Transak&apos;s price, limits, or supported countries.
+        {SITE_NAME} does not sell USDC, does not process CAD, and does not operate a cash
+        out. You send USDC you already hold to the wallet you connect. See{' '}
+        <LegalLink href="/buy-usdc">Add USDC</LegalLink>. {LEGAL_ENTITY} never receives that
+        USDC.
       </p>
 
       <LegalH2>Other third parties</LegalH2>
@@ -116,16 +79,15 @@ export default function TermsPage() {
           Privy terms
         </LegalLink>
         ). Optional same-chain swaps or tokenized-asset tapes use LI.FI or 0x as routers you
-        sign to — those are not Transak and are not a brokerage operated by {SITE_NAME}.
-        Those services have their own terms; {SITE_NAME} does not control them.
+        sign to — those are not a brokerage operated by {SITE_NAME}. Those services have
+        their own terms; {SITE_NAME} does not control them.
       </p>
 
       <LegalH2>Fees</LegalH2>
       <p>
-        Protocol gas is paid by your wallet. Transak charges its own checkout fees, shown
-        in their widget. {SITE_NAME} does not skim a deposit or withdraw fee inside Aave,
-        Yearn, or similar calls. Optional partner economics, if any, sit on Transak&apos;s
-        buy flow or on an opt-in conversion route — never as a silent cut of your yield.
+        Protocol gas is paid by your wallet. {SITE_NAME} does not skim a deposit or withdraw
+        fee inside Aave, Yearn, or similar calls. Optional partner economics, if any, sit on
+        an opt-in conversion route — never as a silent cut of your yield.
       </p>
 
       <LegalH2>No advice, no featured product</LegalH2>
@@ -138,7 +100,7 @@ export default function TermsPage() {
       <p>
         The interface is provided as is. To the fullest extent permitted by law,{' '}
         {LEGAL_ENTITY} is not liable for lost funds, lost profits, protocol failures,
-        third-party outages (including Transak, Privy, or a blockchain), or your
+        third-party outages (including Privy, a router, or a blockchain), or your
         transactions. Your sole remedy is to stop using the site.
       </p>
 
@@ -146,7 +108,6 @@ export default function TermsPage() {
       <p>
         These terms are governed by the laws of {LEGAL_JURISDICTION_DISPLAY}, without regard to
         conflict-of-law rules. If a court finds a part unenforceable, the rest still applies.
-        Transak checkout remains governed by Transak&apos;s own terms.
       </p>
 
       <LegalH2>Contact</LegalH2>

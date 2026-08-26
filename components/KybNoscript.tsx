@@ -24,13 +24,12 @@ export function KybNoscript() {
         <p style={{ margin: '0 0 0.75rem' }}>
           {SITE_NAME} is a non-custodial yield interface. Connect a wallet, compare live
           on-chain rates, and sign every deposit and withdrawal yourself. {SITE_NAME} never
-          holds your funds. CAD / Interac USDC checkout is Transak, the merchant of record
-          for that checkout.
+          holds your funds. Openhand does not sell USDC: send it to the wallet you connect,
+          then deposit.
         </p>
         <p style={{ margin: '0 0 0.75rem' }}>
-          How it works: (1) connect a wallet, (2) add USDC via Transak or send it yourself,
-          (3) deposit on-chain with a transaction you sign. There is no pooled {SITE_NAME}{' '}
-          vault.
+          How it works: (1) connect a wallet, (2) send USDC to that wallet, (3) deposit
+          on-chain with a transaction you sign. There is no pooled {SITE_NAME} vault.
         </p>
         <p style={{ margin: 0 }}>
           <Link href="/about">About</Link>
@@ -41,7 +40,7 @@ export function KybNoscript() {
           {' · '}
           <Link href="/contact">Contact</Link>
           {' · '}
-          <Link href="/buy-usdc">Buy USDC</Link>
+          <Link href="/buy-usdc">Add USDC</Link>
         </p>
       </div>
     </noscript>

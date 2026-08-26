@@ -4,7 +4,9 @@ import {
   CONTACT_PHONE_DISPLAY,
   LEGAL_ADDRESS_DISPLAY,
   LEGAL_ENTITY,
+  LEGAL_ENTITY_IS_TRADE_NAME,
   LEGAL_JURISDICTION_DISPLAY,
+  SITE_NAME,
 } from '@/lib/config/site';
 
 /** Public operator block for KYB reviewers. Address only when env matches the filing. */
@@ -19,6 +21,12 @@ export function OperatorCard({ className = '' }: { className?: string }) {
       </p>
       <p className="text-sm text-ink/80 leading-relaxed">
         {LEGAL_ENTITY}
+        {!LEGAL_ENTITY_IS_TRADE_NAME ? (
+          <>
+            <br />
+            <span className="text-ink/50">doing business as {SITE_NAME}</span>
+          </>
+        ) : null}
         <br />
         {LEGAL_ADDRESS_DISPLAY ? (
           <>

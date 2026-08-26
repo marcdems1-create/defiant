@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { LegalDoc, LegalH2, LegalLink } from '@/components/LegalDoc';
-import { LEGAL_UPDATED, SITE_NAME, TRANSAK_SUPPORT_URL } from '@/lib/config/site';
+import { LegalDoc, LegalH2 } from '@/components/LegalDoc';
+import { LEGAL_UPDATED, SITE_NAME } from '@/lib/config/site';
 
 export const metadata: Metadata = {
   title: 'Refunds',
-  description: `Fiat refunds for USDC buy and cash out are handled by Transak, not ${SITE_NAME}. ${SITE_NAME} never receives CAD or USDC from that checkout.`,
+  description: `${SITE_NAME} never receives CAD or USDC. On-chain transactions you sign cannot be reversed by ${SITE_NAME}.`,
   alternates: { canonical: '/refunds' },
 };
 
@@ -12,22 +12,14 @@ export default function RefundsPage() {
   return (
     <LegalDoc title="Refunds" updated={LEGAL_UPDATED}>
       <p>
-        {SITE_NAME} never receives CAD or USDC from Buy USDC or cash out. Those checkouts are
-        Transak&apos;s — Transak is the merchant of record. We cannot refund a payment we did
-        not take.
+        {SITE_NAME} never receives CAD or USDC. We cannot refund a payment we did not take.
       </p>
 
-      <LegalH2>CAD / Interac / card (Transak)</LegalH2>
+      <LegalH2>USDC you send to your wallet</LegalH2>
       <p>
-        Cancelled orders, failed payments, missing USDC, and chargebacks are processed by
-        Transak under Transak&apos;s terms. When Transak can refund Official Currency, they
-        send it back to the payment account you paid from — not to {SITE_NAME}. Open{' '}
-        <LegalLink href={TRANSAK_SUPPORT_URL} external>
-          Transak support
-        </LegalLink>{' '}
-        with your order email or order ID. Confirm any refund wallet address with them —
-        not with {SITE_NAME}. Once Transak has paid CAD out on a cash-out, they say that
-        fiat cannot be reversed.
+        If you buy USDC somewhere else and withdraw it to the wallet you connect here, that
+        purchase is with the venue you used — not with {SITE_NAME}. Ask that venue about
+        refunds. We cannot reverse a blockchain transfer.
       </p>
 
       <LegalH2>On-chain deposits and swaps</LegalH2>
@@ -39,8 +31,8 @@ export default function RefundsPage() {
 
       <LegalH2>Fees</LegalH2>
       <p>
-        Transak checkout fees are Transak&apos;s. Network gas is paid by your wallet to the
-        chain. {SITE_NAME} does not skim a deposit or withdraw fee inside a protocol call.
+        Network gas is paid by your wallet to the chain. {SITE_NAME} does not skim a deposit
+        or withdraw fee inside a protocol call.
       </p>
     </LegalDoc>
   );
