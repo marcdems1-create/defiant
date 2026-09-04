@@ -9,7 +9,7 @@ import {
   usdcOnStockChain,
   type StockChainId,
 } from '@/lib/config/lifi';
-import { fetchTokenizedStockMarketCaps } from '@/lib/lifi/marketCap';
+import { fetchStockMarketStatsByAddress } from '@/lib/lifi/marketCap';
 
 export type StockIssuer = 'xstocks' | 'ondo' | 'backed';
 
@@ -30,12 +30,17 @@ export interface StockToken {
   /** LI.FI last price. Omitted from the catalog when unparseable — never guessed. */
   priceUsd: number;
   /**
-   * CoinGecko tokenized-stock market cap in USD, when a symbol match parses.
+   * CoinGecko tokenized-stock market cap in USD, matched by {chain, contract address}
+   * against CoinGecko's own platform data — not by symbol (see lib/lifi/marketCap.ts).
    * Token cap, not the listed company's equity cap. Omitted rather than guessed.
    */
   marketCapUsd?: number;
   /** CoinGecko 24h price change in percent. Omitted rather than guessed. */
   changePct24h?: number;
+  /** CoinGecko's own `last_updated` for the cap/24h row above. Omitted when unmatched. */
+  capUpdatedAt?: string;
+  /** True when capUpdatedAt is older than MARKET_DATA_STALE_MINUTES. */
+  capStale?: boolean;
   logoURI?: string;
 }
 
@@ -163,21 +168,34 @@ export async function fetchStockCatalog(): Promise<StockToken[]> {
   return out;
 }
 
-/** Attach CoinGecko caps onto an already-classified LI.FI catalog. Skip unparseable caps. */
+/**
+ * Attach CoinGecko caps onto an already-classified LI.FI catalog, matched by
+ * {chain, contract address} rather than symbol (see lib/lifi/marketCap.ts — symbol
+ * matching silently misattributes cap/price when issuers collide on a ticker).
+ * A token with no address match is left as-is; the UI shows an explicit "no cap
+ * data" state for it rather than dropping the row.
+ */
 export async function withStockMarketCaps(tokens: StockToken[]): Promise<StockToken[]> {
   if (tokens.length === 0) return tokens;
-  const markets = await fetchTokenizedStockMarketCaps();
+  const stats = await fetchStockMarketStatsByAddress();
   const out = tokens.map((token) => {
-    const stats = markets.get(token.symbol.toLowerCase());
-    if (!stats) return token;
+    const match = stats.get(`${token.chainId}-${token.address.toLowerCase()}`);
+    if (!match) return token;
     return {
       ...token,
-      marketCapUsd: stats.marketCapUsd,
-      ...(stats.changePct24h !== undefined ? { changePct24h: stats.changePct24h } : {}),
+      marketCapUsd: match.marketCapUsd,
+      ...(match.changePct24h !== undefined ? { changePct24h: match.changePct24h } : {}),
+      capUpdatedAt: match.lastUpdatedAt,
+      capStale: match.stale,
     };
   });
   out.sort(compareStockTape);
   return out;
+}
+
+/** LI.FI catalog rows classified as a tokenized stock/ETF with no CoinGecko cap match. For the admin view. */
+export function unmatchedStockRows(tokens: StockToken[]): StockToken[] {
+  return tokens.filter((t) => t.marketCapUsd === undefined);
 }
 
 /** When every chain is in view, keep one row per ticker (Base, then Arbitrum, then Ethereum). */

@@ -12,6 +12,7 @@ import {
 } from '@/lib/config/lifi';
 import { formatTokenAmount } from '@/lib/format';
 import { useStockCatalog } from '@/lib/hooks/useStockCatalog';
+import { MARKET_DATA_STALE_MINUTES } from '@/lib/lifi/marketCap';
 import {
   STOCK_ISSUER_LABEL,
   STOCK_TAPE_SIZE,
@@ -89,7 +90,7 @@ export function StockDesk() {
     const q = query.trim().toLowerCase();
     const scoped = preferOneChainPerSymbol(tokens, chainId).filter((t) => {
       if (issuer !== 'all' && t.issuer !== issuer) return false;
-      if (!q) return t.marketCapUsd !== undefined;
+      if (!q) return true;
       return (
         t.symbol.toLowerCase().includes(q) ||
         t.name.toLowerCase().includes(q) ||
@@ -148,10 +149,13 @@ export function StockDesk() {
           Browse tokenized stocks and ETFs routed by LI.FI (xStocks, Ondo, Backed). This tape
           is not Transak, not a broker, and not the listed share. Transak is only used for
           USDC buy and cash out. The tape lists the top {STOCK_TAPE_SIZE} by CoinGecko token
-          market cap — not the listed company&apos;s equity cap, not a recommendation. Prices
-          are LI.FI last marks; 24h % is CoinGecko. A row is skipped when price or cap cannot
-          be parsed. You sign every swap. Openhand never holds the tokens. Availability
-          varies by issuer and jurisdiction.
+          market cap — not the listed company&apos;s equity cap, not a recommendation. Price is
+          LI.FI&apos;s last mark; cap and 24h % are CoinGecko, matched to the exact contract
+          address on the exact chain, not by ticker (two issuers can share a ticker). A row
+          with no CoinGecko match shows &ldquo;No cap data&rdquo; instead of being dropped; a
+          cap older than {MARKET_DATA_STALE_MINUTES} minutes is marked &ldquo;stale&rdquo;. You
+          sign every swap. Openhand never holds the tokens. Availability varies by issuer and
+          jurisdiction.
         </p>
       </div>
 
@@ -233,7 +237,7 @@ export function StockDesk() {
         <div className="text-ink/50 text-sm">
           {query.trim()
             ? 'No rows match that search. Try another ticker.'
-            : 'CoinGecko did not return parseable token market caps right now, so nothing is ranked. Search a ticker — we will not guess a cap.'}
+            : 'No rows match this filter.'}
         </div>
       )}
 
@@ -261,12 +265,30 @@ export function StockDesk() {
                   {t.name} · {STOCK_ISSUER_LABEL[t.issuer]} · {stockChainLabel(t.chainId)}
                 </div>
               </div>
-              <div className="text-right shrink-0 min-w-[5.5rem]">
+              <div className="text-right shrink-0 min-w-[6rem]">
                 <div className="font-mono text-sm">{formatUsd(t.priceUsd)}</div>
-                <div className="text-[10px] uppercase tracking-wide text-ink/35">
-                  {t.marketCapUsd !== undefined
-                    ? `Cap ${formatMarketCap(t.marketCapUsd)}`
-                    : 'LI.FI last'}
+                {t.marketCapUsd !== undefined ? (
+                  <div className="text-[10px] uppercase tracking-wide text-ink/35">
+                    Cap {formatMarketCap(t.marketCapUsd)}
+                    {t.capStale && (
+                      <span
+                        className="text-warn/80"
+                        title={
+                          t.capUpdatedAt
+                            ? `CoinGecko cap last updated ${new Date(t.capUpdatedAt).toLocaleString()}`
+                            : undefined
+                        }
+                      >
+                        {' '}
+                        · stale
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-[10px] uppercase tracking-wide text-warn/70">No cap data</div>
+                )}
+                <div className="text-[9px] text-ink/25">
+                  Price · LI.FI{t.marketCapUsd !== undefined ? ' · Cap · CoinGecko' : ''}
                 </div>
               </div>
               <div className="text-right shrink-0 min-w-[4.25rem]">

@@ -576,4 +576,65 @@ Still ops, not code: corporate inbox, HubSpot integration checklist, KYB form wi
 `/partners` nature-of-business paragraph, Transak host allowlist, Vercel static IPs,
 SELL enabled, partner fee in Transak dashboard. Do not turn on `NEXT_PUBLIC_TREASURY_ADDRESS`.
 
+## Session update (2026-09-04) — RWA Terminal Phase 1: stock-tape data integrity
+
+Checked in `BUILD_SPEC.md` (the phased plan this session was given — Phase 1: data layer
+integrity, Phase 2: execution, Phase 3: cross-chain arb detection) so future sessions have
+it in-tree instead of only in an issue/PR description. Read it before touching the
+tokenized-stock tape further — it tracks P0/P1/P2 status per phase.
+
+Implemented Phase 1's P0 list against the existing LI.FI tokenized-stock tape
+(`components/StockDesk.tsx`):
+
+- **Address-keyed mapping, not symbol matching.** `lib/lifi/marketCap.ts` used to join
+  LI.FI catalog rows onto CoinGecko's `tokenized-stock` category by lowercased ticker
+  symbol — two issuers wrapping the same underlying stock under the same ticker would
+  silently misattribute cap/price to the wrong token. It now builds a
+  `{chainId}-{address}` → CoinGecko stats map at fetch time by joining CoinGecko's
+  `/coins/list?include_platform=true` (contract addresses per chain, per CoinGecko coin
+  id) against the `tokenized-stock` category (cap/24h%/`last_updated`) on CoinGecko's own
+  coin id. No contract address is hand-typed into this codebase for it — the map is data,
+  not authored addresses, so non-negotiable #5's "cite a verified source" doesn't apply
+  the way it does to `lib/config/addresses.ts`, but the mechanism is worth understanding
+  before changing it. `lib/lifi/stocks.ts#withStockMarketCaps` now looks up by
+  `${token.chainId}-${token.address.toLowerCase()}` instead of `token.symbol`.
+- **Staleness flag.** CoinGecko's own `last_updated` per row (not our fetch time) drives
+  `capStale`; `MARKET_DATA_STALE_MINUTES = 15`. Shown as a "· stale" badge next to the cap
+  in `StockDesk.tsx`, with the real timestamp in a tooltip.
+- **Unmatched rows are no longer silently dropped.** Two separate bugs fixed here:
+  (1) `StockDesk.tsx`'s default (no-search) filter used to require
+  `t.marketCapUsd !== undefined`, i.e. it hid every row without a CoinGecko match from the
+  default tape view entirely — removed; the existing cap-first sort
+  (`compareStockTape`) still puts capped rows first, uncapped ones just aren't hidden
+  outright anymore. (2) Uncapped rows now render an explicit **"No cap data"** state
+  instead of the old ambiguous "LI.FI last" label.
+- **Admin visibility.** `/admin/stocks` (password-gated via the existing `isAdminSession()`
+  cookie/middleware pattern, same as `/admin`) lists both directions of mismatch: LI.FI
+  rows classified as a stock/ETF with no CoinGecko address match, and CoinGecko
+  `tokenized-stock` coins with no contract address on Ethereum/Base/Arbitrum (usually
+  non-EVM issuance, e.g. Solana-only). Backed by
+  `app/api/admin/stocks-unmatched/route.ts`. Linked from the main `/admin` dashboard.
+- **Per-row source attribution.** Each tape row now shows a small footer — "Price · LI.FI"
+  or "Price · LI.FI · Cap · CoinGecko" — so it's visually explicit these are two different
+  feeds being joined, not one unified one.
+- **Cache layer (P1, done alongside P0 since the address map is one large
+  `/coins/list?include_platform=true` payload).** 10-minute in-memory cache
+  (`lib/lifi/marketCap.ts`), with an in-flight-request guard so concurrent requests don't
+  trigger duplicate CoinGecko calls, and stale-cache fallback if a refresh fetch fails.
+
+Not done from Phase 1: the P1 "flag LI.FI vs. CoinGecko price divergence >X%" cross-check
+(this is also the Phase 3 arb signal — worth building once Phase 1's address map is
+trusted in production) and the P2 "move off CoinGecko's free tier" question (revisit once
+there's revenue). `npm run typecheck` and `npm run build` both pass clean. Not
+transaction-tested and not live-verified against CoinGecko/LI.FI from this sandbox (same
+network-reachability caveat as the original Yearn/Curve integrations, "Current state"
+above) — smoke-test the `/coins/list?include_platform=true` join and the "No cap data" /
+"stale" UI states against the live tape before trusting them for a real launch.
+
+Phase 2 (execution) is largely already built on top of the tape this session touched —
+wallet connect, per-row LI.FI quote with an explicit confirm step, route/fee display, and
+mainnet-gating all exist in `components/StockSwapModal.tsx` already. See the note left in
+`BUILD_SPEC.md` under Phase 2. Phase 3 (cross-chain arb) has not been started; it depends
+on the Phase 1 divergence check above.
+
 
