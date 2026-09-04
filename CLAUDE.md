@@ -634,7 +634,58 @@ above) — smoke-test the `/coins/list?include_platform=true` join and the "No c
 Phase 2 (execution) is largely already built on top of the tape this session touched —
 wallet connect, per-row LI.FI quote with an explicit confirm step, route/fee display, and
 mainnet-gating all exist in `components/StockSwapModal.tsx` already. See the note left in
-`BUILD_SPEC.md` under Phase 2. Phase 3 (cross-chain arb) has not been started; it depends
-on the Phase 1 divergence check above.
+`BUILD_SPEC.md` under Phase 2.
+
+## Session update (2026-09-04, continued) — live-join blocker + Phase 3 arb detection
+
+Was asked to smoke-test the Phase 1 CoinGecko/LI.FI join against live data before doing
+anything else. Confirmed by hand (`curl` through the sandbox's egress proxy) that this
+sandbox blocks **both** `api.coingecko.com` and `li.quest` outright (403 on CONNECT,
+`connect_rejected` per `/__agentproxy/status`) — the exact same class of restriction
+already on record in this file for `ydaemon.yearn.fi`/`api.curve.finance`. The address
+join has still never run against live data. Do not re-attempt this smoke test from a
+Claude Code **sandbox** session — it will hit the same block. It needs to run somewhere
+with real egress: `npm run smoke:stocks` (added this session,
+`scripts/smoke-stock-market-data.mjs`, now also a step in `production-smoke.yml`) hits
+the public `/api/lifi/stocks` route and fails if the unmatched or stale ratio looks
+structurally broken rather than like normal coverage gaps (a handful of unmatched rows is
+expected — non-EVM issuance, thin/delisted names; see `/admin/stocks`). **Run
+`npm run smoke:stocks` against production, or open `/admin/stocks`, before trusting the
+Phase 1 mapping table or building further on top of it.**
+
+Added the Phase 1 P1 divergence check that was skipped in the first pass, since it's also
+Phase 3's prerequisite: `StockToken#priceDivergencePct` (`lib/lifi/stocks.ts`) compares
+LI.FI's `priceUsd` against CoinGecko's own spot price (`current_price`, now captured
+alongside `total_volume` in `lib/lifi/marketCap.ts`) for the same matched coin, flagged at
+`PRICE_DIVERGENCE_FLAG_PCT = 1.5`. Surfaced in a new `/admin/stocks` table — a run where
+many rows diverge by a similar amount would mean the join is wrong (e.g. a platform id
+mapped to the wrong chain), not that every token individually mispriced.
+
+Built Phase 3 P0 (cross-chain spread detection) on top of that:
+
+- `lib/lifi/stockArb.ts#computeStockArbRows` groups a token's chain instances by
+  CoinGecko's `cgeckoId` — Phase 1's proven-same-asset identity — **never** by ticker
+  symbol, so this doesn't inherit the exact misattribution risk Phase 1 fixed. It compares
+  LI.FI's own `priceUsd` *across chains* for that asset (this is the cross-chain signal;
+  Phase 1's `priceDivergencePct` above is the cross-*source*, same-chain signal — they are
+  not the same check). `MIN_SPREAD_PCT = 0.5` filters noise; rows sort by spread desc.
+- `MIN_24H_VOLUME_USD = 50_000` is the "minimum-liquidity filter" the spec asks for, using
+  CoinGecko's global 24h volume as a coarse proxy — this is **not** on-chain DEX depth on
+  either leg's specific chain, since no real per-chain liquidity source exists in this app
+  yet. Rows below it are kept visible but marked "Non-executable" with the trade button
+  disabled, rather than dropped outright, matching the Phase 1 "never silently drop a row"
+  fix earlier in this same file.
+- `components/StockArbPanel.tsx` renders the top spreads inside `StockDesk`, fed the full
+  un-deduped multi-chain catalog (not the chain/issuer-filtered, `preferOneChainPerSymbol`
+  view used by the main tape — arb needs to see every chain instance at once). "Buy cheaper
+  leg" opens the existing `StockSwapModal` pre-filled with the lower-priced chain instance —
+  there is no cross-chain atomic execution in this app, so the actionable half of "capture
+  the spread" is buying the underpriced leg, not an automated round-trip.
+
+Not done: Phase 3's two P1 nice-to-haves (historical spread chart, threshold alerts) and
+live verification of any of this — same sandbox network block as above. `npm run
+typecheck`, `npm run lint`, and `npm run build` all pass clean. Before trusting the arb
+panel's numbers: confirm the Phase 1 join first (see above), then sanity-check a handful
+of `computeStockArbRows` outputs by hand against LI.FI's actual per-chain prices.
 
 

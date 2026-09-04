@@ -20,12 +20,22 @@ interface UncoveredCoingeckoRow {
   marketCapUsd: number;
 }
 
+interface DivergentRow {
+  id: string;
+  symbol: string;
+  chainId: number;
+  priceUsd: number;
+  divergencePct: number;
+}
+
 interface Data {
   error?: string;
   totalClassified: number;
   matched: number;
   unmatched: UnmatchedRow[];
   uncoveredCoingeckoStocks: UncoveredCoingeckoRow[];
+  divergent: DivergentRow[];
+  divergenceThresholdPct: number;
 }
 
 function formatUsd(n: number): string {
@@ -177,6 +187,51 @@ export default function AdminStocksPage() {
                     <tr>
                       <td colSpan={3} className="py-4 text-ink/45 font-sans">
                         No coverage gaps from the CoinGecko side right now.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-border bg-white/[0.02] p-6">
+            <h2 className="text-sm font-medium mb-1">
+              Matched rows with the largest LI.FI vs CoinGecko divergence
+            </h2>
+            <p className="text-xs text-ink/45 mb-4">
+              LI.FI&apos;s priceUSD vs CoinGecko&apos;s spot price for the same matched coin,
+              flagged above {data.divergenceThresholdPct}% (Phase 1 P1). A few large rows is
+              normal (thin markets, closed-hours pricing). Many rows diverging by a similar
+              amount instead suggests the join itself is wrong — e.g. a platform id resolved
+              to the wrong chain — not that every token individually mispriced.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] uppercase tracking-wide text-ink/40">
+                    <th className="pb-2 pr-4">Symbol</th>
+                    <th className="pb-2 pr-4">Chain</th>
+                    <th className="pb-2 pr-4">LI.FI price</th>
+                    <th className="pb-2">Divergence</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono text-xs">
+                  {data.divergent.map((row) => (
+                    <tr key={row.id} className="border-t border-border/60">
+                      <td className="py-2 pr-4">{row.symbol}</td>
+                      <td className="py-2 pr-4">{stockChainLabel(row.chainId)}</td>
+                      <td className="py-2 pr-4">{formatUsd(row.priceUsd)}</td>
+                      <td className="py-2">
+                        {row.divergencePct > 0 ? '+' : ''}
+                        {row.divergencePct.toFixed(2)}%
+                      </td>
+                    </tr>
+                  ))}
+                  {data.divergent.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-4 text-ink/45 font-sans">
+                        No matched row currently diverges past the threshold.
                       </td>
                     </tr>
                   )}

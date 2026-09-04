@@ -31,8 +31,17 @@ Tokenized RWAs (equities, ETFs, treasuries) are the single most-cited DeFi growt
 - [x] Add a data-source attribution footer per row (LI.FI price vs. CoinGecko cap). — per-row footer in `StockDesk.tsx`.
 
 **Nice-to-Have (P1):**
-- [ ] Cross-check LI.FI's priceUSD against CoinGecko's price for the same asset; flag divergence >X% (this is also your future arb signal).
+- [x] Cross-check LI.FI's priceUSD against CoinGecko's price for the same asset; flag divergence >X% (this is also your future arb signal). — `StockToken#priceDivergencePct` in `lib/lifi/stocks.ts` (`PRICE_DIVERGENCE_FLAG_PCT = 1.5`), surfaced in `/admin/stocks`. This is the *same-chain, cross-source* divergence signal (LI.FI vs. CoinGecko for one token); Phase 3's spread is the *cross-chain* signal (LI.FI vs. itself, across chains) — see Phase 3 below.
 - [x] Cache layer (5-15 min TTL) to reduce CoinGecko rate-limit exposure as the token list grows past 50. — 10 min in-memory cache in `lib/lifi/marketCap.ts`.
+
+**Live verification status:** this sandbox's egress policy blocks both `api.coingecko.com`
+and `li.quest` directly (confirmed by hand, `curl` gets a 403 from the proxy on both) — same
+constraint already logged for `ydaemon.yearn.fi`/`api.curve.finance` in `CLAUDE.md`. The
+join has **not** been run against live data yet. `npm run smoke:stocks`
+(`scripts/smoke-stock-market-data.mjs`) is the repeatable check for whoever runs it
+somewhere with network access — it hits the public `/api/lifi/stocks` route and fails if
+the unmatched ratio or stale ratio look structurally wrong rather than like normal coverage
+gaps. **Run it (or check `/admin/stocks`) before trusting this mapping table.**
 
 **Future Considerations (P2):**
 - [ ] Move off CoinGecko's free tokenized-stock endpoint entirely if it proves unreliable at scale — evaluate a paid market-data provider once there's revenue to justify it.
@@ -79,17 +88,17 @@ Tokenized RWAs (equities, ETFs, treasuries) are the single most-cited DeFi growt
 **User story:** As a tape viewer, I want to see when the same tokenized stock is priced differently across chains, so I can capture the spread.
 
 **Must-Have (P0):**
-- [ ] For tokens listed on multiple chains, compute live spread (using the Phase 1 divergence check as the base signal) and surface a sortable "spread %" column.
-- [ ] Minimum-liquidity filter — don't surface spreads on pools too thin to actually execute against; this is the same discipline HYPERFLEX already applies to arb-detected edge markets.
-- [ ] Direct link into the Phase 2 swap flow pre-filled with the higher-spread leg.
+- [x] For tokens listed on multiple chains, compute live spread and surface it, sorted highest-first. — `lib/lifi/stockArb.ts#computeStockArbRows`, rendered by `components/StockArbPanel.tsx` inside `StockDesk`. Groups chain instances by CoinGecko's `cgeckoId` (Phase 1's matched identity) rather than by ticker — see the module doc comment for why. Compares LI.FI's own `priceUsd` across a token's chain instances (CoinGecko has one global spot price per coin, not a per-chain one, so it isn't the signal here — Phase 1's `priceDivergencePct` is the cross-*source* signal instead; this is cross-*chain*).
+- [x] Minimum-liquidity filter. — `MIN_24H_VOLUME_USD` (CoinGecko 24h volume as a coarse proxy; **not** on-chain DEX depth on either leg's chain — no per-chain liquidity source exists in this app yet). Rows below it are kept visible but marked "Non-executable" with the trade button disabled, per the acceptance criteria's "excluded or clearly marked" — marking was chosen over exclusion to stay consistent with Phase 1's "never silently drop a row" fix.
+- [x] Direct link into the Phase 2 swap flow pre-filled with the higher-spread leg. — "Buy cheaper leg" opens `StockSwapModal` pre-filled with the lower-priced chain instance (the actionable side, since this app has no cross-chain atomic execution to also auto-sell the expensive leg).
 
 **Nice-to-Have (P1):**
 - [ ] Historical spread chart per token (is this a persistent inefficiency or a one-off).
 - [ ] Alert/notification when a tracked token's spread crosses a user-set threshold.
 
 **Acceptance Criteria:**
-- Given a token trades on 2+ chains, when spread exceeds the liquidity-adjusted threshold, then it's surfaced and sortable on the main tape.
-- Given a spread is below available liquidity to execute profitably after fees/slippage, when computed, then it is excluded or clearly marked non-executable.
+- Given a token trades on 2+ chains, when spread exceeds the liquidity-adjusted threshold, then it's surfaced and sortable on the main tape. — done (sorted by spread desc; "sortable column" was built as a ranked panel rather than a sortable table column since the main tape is one-row-per-symbol-per-chain-filter and arb needs the un-collapsed cross-chain view — see `StockArbPanel`).
+- Given a spread is below available liquidity to execute profitably after fees/slippage, when computed, then it is excluded or clearly marked non-executable. — done, marked (see above). Not yet verified against live data (same sandbox network block as Phase 1) or against real per-chain liquidity — the 24h-volume proxy is a known simplification, not a real depth check.
 
 ---
 

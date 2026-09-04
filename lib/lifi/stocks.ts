@@ -41,8 +41,26 @@ export interface StockToken {
   capUpdatedAt?: string;
   /** True when capUpdatedAt is older than MARKET_DATA_STALE_MINUTES. */
   capStale?: boolean;
+  /**
+   * CoinGecko's coin id backing marketCapUsd, when matched. This is the identity used to
+   * group the *same* underlying asset's chain instances for cross-chain spread detection
+   * (lib/lifi/stockArb.ts) — grouping by this instead of by symbol is what keeps that
+   * feature from inheriting the ticker-collision risk Phase 1 fixed.
+   */
+  cgeckoId?: string;
+  /** CoinGecko 24h trading volume in USD for the matched coin. A coarse liquidity proxy. */
+  cgVolume24hUsd?: number;
+  /**
+   * (priceUsd - CoinGecko spot price) / CoinGecko spot price, in percent. Signed: positive
+   * means LI.FI quotes higher. Omitted when unmatched or CoinGecko has no parseable price.
+   * Phase 1 P1 data-quality check; also Phase 3's per-source half of the arb signal.
+   */
+  priceDivergencePct?: number;
   logoURI?: string;
 }
+
+/** Flag a LI.FI/CoinGecko price divergence above this magnitude (BUILD_SPEC Phase 1 P1). */
+export const PRICE_DIVERGENCE_FLAG_PCT = 1.5;
 
 /** Dashboard tape length — top names by parseable market cap, not a featured pick. */
 export const STOCK_TAPE_SIZE = 50;
@@ -181,12 +199,19 @@ export async function withStockMarketCaps(tokens: StockToken[]): Promise<StockTo
   const out = tokens.map((token) => {
     const match = stats.get(`${token.chainId}-${token.address.toLowerCase()}`);
     if (!match) return token;
+    const priceDivergencePct =
+      match.cgPriceUsd !== undefined
+        ? ((token.priceUsd - match.cgPriceUsd) / match.cgPriceUsd) * 100
+        : undefined;
     return {
       ...token,
       marketCapUsd: match.marketCapUsd,
       ...(match.changePct24h !== undefined ? { changePct24h: match.changePct24h } : {}),
       capUpdatedAt: match.lastUpdatedAt,
       capStale: match.stale,
+      cgeckoId: match.cgeckoId,
+      ...(match.volume24hUsd !== undefined ? { cgVolume24hUsd: match.volume24hUsd } : {}),
+      ...(priceDivergencePct !== undefined ? { priceDivergencePct } : {}),
     };
   });
   out.sort(compareStockTape);

@@ -48,6 +48,10 @@ export interface TokenizedStockMarketStats {
   /** CoinGecko's own `last_updated` for this row — the real freshness signal, not our fetch time. */
   lastUpdatedAt: string;
   stale: boolean;
+  /** CoinGecko's own spot price — the other half of the Phase 1 P1 divergence check against LI.FI's priceUSD. */
+  cgPriceUsd?: number;
+  /** CoinGecko 24h trading volume in USD. A coarse liquidity proxy (see BUILD_SPEC Phase 3) — not on-chain DEX depth. */
+  volume24hUsd?: number;
 }
 
 /** A CoinGecko tokenized-stock coin with no contract address on any chain this app tracks. */
@@ -63,6 +67,8 @@ interface CoinGeckoMarketRow {
   market_cap?: unknown;
   price_change_percentage_24h?: unknown;
   last_updated?: unknown;
+  current_price?: unknown;
+  total_volume?: unknown;
 }
 
 interface CoinGeckoListRow {
@@ -73,6 +79,11 @@ interface CoinGeckoListRow {
 
 function parseMarketCap(raw: unknown): number | null {
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return null;
+  return raw;
+}
+
+function parsePositiveNumber(raw: unknown): number | undefined {
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return undefined;
   return raw;
 }
 
@@ -98,6 +109,8 @@ interface MarketRow {
   marketCapUsd: number;
   changePct24h?: number;
   lastUpdatedAt: string;
+  cgPriceUsd?: number;
+  volume24hUsd?: number;
 }
 
 interface CachedMarketData {
@@ -144,6 +157,8 @@ async function buildMarketData(): Promise<CachedMarketData> {
         marketCapUsd,
         changePct24h: parseChangePct24h(row.price_change_percentage_24h),
         lastUpdatedAt,
+        cgPriceUsd: parsePositiveNumber(row.current_price),
+        volume24hUsd: parsePositiveNumber(row.total_volume),
       });
     }
   }
@@ -173,6 +188,8 @@ async function buildMarketData(): Promise<CachedMarketData> {
           changePct24h: market.changePct24h,
           lastUpdatedAt: market.lastUpdatedAt,
           stale: isStale(market.lastUpdatedAt),
+          cgPriceUsd: market.cgPriceUsd,
+          volume24hUsd: market.volume24hUsd,
         });
         matchedIds.add(row.id);
       }

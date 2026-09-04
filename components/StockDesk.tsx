@@ -22,6 +22,7 @@ import {
   type StockToken,
 } from '@/lib/lifi/stocks';
 import { NETWORK_MODE } from '@/lib/wagmi';
+import { StockArbPanel } from './StockArbPanel';
 import { StockSwapModal } from './StockSwapModal';
 
 const PAGE_SIZE = STOCK_TAPE_SIZE;
@@ -192,6 +193,10 @@ export function StockDesk() {
             ))}
           </ul>
         </div>
+      )}
+
+      {tokens.length > 0 && (
+        <StockArbPanel tokens={tokens} onTrade={(token, side) => setActive({ token, side })} />
       )}
 
       <div className="flex flex-col gap-3">
