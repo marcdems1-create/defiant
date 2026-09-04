@@ -576,4 +576,90 @@ Still ops, not code: corporate inbox, HubSpot integration checklist, KYB form wi
 `/partners` nature-of-business paragraph, Transak host allowlist, Vercel static IPs,
 SELL enabled, partner fee in Transak dashboard. Do not turn on `NEXT_PUBLIC_TREASURY_ADDRESS`.
 
+## Session update (2026-09-04) — Phase 0 survey + Phase 1 monorepo scaffold (repo split)
+
+Started splitting protocol integration logic out of the web app into standalone,
+independently testable packages, per an external repo-split brief. Working through it in
+phases, stopping after each for a go/no-ahead rather than doing it as one large refactor.
+
+**Repo layout note — every path elsewhere in this file is now one level off.** Everything
+that used to sit at the repo root (`app/`, `components/`, `lib/`, `public/`, `migrations/`,
+`scripts/`, `middleware.ts`, `next.config.mjs`, `tailwind.config.ts`, `postcss.config.mjs`,
+`tsconfig.json`, `.eslintrc.json`, `.env.example`, `vercel.json`) now lives under `apps/web/`.
+So every path cited above and in earlier session updates — `lib/wagmi.ts`,
+`components/DepositWithdrawModal.tsx`, `lib/config/addresses.ts`, `lib/config/fees.ts`, all of
+it — reads as `apps/web/lib/wagmi.ts`, `apps/web/components/DepositWithdrawModal.tsx`, etc.
+Nothing else changed: file contents, behavior, and every non-negotiable in this file still
+apply exactly as written, just one directory deeper.
+
+**Phase 0 (survey, no code changes) found:** `lib/protocols/*.ts` is a rate catalog, not an
+adapter layer — each file only fetches APY + builds `Opportunity` metadata. The real
+deposit/withdraw transaction-building logic is ~750 lines of if/else inside
+`DepositWithdrawModal.tsx`, interleaved with React state, live on-chain slippage-preview
+reads, and the fee transfer. Position-reading is similarly inline in
+`lib/hooks/usePositions.ts`. **Phase 2 (adapter extraction) is scoped as a rewrite of that
+component's deposit/withdraw branches into real adapters, not a file move.** No private key,
+server-side signer, or `createWalletClient` exists anywhere in the codebase — every
+value-moving call is wagmi's `writeContract`/`sendTransaction`, invoked from a `'use client'`
+component or hook, confirmed by full grep. Zero test coverage (no Jest/Vitest/Hardhat/Foundry)
+going in — Phase 3's fork-test suite starts from nothing.
+
+**Cut from the "26 opportunities" catalog before Phase 2, by owner decision:**
+- **Convex cvxCRV** — one-way CRV→cvxCRV conversion; withdraw returns cvxCRV, not the CRV
+  deposited. A trap in a product whose pitch is honesty, and the only reason a one-way
+  exit-profile category was needed at all.
+- **Curve** (crvUSD/USDC + 3pool) — LP/slippage mechanics are a different product from
+  lending; mainnet-only, unverified live API field shape, wasn't even in the original
+  repo-split brief's protocol list.
+- **Frax sfrxUSD** — deposit asset is frxUSD, which no one arriving via Transak (CAD→USDC)
+  actually holds. Unreachable opportunity.
+- **Panoptic Unicorn** — options/volatility strategy; cheap to keep technically (plain
+  ERC-4626) but not a risk badge a buyer's compliance team would accept.
+
+**Kept, going into Phase 2 (9 protocols):** Aave v3, Compound III, Morpho, Yearn v3, Fluid,
+Sky, Moonwell, Maple, Lido. Yearn v3/Morpho/Fluid share the ERC-4626 interface already (base
+`ERC4626Adapter` batch); Aave v3/Compound III/Sky/Maple/Lido are one-offs. `exitProfile()`
+only needs instant vs. queued now — Lido (queued, separate claim tx) and Maple (FIFO push
+payout, no claim tx, and first-time wallets must complete lender auth on syrup.fi before
+depositing — Maple is the most likely of the 9 to get cut later if its fork test is painful).
+DeFiLlama, after the cuts, is the *primary* rate source for exactly two of the 9 kept
+protocols (Sky, Fluid) — down from five across the original 13 — worth having answered before
+diligence asks "what happens if one aggregator goes down."
+
+**Aave and Moonwell's APY formulas were verified against official sources, not just
+plausibility-checked:** Aave's own `aave-utilities` library (the code behind app.aave.com's
+displayed rate) uses `calculateCompoundedRate({ rate: liquidityRate, duration:
+SECONDS_PER_YEAR })`, which is exactly `(1 + (liquidityRate/RAY)/SECONDS_PER_YEAR)^
+SECONDS_PER_YEAR - 1` — the same formula already in `lib/protocols/aave.ts`. Moonwell's
+`(ratePerSecond * 86400 + 1)^365 - 1` matches the documented Compound-derived per-timestamp
+APY conversion (the code's own comment already cited the Moonwell SDK's `calculateApy` as the
+source). Both check out; no rate math needs fixing before Phase 2.
+
+**Phase 1 (this update) scaffolded an npm-workspaces monorepo — no logic moved, no
+dependencies added beyond what already existed (`typescript`), existing site untouched
+content-wise:**
+- `apps/web` — the former repo root, moved via `git mv` (history preserved), package renamed
+  to `@defiant/web`. No file contents changed.
+- `packages/core`, `packages/risk`, `packages/api` — empty scaffolds (placeholder
+  `src/index.ts`, own `package.json`/`tsconfig.json`/`README.md`). `packages/api` pre-wires a
+  workspace dependency + TS project reference on `core` and `risk` for Phase 5, even though
+  nothing imports either yet.
+- Root `package.json` gained `"workspaces": ["apps/*", "packages/*"]` and now delegates
+  `dev`/`build`/`start`/`lint`/`smoke:public` to `@defiant/web`; `typecheck` runs
+  `--workspaces --if-present` so it covers the new packages too as they gain real code.
+- Root `tsconfig.json` is a solution-style file referencing the three new packages only.
+  **`apps/web` was deliberately left out of the TS project-references graph** — its tsconfig
+  is Next.js-flavored (`noEmit`, `moduleResolution: bundler`) and not `composite`, and forcing
+  that would risk changing how Next type-checks or builds it. Wire `apps/web` in only once
+  Phase 2 gives it a real import from `packages/core` to justify the edge.
+- **Vercel needs a manual settings change before this branch can ever deploy successfully:**
+  Project Settings → General → Root Directory must be set to `apps/web` (`vercel.json` moved
+  there with the rest of the app). Until that's done, a Vercel build at the old repo root will
+  not find the Next.js app. This is an ops action outside what code in this repo can do —
+  flagging per this file's own "if a change would break the live site, stop and tell me" rule,
+  not glossing over it. The live site is unaffected by this branch until it's merged and that
+  setting is changed.
+- Not yet done: `npm install` to regenerate the workspace-aware `package-lock.json`, and a
+  clean `typecheck`/`build` run from the new layout to confirm nothing broke in the move.
+
 

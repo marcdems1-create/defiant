@@ -1,12 +1,16 @@
-# dependencies
-/node_modules
+# dependencies — npm workspaces hoists everything to the repo root, but stay
+# unanchored in case a workspace ever gets its own node_modules
+node_modules
 
-# next.js
-/.next/
-/out/
+# next.js (apps/web)
+.next/
+out/
 
 # production
-/build
+build/
+
+# package build output (packages/*/dist)
+dist/
 
 # env
 .env
@@ -19,7 +23,7 @@
 npm-debug.log*
 
 # Local KYB / PII — never commit
-/kyb-local
+kyb-local
 
 # typescript
 *.tsbuildinfo

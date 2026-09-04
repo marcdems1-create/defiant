@@ -1,0 +1,16 @@
+{
+  "name": "@defiant/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Protocol adapters — unsigned tx builders, rate reads, position reads. Adapters build transactions; they never sign or send them.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

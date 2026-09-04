@@ -1,0 +1,20 @@
+{
+  "name": "@defiant/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Thin HTTP layer over @defiant/core + @defiant/risk. No auth or rate limiting yet.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@defiant/core": "*",
+    "@defiant/risk": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
