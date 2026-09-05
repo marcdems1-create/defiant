@@ -811,4 +811,25 @@ original buy-only probe, which was already unverified. `npm run typecheck`, `npm
 lint`, and `npm run build` all pass clean. Run `npm run smoke:stock-arb` against
 production before trusting a single "round-trip verified" number this feature shows.
 
+## Session update (2026-09-05, continued) — merged to main without live verification
+
+PR #51 (this branch — Phase 1 + Phase 3 + Phase 3b, both session updates above) was
+merged to `main` by the repo owner, who confirmed via the Vercel preview first. **Neither
+`npm run smoke:stocks` nor `npm run smoke:stock-arb` was run before merging** — the PR's
+own test-plan checkboxes for both are unchecked. This is a real, open gap, not a
+formality: every number this feature shows (the CoinGecko/LI.FI address join, the
+buy-leg probe, the brand-new cross-chain bridge-quote path) is still exactly as unverified
+against live data as every prior note in this file says. It is now live in production
+instead of sitting in a PR, which makes running those two commands against
+`openhand.online` more urgent, not less. If a future session is asked to touch the stock
+tape again, check whether that's happened yet before assuming any of this is trustworthy.
+
+Also: while diagnosing why the preview "looked like the same site," it's worth recording
+that both `/admin/stocks` and the tape's own "Cross-chain spread" panel/column render
+**nothing at all** when `fetchStockArbRows()` returns zero rows — which round-trip
+verification is deliberately strict enough to do often. A future session confirming this
+feature works should check `/api/lifi/stock-arb`'s raw JSON directly (`{"rows":[...]}` vs
+`{"rows":[]}`), not just eyeball the dashboard, since an empty result and a broken
+endpoint look identical in the UI.
+
 
