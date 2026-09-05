@@ -741,4 +741,74 @@ from here. Run `npm run smoke:stock-arb` against production, or open the tape an
 spread, before trusting any "executable" label this feature shows. `npm run typecheck`,
 `npm run lint`, and `npm run build` all pass clean.
 
+## Session update (2026-09-05, continued) — Phase 3b: round-trip spread verification
+
+Was handed a Phase 3b spec pointing at the exact gap the last update's own copy already
+half-admitted: Phase 3's "Spread %" only ever verified the *buy* leg. With no cross-chain
+execution in the app, that number wasn't actually capturable — showing "Spread %" for a
+half-verified figure was presenting an unverified claim as a verified one. Full detail is
+now in `BUILD_SPEC.md`'s "Phase 3b" section (the terse version below is not a substitute).
+
+**Did the spec's own step 1 immediately, before anything else:** relabeled the tape column,
+sort pill, and panel copy to say "buy-leg spread" / "not a round trip" (commit `dd04523`),
+so nothing misleading stayed live while the real fix was built.
+
+**Then asked, rather than assumed, the one genuinely open product question:** the spec's
+net-spread formula referenced a sell-leg quote and a conditional "bridge cost if
+applicable" without saying what actually moves — bridge the purchased token, or assume the
+user already holds capital on both chains. The spec itself flagged this as needing
+resolution before implementation, not discovery mid-build, so it went to
+`AskUserQuestion` instead of a guess. Answer: **bridge the actual purchased token.**
+
+**What got built**, per that answer:
+- `lib/lifi/stocks.ts#fetchLifiQuote` gained an optional `toChainId` param (defaults to
+  `chainId`, so every existing same-chain caller — the Phase 2 swap route, the Phase 3
+  buy-leg probe — is unaffected) and `LifiQuote` gained a `toChainId` field.
+- `lib/lifi/stockArb.ts#verifyArbCandidate` now does two sequential quotes per candidate:
+  the existing $1,000 buy-leg probe, then — only if that clears its own liquidity gate —
+  a single **cross-chain** LI.FI quote (`fromChain` = cheap leg, `toChain` = expensive leg,
+  `fromToken` = the token the buy quote would actually produce, `toToken` = USDC on the
+  expensive chain) using the buy quote's real `toAmount` as input. LI.FI's own routing
+  picks the bridge+swap path, so its output already nets out bridge cost and sell-side
+  slippage in one number — no separate "bridge_cost_if_applicable" line item needed; a
+  single combined quote is a more accurate answer to "what would I actually net" than
+  reassembling one from parts LI.FI has already jointly optimized.
+- `netSpreadPct` is now `(bridge-quote proceeds - $1,000) / $1,000` — a genuine round-trip
+  figure. "Spread %" is restored as the label (it's earned now) in both `StockDesk.tsx`
+  and `StockArbPanel.tsx`.
+- **Deliberate departure from Phase 1/Phase 3's "mark, don't hide" stance**: a candidate
+  that fails either leg's quote, either leg's liquidity gate (`buyLegPriceImpactPct` /
+  `bridgeLegPriceImpactPct`, both checked against the existing
+  `MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY`), or nets non-positive is **dropped entirely**, not
+  shown marked "unverified." Phase 3b's own acceptance criteria says so directly: "a
+  verified buy leg with an unverified sell leg is not enough to show a number." The
+  `enrichmentVerified`/`liquidityOk` fields from Phase 3 are gone — `StockArbRow` has no
+  unverified variant anymore; every row `fetchStockArbRows()` returns already cleared the
+  whole pipeline. This is a considered exception to the "never silently drop a row"
+  principle from earlier in this file, not a quiet regression of it — the reasoning is in
+  `lib/lifi/stockArb.ts`'s module doc comment and in `BUILD_SPEC.md`.
+- `ARB_ENRICH_LIMIT` cut from 12 to **8** (each candidate now costs up to two external
+  calls, not one — worst case 16 vs. the old 12) and the cache TTL raised from 5 to 10
+  minutes, since the whole build is now more expensive.
+- **What still doesn't exist: executing the second leg.** `StockSwapModal` only signs
+  same-chain swaps. "Buy cheaper leg" still only executes the buy; completing the verified
+  bridge+sell happens outside the app for now. Said explicitly in the panel copy and in
+  `BUILD_SPEC.md` rather than letting "round-trip verified" quietly imply "one-click round
+  trip" — building that execution flow is real fund-moving surface this sandbox can't
+  validate, and felt like the wrong thing to rush into the same commit as the verification
+  fix.
+- `npm run smoke:stock-arb` rewritten for the new contract: every returned row must have a
+  defined, positive `netSpreadPct` no greater than `grossSpreadPct`, plus the diagnostic
+  impact fields present. Zero rows is explicitly *not* treated as an automatic pass in the
+  script's own output — round-trip verification is a high bar, and zero could mean "no
+  opportunities" or "every candidate is silently erroring," which look identical without
+  a human checking.
+
+**Blocked, again, on the same thing:** this sandbox still has no route to
+`api.coingecko.com` or `li.quest`. The cross-chain bridge-quote code path is brand new and
+has *never* been exercised against live LI.FI — treat it as less proven than Phase 3's
+original buy-only probe, which was already unverified. `npm run typecheck`, `npm run
+lint`, and `npm run build` all pass clean. Run `npm run smoke:stock-arb` against
+production before trusting a single "round-trip verified" number this feature shows.
+
 

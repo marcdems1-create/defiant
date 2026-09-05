@@ -110,10 +110,8 @@ export function StockDesk() {
     });
     if (!sortBySpread) return [...scoped].sort(compareStockTape);
     return [...scoped].sort((a, b) => {
-      const aRow = a.cgeckoId ? arbByCgeckoId.get(a.cgeckoId) : undefined;
-      const bRow = b.cgeckoId ? arbByCgeckoId.get(b.cgeckoId) : undefined;
-      const aSpread = aRow ? aRow.netSpreadPct ?? aRow.grossSpreadPct : undefined;
-      const bSpread = bRow ? bRow.netSpreadPct ?? bRow.grossSpreadPct : undefined;
+      const aSpread = a.cgeckoId ? arbByCgeckoId.get(a.cgeckoId)?.netSpreadPct : undefined;
+      const bSpread = b.cgeckoId ? arbByCgeckoId.get(b.cgeckoId)?.netSpreadPct : undefined;
       if (aSpread !== undefined && bSpread !== undefined && aSpread !== bSpread) return bSpread - aSpread;
       if (aSpread !== undefined && bSpread === undefined) return -1;
       if (aSpread === undefined && bSpread !== undefined) return 1;
@@ -257,7 +255,7 @@ export function StockDesk() {
               Sort: Cap
             </Pill>
             <Pill active={sortBySpread} onClick={() => setSortBySpread(true)}>
-              Sort: Buy-leg spread
+              Sort: Spread
             </Pill>
           </div>
         )}
@@ -346,14 +344,13 @@ export function StockDesk() {
                 {(() => {
                   const row = t.cgeckoId ? arbByCgeckoId.get(t.cgeckoId) : undefined;
                   if (!row) return <div className="font-mono text-sm text-ink/25">—</div>;
-                  const displayPct = row.netSpreadPct ?? row.grossSpreadPct;
                   return (
                     <>
-                      <div className={`font-mono text-sm ${changeClass(displayPct)}`}>
-                        {formatChangePct(displayPct)}
+                      <div className={`font-mono text-sm ${changeClass(row.netSpreadPct)}`}>
+                        {formatChangePct(row.netSpreadPct)}
                       </div>
                       <div className="text-[10px] uppercase tracking-wide text-ink/35">
-                        {row.enrichmentVerified ? 'buy-leg spread' : 'buy-leg · unverified'}
+                        spread · round-trip
                       </div>
                     </>
                   );

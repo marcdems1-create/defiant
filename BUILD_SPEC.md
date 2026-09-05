@@ -118,10 +118,94 @@ gaps. **Run it (or check `/admin/stocks`) before trusting this mapping table.**
 - `npm run typecheck`, `npm run lint`, `npm run build` all pass clean. — done.
 - Smoke-test against live data before merging, the same discipline as Phase 1. — **not done; blocked**, same sandbox network restriction as Phase 1 (see the Phase 1 "Live verification status" note and `CLAUDE.md`). `npm run smoke:stock-arb` (`scripts/smoke-stock-arb.mjs`) automates the internal-consistency half of this (recomputes each row's math from its own legs, checks net ≤ gross, checks the exclusion rule was actually applied) and prints the top rows for the manual eyeball-2-3-known-tokens step this acceptance criterion asks for — that manual step still has to happen by a human (or session) with real network access before trusting the "executable" labels.
 
+> **Superseded by Phase 3b, below.** This section's net spread only ever verified the buy
+> leg — there was no sell or bridge quote, so the "Spread %" label above materially
+> overstated what had actually been checked. Phase 3b fixed the number (a real,
+> quote-verified round trip) and the acceptance criteria immediately above are now
+> satisfied more strictly than as originally written (e.g. the "excluded... entirely" rule
+> now applies to *any* verification failure, not only a negative net spread). Left in place
+> for the history of what "liquidity gate" and "net spread" meant before that fix, since
+> the module doc comment in `lib/lifi/stockArb.ts` refers back to it.
+
 ## Open Questions (Phase 3, answered by what got built)
 - **Engineering — does LI.FI's quote endpoint expose liquidity/depth?** Not directly as a "depth" number, but its quoted output amount for a fixed probe size implies a price-impact figure, which is what got used. Never verified live — see the acceptance-criteria note above.
-- **Product — hide or mark illiquid spreads?** Marked, not hidden (see above) — chosen for consistency with Phase 1's data-integrity stance, not re-litigated per row.
+- **Product — hide or mark illiquid spreads?** Marked, not hidden (see above) — chosen for consistency with Phase 1's data-integrity stance, not re-litigated per row. **Revised in Phase 3b** — see below.
 - **Data — starting liquidity threshold:** `MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY = 1.5` (percent price impact on a $1,000 probe). A real starting number as the spec asked for, but an arbitrary first guess, not a tuned one — revisit once this has run against live data.
+
+---
+
+## Phase 3b — Round-Trip Spread Verification
+
+**Why:** Phase 3's net spread only verified the buy leg. With no cross-chain execution in
+the app, the displayed "opportunity" wasn't actually capturable end-to-end — showing
+"Spread %" for a number that only checked half the trip was presenting an unverified claim
+as a verified one. This phase closes that gap before the feature is trusted as actionable.
+
+**Non-Goals:** No auto-execution of the full round trip (still manual, user-confirmed
+per leg). No guaranteed-atomic capture — sequential two-leg execution with normal
+settlement risk between legs is acceptable; the goal is *quoted and verified*, not
+*guaranteed profitable regardless of timing*. Two-leg (cheap chain → expensive chain)
+only, no N-chain triangular arb.
+
+**Round-trip model — resolved by asking, not assuming:** the spec flagged this as
+consequential and unresolved ("does 'round trip' mean bridge the actual asset, or does the
+user need independent capital on both chains already?") and asked for it to be pinned down
+before implementation. Asked; the answer was **bridge the actual purchased token**: the
+second probe is a single LI.FI *cross-chain* quote (`fromChain` = the cheap leg's chain,
+`toChain` = the expensive leg's chain, `fromToken` = the token just bought, `toToken` =
+USDC on the expensive chain), using the first quote's own `toAmount` as the input. LI.FI's
+own routing picks the bridge+swap path, so its output already nets out bridge cost and
+sell-side slippage in one number — this is a real, single-flow round trip a user holding
+only USDC on the cheap chain could actually take (buy, then bridge-and-sell), not a
+narrower "if you already hold capital on both chains" signal.
+
+**Must-Have (P0):**
+- [x] **Relabel/hide until verified — done immediately, before the rest of this phase.** — commit `dd04523`: tape column, sort pill, and panel copy said "buy-leg spread" / "not a round trip" while the real fix was being built, per the spec's own suggested sequencing (step 1).
+- [x] **Second LI.FI probe for the sell leg, implemented as a single cross-chain bridge+sell quote** (see round-trip model above), not two separate same-chain quotes. — `lib/lifi/stockArb.ts#verifyArbCandidate`. Only fires if the buy-leg probe already cleared its own liquidity gate, so a doomed candidate never costs a second call.
+- [x] **True round-trip net spread**: `netSpreadPct = (bridgeQuote proceeds in USD - $1,000 probe) / $1,000 probe`. Replaces Phase 3's buy-only figure as the number shown in "Spread %" — restored that label (see relabel note) now that it's earned.
+- [x] **Liquidity gate applied to both legs independently** — `buyLegPriceImpactPct` and `bridgeLegPriceImpactPct`, each checked against `MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY`. Not literal "bridge cost as a separate subtracted line item": the single cross-chain quote's output already has bridge cost and sell slippage baked into one number, which is the more accurate way to ask LI.FI's own router "what would I actually net," rather than reassembling that number from parts LI.FI has already optimized across.
+- [x] **Relabel is now unnecessary — same-chain "Spread %" is honest again**, so it's restored (`StockDesk.tsx`, `StockArbPanel.tsx`) rather than kept hedged. If a future change weakens the verification again, redo the Phase 3b-step-1 relabel immediately, don't leave a stale unqualified label live.
+- [x] **Both-probe cap tightened, not just kept** — `ARB_ENRICH_LIMIT` cut from Phase 3's 12 to **8**, since each candidate now costs up to two sequential external calls instead of one (worst case 16 calls per catalog build instead of 12). Cache TTL correspondingly raised from 5 to 10 minutes.
+
+**Departure from Phase 1/Phase 3's "mark, don't hide" stance — deliberate, not an oversight:**
+a candidate that fails either leg's quote, either leg's liquidity gate, or nets non-positive
+is **dropped entirely**, not shown marked "unverified" or "non-executable." Phase 3's
+acceptance criteria for this exact case says so directly: "a verified buy leg with an
+unverified sell leg is not enough to show a number." `StockArbRow` (the exported type) has
+no unverified variant anymore — every row `fetchStockArbRows()` returns already cleared
+the full pipeline. `enrichmentVerified`/`liquidityOk` (Phase 3's fields) are gone; anything
+that would have set them false now just never becomes a row.
+
+**What still doesn't exist:** an in-app way to execute the second leg. `StockSwapModal`
+(Phase 2) only signs same-chain swaps. "Buy cheaper leg" still only executes the buy —
+completing the verified bridge+sell happens outside the app for now. Building that second
+signing flow (approve + a cross-chain `transactionRequest`, tracking a pending bridge
+similar to `/move`'s CCTP flow) is real, untested-from-here surface that moves user funds
+cross-chain; given this sandbox can't test any of it live, shipping the *verification* now
+and leaving *execution* for a session that can validate it against a real quote felt like
+the safer split than rushing both at once. Flagging this explicitly rather than letting
+"round-trip verified" quietly imply "one-click round trip" — it doesn't yet.
+
+**Nice-to-Have (P1):**
+- [ ] Timestamp both probes and flag meaningful delay between them as a confidence indicator.
+- [ ] Show both legs' individual quotes in an expandable row detail — `bridgeTool` (which LI.FI route was used) is already captured and shown per row; the raw quote objects themselves are not yet exposed.
+
+**Future Considerations (P2):**
+- [ ] Real-time re-quote on click, separate from the tape's 10-minute polling cycle.
+- [ ] Extend to N-chain paths if two-leg proves valuable.
+- [ ] The actual second-leg execution flow described above.
+
+**Acceptance Criteria:**
+- Given a candidate passes both buy-leg and sell-leg liquidity gates, when round-trip net spread is computed, then it reflects actual quoted costs on both legs, not an assumption about the sell side. — done; the sell-leg figure comes from a real cross-chain quote, not an assumption.
+- Given the sell-leg probe fails, then the candidate is excluded from the actionable spread column entirely. — done (see the "mark, don't hide" departure above).
+- Given the feature is not yet round-trip verified, when the column renders in the interim, it is labeled to reflect that. — done, and now moot: the interim label shipped in `dd04523` and was replaced once real verification landed in this same session.
+- `npm run smoke:stock-arb` is extended to cover round-trip verification. — done: checks every row has a defined, positive `netSpreadPct` no greater than `grossSpreadPct`, and that the diagnostic impact fields are present.
+- Smoke-tested against live LI.FI/CoinGecko data before merging. — **not done; blocked**, same sandbox restriction as every prior phase. This is now the second network call in the pipeline (bridge quotes are a new code path, never exercised against live LI.FI) — treat it as *less* proven than Phase 3's original buy-only probe, not equally proven, until `npm run smoke:stock-arb` has actually run somewhere with egress.
+
+## Open Questions (Phase 3b, answered by what got built)
+- **Product/Engineering — what does "round trip" mean?** Resolved by asking: bridge the actual purchased token, via one cross-chain LI.FI quote (see round-trip model above).
+- **Engineering — does the top-12 cap still hold with doubled calls?** No — tightened to 8, cache TTL raised to 10 minutes.
+- **Data — concurrent vs. sequential buy/sell probes, given price-drift risk between them?** Currently sequential *within* a candidate (bridge quote needs the buy quote's actual output amount as input) but candidates run concurrently with each other via `Promise.all`. Drift between the two sequential quotes for one candidate is real and unmeasured — this is exactly the P1 "timestamp both probes and flag delay" item above, not yet built.
 
 ---
 

@@ -3,7 +3,7 @@ import { usdcOnStockChain, type StockChainId } from '@/lib/config/lifi';
 import { fetchLifiQuote, fetchStockCatalog, withStockMarketCaps, type StockToken } from '@/lib/lifi/stocks';
 
 /**
- * Cross-chain spread detection for tokenized stocks (BUILD_SPEC Phase 3).
+ * Cross-chain spread detection for tokenized stocks (BUILD_SPEC Phase 3 + Phase 3b).
  *
  * A token's chain instances are grouped by CoinGecko's `cgeckoId` — proven-same-asset
  * identity from Phase 1's address-keyed match — never by ticker symbol. Grouping by
@@ -12,32 +12,50 @@ import { fetchLifiQuote, fetchStockCatalog, withStockMarketCaps, type StockToken
  * CoinGecko match therefore cannot appear in this view — there is no verified identity
  * to group it by, so it is correctly excluded rather than guessed into a group.
  *
- * The spread itself compares LI.FI's own priceUSD across chains for the same asset —
- * CoinGecko has one global spot price per coin, not a per-chain one, so it is not the
- * signal here; it is Phase 1's divergence check instead (StockToken#priceDivergencePct),
- * which is cross-*source* (LI.FI vs CoinGecko, same chain), not cross-*chain*.
- *
- * Two-stage pipeline, per the spec's suggested sequencing:
+ * Three-stage pipeline:
  *   1. computeRawArbRows — sync, free, grouping + gross spread from data already fetched.
- *   2. enrichArbRows — async, fires a real LI.FI quote per candidate row (bounded to the
- *      top ARB_ENRICH_LIMIT by gross spread) to get a fee + price-impact based net spread
- *      and liquidity read. This is the only part of Phase 3 that makes new network calls,
- *      and the least-tested: it has never run against live LI.FI data (see CLAUDE.md).
+ *      Output: StockArbCandidate[] (a raw, unverified price signal only).
+ *   2. enrichArbRows — async. For each candidate (bounded to the top ARB_ENRICH_LIMIT by
+ *      gross spread), fires a real LI.FI quote to BUY the low leg with a $1,000 probe,
+ *      then — Phase 3b — a second, *cross-chain* LI.FI quote that bridges the tokens that
+ *      quote would actually produce from the low leg's chain to USDC on the high leg's
+ *      chain. That second quote's own routing already accounts for bridge fees and
+ *      sell-side slippage in one number, so `netSpreadPct` below is a genuine round-trip
+ *      figure — not the buy-only estimate Phase 3 shipped first (see CLAUDE.md
+ *      2026-09-05 for why that shipped mislabeled and got fixed before this).
+ *   3. Only candidates that clear BOTH legs' liquidity/impact threshold and end up with a
+ *      positive net spread become a StockArbRow at all — anything else is dropped, not
+ *      marked. This is a deliberate departure from Phase 1's "never silently drop a row"
+ *      stance: a half-verified round-trip number is not a smaller version of the real
+ *      thing, it is a different, misleading claim (see Phase 3b's acceptance criteria —
+ *      "a verified buy leg with an unverified sell leg is not enough to show a number").
+ *
+ * What this still does NOT do: execute the second leg. `StockSwapModal` (Phase 2) only
+ * ever signs a same-chain swap. After buying the cheap leg, actually bridging it to the
+ * expensive chain and selling there is not yet a button in this app — see the "Buy
+ * cheaper leg" copy in StockArbPanel.tsx. The number here is a verified quote, not a
+ * verified user flow end-to-end.
  */
 
-/** Below this gross spread, treat it as noise — not worth the cost of an enrichment quote. */
+/** Below this gross spread, treat it as noise — not worth the cost of two probe quotes. */
 export const MIN_SPREAD_PCT = 0.5;
 
-/** Only fire enrichment quotes for the top N raw rows by gross spread, to bound LI.FI calls. */
-export const ARB_ENRICH_LIMIT = 12;
+/**
+ * Only fire probe quotes for the top N raw candidates by gross spread. Phase 3b doubled
+ * the external calls per candidate (a buy quote, then — only if that clears the liquidity
+ * bar — a cross-chain bridge/sell quote), so this was tightened from Phase 3's original 12.
+ */
+export const ARB_ENRICH_LIMIT = 8;
 
-/** Notional size (whole USD) used to probe each low leg's buy-side price impact and fee. */
+/** Notional size (whole USD) used to probe both legs' price impact and fees. */
 export const ARB_PROBE_NOTIONAL_USD = 1000;
 
 /**
- * Above this price impact (probe notional vs. the leg's own listed spot price), treat the
- * leg as too thin to trust at meaningful size. This is a real quote-derived number, not a
- * proxy — but it is still only one quote at one size, not verified pool depth.
+ * Above this price impact (a probe quote's implied price vs. that leg's own listed spot
+ * price), treat the leg as too thin to trust at meaningful size. Applied to both the buy
+ * leg and the bridge/sell leg independently — either one failing this bar drops the row.
+ * This is a real quote-derived number, not a proxy, but it is still only one quote at one
+ * size on one snapshot in time, not verified pool depth.
  */
 export const MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY = 1.5;
 
@@ -59,48 +77,49 @@ export interface StockArbLeg {
   priceUsd: number;
 }
 
-export interface StockArbRow {
+/** Raw, unverified grouping output — stage 1. Never shown to users directly. */
+export interface StockArbCandidate {
   cgeckoId: string;
   symbol: string;
   name: string;
   legs: StockArbLeg[];
-  /** The more expensive chain instance. */
   highLeg: StockArbLeg;
-  /** The cheaper chain instance — the actionable "buy" side given this app's single-chain swap flow. */
   lowLeg: StockArbLeg;
-  /** (highLeg - lowLeg) / lowLeg, in percent. Raw, before fees or price impact. */
+  /** (highLeg - lowLeg) / lowLeg, in percent. Raw, before any quote/fee/impact verification. */
   grossSpreadPct: number;
-  /**
-   * grossSpreadPct minus the LI.FI-quoted fee and any adverse price impact buying the low
-   * leg at ARB_PROBE_NOTIONAL_USD. Undefined until enrichment succeeds — never fabricated
-   * as equal to gross, and never defaulted to 0 fees on a failed quote.
-   */
-  netSpreadPct?: number;
-  /** Percent of the probe notional LI.FI quoted as fee, when enrichment succeeded. */
-  feePctOfNotional?: number;
-  /** Implied price impact vs. the leg's own listed price, when enrichment succeeded. Positive = adverse. */
-  priceImpactPct?: number;
-  /**
-   * True only once enrichArbRows has run a real quote for this row. False means
-   * netSpreadPct/priceImpactPct are unset and liquidityOk should be read as "unknown," not
-   * "bad" — either the row wasn't in the top ARB_ENRICH_LIMIT, or the quote failed.
-   */
-  enrichmentVerified: boolean;
-  /** True only when enrichmentVerified and priceImpactPct is within MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY. */
-  liquidityOk: boolean;
-  /** CoinGecko 24h volume for the matched coin, when parseable. Context only — does not gate liquidityOk. */
   volume24hUsd?: number;
-  /** True when either leg's CoinGecko match is flagged stale (see MARKET_DATA_STALE_MINUTES). */
   matchStale: boolean;
+}
+
+/**
+ * A fully round-trip-verified spread — every row that made it out of `enrichArbRows` has
+ * already cleared both legs' liquidity gate and has a positive `netSpreadPct`. There is no
+ * "unverified" or "non-executable" variant of this type; a candidate that doesn't qualify
+ * is dropped before it ever becomes one of these (see the module doc comment for why).
+ */
+export interface StockArbRow extends StockArbCandidate {
+  /**
+   * True round-trip spread in percent: buy the low leg with $ARB_PROBE_NOTIONAL_USD of
+   * USDC, then bridge the tokens that quote actually returns to the high leg's chain and
+   * swap to USDC there in a single cross-chain LI.FI quote. (proceeds - notional) /
+   * notional. Always positive on a returned row.
+   */
+  netSpreadPct: number;
+  /** Implied price impact vs. the low leg's listed price on the buy quote. Positive = adverse. Diagnostic. */
+  buyLegPriceImpactPct: number;
+  /** Implied price impact vs. the high leg's listed price on the bridge/sell quote. Positive = adverse. Diagnostic. */
+  bridgeLegPriceImpactPct: number;
+  /** LI.FI's chosen route for the bridge/sell leg (e.g. "across", "stargate"), when reported. Diagnostic. */
+  bridgeTool?: string;
 }
 
 /**
  * Sync grouping + gross spread from an already CoinGecko-matched catalog (i.e. the output
  * of `withStockMarketCaps`). Pass the full multi-chain catalog, not a chain-filtered or
  * `preferOneChainPerSymbol`-deduped view — the whole point is comparing chain instances
- * against each other. Rows are not yet fee/liquidity-verified — see enrichArbRows.
+ * against each other. Output is unverified — see enrichArbRows.
  */
-export function computeRawArbRows(tokens: StockToken[]): StockArbRow[] {
+export function computeRawArbRows(tokens: StockToken[]): StockArbCandidate[] {
   const groups = new Map<string, StockToken[]>();
   for (const token of tokens) {
     if (!token.cgeckoId) continue;
@@ -110,7 +129,7 @@ export function computeRawArbRows(tokens: StockToken[]): StockArbRow[] {
     else groups.set(token.cgeckoId, [token]);
   }
 
-  const rows: StockArbRow[] = [];
+  const rows: StockArbCandidate[] = [];
   for (const [cgeckoId, group] of groups) {
     if (group.length < 2) continue;
     const legs: StockArbLeg[] = group.map((t) => ({
@@ -139,8 +158,6 @@ export function computeRawArbRows(tokens: StockToken[]): StockArbRow[] {
       highLeg,
       lowLeg,
       grossSpreadPct,
-      enrichmentVerified: false,
-      liquidityOk: false,
       volume24hUsd,
       matchStale: group.some((t) => t.capStale === true),
     });
@@ -150,60 +167,84 @@ export function computeRawArbRows(tokens: StockToken[]): StockArbRow[] {
   return rows;
 }
 
-async function enrichArbRow(row: StockArbRow): Promise<StockArbRow> {
-  const usdc = usdcOnStockChain(row.lowLeg.chainId);
-  if (!usdc) return row;
+async function verifyArbCandidate(candidate: StockArbCandidate): Promise<StockArbRow | null> {
+  const buyUsdc = usdcOnStockChain(candidate.lowLeg.chainId);
+  const sellUsdc = usdcOnStockChain(candidate.highLeg.chainId);
+  if (!buyUsdc || !sellUsdc) return null;
+
   try {
-    const quote = await fetchLifiQuote({
-      chainId: row.lowLeg.chainId,
-      fromToken: usdc,
-      toToken: row.lowLeg.address,
+    // Leg 1: buy the cheap leg on its own chain with a $1,000 USDC probe.
+    const buyQuote = await fetchLifiQuote({
+      chainId: candidate.lowLeg.chainId,
+      fromToken: buyUsdc,
+      toToken: candidate.lowLeg.address,
       fromAmount: ARB_PROBE_USDC_RAW,
       fromAddress: ARB_QUOTE_PROBE_ADDRESS,
     });
-    if (!quote) return row;
-    const toAmountFloat = Number(quote.toAmount) / 10 ** quote.toDecimals;
-    if (!Number.isFinite(toAmountFloat) || toAmountFloat <= 0) return row;
+    if (!buyQuote || buyQuote.toAmount <= 0n) return null;
 
-    const impliedPriceUsd = ARB_PROBE_NOTIONAL_USD / toAmountFloat;
-    const priceImpactPct = ((impliedPriceUsd - row.lowLeg.priceUsd) / row.lowLeg.priceUsd) * 100;
-    const feePctOfNotional =
-      quote.protocolFeeUsd !== undefined ? (quote.protocolFeeUsd / ARB_PROBE_NOTIONAL_USD) * 100 : 0;
-    const netSpreadPct = row.grossSpreadPct - feePctOfNotional - Math.max(0, priceImpactPct);
+    const tokensBoughtFloat = Number(buyQuote.toAmount) / 10 ** buyQuote.toDecimals;
+    if (!Number.isFinite(tokensBoughtFloat) || tokensBoughtFloat <= 0) return null;
+
+    // Paying more per token than the leg's own listed price is adverse — positive = worse.
+    const buyImpliedPriceUsd = ARB_PROBE_NOTIONAL_USD / tokensBoughtFloat;
+    const buyLegPriceImpactPct =
+      ((buyImpliedPriceUsd - candidate.lowLeg.priceUsd) / candidate.lowLeg.priceUsd) * 100;
+    if (buyLegPriceImpactPct > MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY) return null;
+
+    // Leg 2 (Phase 3b): bridge the tokens leg 1 would actually produce to the expensive
+    // chain and swap to USDC there, in one cross-chain quote — this is what makes
+    // netSpreadPct a real round-trip figure instead of a buy-only estimate.
+    const bridgeQuote = await fetchLifiQuote({
+      chainId: candidate.lowLeg.chainId,
+      toChainId: candidate.highLeg.chainId,
+      fromToken: candidate.lowLeg.address,
+      toToken: sellUsdc,
+      fromAmount: buyQuote.toAmount,
+      fromAddress: ARB_QUOTE_PROBE_ADDRESS,
+    });
+    if (!bridgeQuote || bridgeQuote.toAmount <= 0n) return null;
+
+    const proceedsUsd = Number(bridgeQuote.toAmount) / 10 ** bridgeQuote.toDecimals;
+    if (!Number.isFinite(proceedsUsd) || proceedsUsd <= 0) return null;
+
+    // Receiving less per token than the leg's own listed price is adverse here — same
+    // "positive = worse" convention as the buy leg, against the same listed-price basis.
+    const bridgeImpliedSellPriceUsd = proceedsUsd / tokensBoughtFloat;
+    const bridgeLegPriceImpactPct =
+      ((candidate.highLeg.priceUsd - bridgeImpliedSellPriceUsd) / candidate.highLeg.priceUsd) * 100;
+    if (bridgeLegPriceImpactPct > MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY) return null;
+
+    const netSpreadPct = ((proceedsUsd - ARB_PROBE_NOTIONAL_USD) / ARB_PROBE_NOTIONAL_USD) * 100;
+    if (netSpreadPct <= 0) return null;
 
     return {
-      ...row,
+      ...candidate,
       netSpreadPct,
-      feePctOfNotional,
-      priceImpactPct,
-      enrichmentVerified: true,
-      liquidityOk: priceImpactPct <= MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY,
+      buyLegPriceImpactPct,
+      bridgeLegPriceImpactPct,
+      bridgeTool: bridgeQuote.tool,
     };
   } catch {
-    return row;
+    return null;
   }
 }
 
 /**
- * Fee/liquidity-verify the top ARB_ENRICH_LIMIT raw rows by gross spread. Rows beyond that
- * limit, or whose quote failed, come back unchanged (enrichmentVerified: false) rather than
- * guessed — the UI must treat those as "not verified," not "bad." A row with a *verified*
- * net spread at or below zero is dropped entirely: at that point it is not an opportunity,
- * just noise (per the spec's acceptance criteria — unverified rows are not held to this,
- * since we don't yet know their real net spread).
+ * Round-trip-verify the top ARB_ENRICH_LIMIT raw candidates by gross spread. A candidate
+ * that fails either leg's quote, either leg's liquidity gate, or ends up net non-positive
+ * is dropped entirely — see the module doc comment for why this departs from Phase 1's
+ * "mark, don't hide" stance. Candidates beyond the limit are dropped too, unverified.
  */
-export async function enrichArbRows(rows: StockArbRow[]): Promise<StockArbRow[]> {
-  const toEnrich = rows.slice(0, ARB_ENRICH_LIMIT);
-  const rest = rows.slice(ARB_ENRICH_LIMIT);
-  const enriched = await Promise.all(toEnrich.map(enrichArbRow));
-  const combined = [...enriched, ...rest].filter(
-    (row) => !(row.enrichmentVerified && row.netSpreadPct !== undefined && row.netSpreadPct <= 0),
-  );
-  combined.sort((a, b) => (b.netSpreadPct ?? b.grossSpreadPct) - (a.netSpreadPct ?? a.grossSpreadPct));
-  return combined;
+export async function enrichArbRows(candidates: StockArbCandidate[]): Promise<StockArbRow[]> {
+  const toVerify = candidates.slice(0, ARB_ENRICH_LIMIT);
+  const settled = await Promise.all(toVerify.map(verifyArbCandidate));
+  const rows = settled.filter((row): row is StockArbRow => row !== null);
+  rows.sort((a, b) => b.netSpreadPct - a.netSpreadPct);
+  return rows;
 }
 
-const ARB_CACHE_TTL_MS = 5 * 60 * 1000;
+const ARB_CACHE_TTL_MS = 10 * 60 * 1000;
 let arbCache: { rows: StockArbRow[]; fetchedAt: number } | null = null;
 let arbInflight: Promise<StockArbRow[]> | null = null;
 
@@ -213,10 +254,10 @@ async function buildArbRows(): Promise<StockArbRow[]> {
 }
 
 /**
- * Cached, enriched cross-chain spread rows. 5-minute TTL (shorter than the catalog's own
- * cache — this fires real LI.FI quotes, which are more expensive/rate-limit-sensitive than
- * a catalog read) with an in-flight guard and stale-cache fallback, same pattern as
- * lib/lifi/marketCap.ts.
+ * Cached, round-trip-verified cross-chain spread rows. 10-minute TTL — longer than
+ * Phase 3's original 5 minutes, since Phase 3b roughly doubled the external LI.FI calls
+ * per build (a buy quote, then a bridge quote, per candidate) — with an in-flight guard
+ * and stale-cache fallback, same pattern as lib/lifi/marketCap.ts.
  */
 export async function fetchStockArbRows(): Promise<StockArbRow[]> {
   if (arbCache && Date.now() - arbCache.fetchedAt < ARB_CACHE_TTL_MS) return arbCache.rows;

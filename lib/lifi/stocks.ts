@@ -68,7 +68,10 @@ export const STOCK_TAPE_SIZE = 50;
 const CHAIN_PREFERENCE: StockChainId[] = [8453, 42161, 1];
 
 export interface LifiQuote {
+  /** The chain the wallet signs and sends the transaction on. */
   chainId: StockChainId;
+  /** The chain the swap/bridge settles on. Equals `chainId` for a same-chain quote. */
+  toChainId: StockChainId;
   to: `0x${string}`;
   data: `0x${string}`;
   value: bigint;
@@ -272,14 +275,17 @@ function parseAmount(raw: unknown): bigint | null {
 
 export async function fetchLifiQuote(params: {
   chainId: StockChainId;
+  /** Destination chain. Omit for a same-chain swap — this is the common case (Phase 2). */
+  toChainId?: StockChainId;
   fromToken: `0x${string}`;
   toToken: `0x${string}`;
   fromAmount: bigint;
   fromAddress: `0x${string}`;
 }): Promise<LifiQuote | null> {
+  const toChainId = params.toChainId ?? params.chainId;
   const qs = new URLSearchParams({
     fromChain: String(params.chainId),
-    toChain: String(params.chainId),
+    toChain: String(toChainId),
     fromToken: params.fromToken,
     toToken: params.toToken,
     fromAmount: params.fromAmount.toString(),
@@ -293,10 +299,14 @@ export async function fetchLifiQuote(params: {
   });
   if (!res.ok) return null;
   const json = (await res.json()) as Record<string, unknown>;
-  return parseLifiQuote(json, params.chainId);
+  return parseLifiQuote(json, params.chainId, toChainId);
 }
 
-function parseLifiQuote(json: Record<string, unknown>, chainId: StockChainId): LifiQuote | null {
+function parseLifiQuote(
+  json: Record<string, unknown>,
+  chainId: StockChainId,
+  toChainId: StockChainId,
+): LifiQuote | null {
   const tx = json.transactionRequest;
   const estimate = json.estimate;
   const action = json.action;
@@ -344,6 +354,7 @@ function parseLifiQuote(json: Record<string, unknown>, chainId: StockChainId): L
 
   return {
     chainId,
+    toChainId,
     to,
     data,
     value,
