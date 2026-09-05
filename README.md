@@ -388,8 +388,21 @@ still finds names outside that list. Nothing is featured as a pick.
 - **Issuers shown:** xStocks, Ondo Tokenized, Backed — classified from LI.FI's catalog
   names (LI.FI has no public `stock` tag; only `stablecoin` is documented). Ambiguous
   names are skipped, not guessed. A row without a parseable `priceUSD` is skipped.
-  Market cap and 24h % come from CoinGecko's `tokenized-stock` markets, matched by
-  symbol; skip rather than guess if CoinGecko is down or a field does not parse.
+- **Market data integrity (BUILD_SPEC Phase 1):** cap and 24h % come from CoinGecko's
+  `tokenized-stock` category, matched onto the LI.FI catalog by **{chain, contract
+  address}** — not by ticker symbol. Symbol-only matching would silently misattribute
+  cap/price when two issuers wrap the same underlying stock under the same ticker (e.g.
+  multiple wrapped TSLA products). The address map is built at fetch time from
+  CoinGecko's own `/coins/list?include_platform=true` platform data joined against the
+  `tokenized-stock` category by CoinGecko's own coin id — no contract address is
+  hand-typed into this codebase for it (`lib/lifi/marketCap.ts`). A LI.FI row with no
+  address match shows an explicit **"No cap data"** state on the tape rather than being
+  dropped; a cap older than `MARKET_DATA_STALE_MINUTES` (15 min, CoinGecko's own
+  `last_updated`) is marked **"stale"**. Each row also shows a small price/cap source
+  footer (LI.FI vs. CoinGecko) since they are two different feeds, not one unified one.
+  `/admin/stocks` (password-gated, same as `/admin`) lists both directions of mismatch:
+  LI.FI rows with no CoinGecko address match, and CoinGecko tokenized-stock coins with
+  no address on Ethereum/Base/Arbitrum — visibility the tape itself doesn't surface.
 - **Swap:** USDC ↔ the selected token on the same chain. `POST /api/lifi/quote` calls
   LI.FI `/v1/quote`; the wallet signs `approve` (exact amount, never unlimited) then the
   returned `transactionRequest`. Openhand never holds the tokens. Addresses are
@@ -591,8 +604,10 @@ npm run dev
 | `components/InstallAppBanner.tsx` | Home-screen install prompt (Chrome) / Safari hint |
 | `lib/config/lifi.ts` | LI.FI API host, integrator name, stock chain IDs, Circle USDC lookup |
 | `lib/lifi/stocks.ts` | Catalog filter + quote parser. Skip on parse failure — never guess a price. |
-| `lib/lifi/marketCap.ts` | CoinGecko tokenized-stock caps for the dashboard top-50 tape |
+| `lib/lifi/marketCap.ts` | Address-keyed CoinGecko tokenized-stock caps (chain+contract, not symbol) + staleness flag |
 | `app/api/lifi/stocks/route.ts` | Cached stock catalog for the dashboard tape |
+| `app/api/admin/stocks-unmatched/route.ts` | Admin-only: LI.FI/CoinGecko rows the tape's mapping table can't currently join |
+| `app/admin/stocks/page.tsx` | Admin-only: unmatched-row visibility for the tokenized-stock tape (BUILD_SPEC Phase 1) |
 | `lib/lifi/crypto.ts` | CoinGecko top-50 mcap ∩ LI.FI tokens for the spot crypto tape |
 | `app/api/lifi/crypto/route.ts` | Cached crypto catalog |
 | `components/CryptoDesk.tsx` | Dashboard spot-crypto tape, sorted by 24h change |

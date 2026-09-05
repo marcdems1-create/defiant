@@ -576,4 +576,239 @@ Still ops, not code: corporate inbox, HubSpot integration checklist, KYB form wi
 `/partners` nature-of-business paragraph, Transak host allowlist, Vercel static IPs,
 SELL enabled, partner fee in Transak dashboard. Do not turn on `NEXT_PUBLIC_TREASURY_ADDRESS`.
 
+## Session update (2026-09-04) — RWA Terminal Phase 1: stock-tape data integrity
+
+Checked in `BUILD_SPEC.md` (the phased plan this session was given — Phase 1: data layer
+integrity, Phase 2: execution, Phase 3: cross-chain arb detection) so future sessions have
+it in-tree instead of only in an issue/PR description. Read it before touching the
+tokenized-stock tape further — it tracks P0/P1/P2 status per phase.
+
+Implemented Phase 1's P0 list against the existing LI.FI tokenized-stock tape
+(`components/StockDesk.tsx`):
+
+- **Address-keyed mapping, not symbol matching.** `lib/lifi/marketCap.ts` used to join
+  LI.FI catalog rows onto CoinGecko's `tokenized-stock` category by lowercased ticker
+  symbol — two issuers wrapping the same underlying stock under the same ticker would
+  silently misattribute cap/price to the wrong token. It now builds a
+  `{chainId}-{address}` → CoinGecko stats map at fetch time by joining CoinGecko's
+  `/coins/list?include_platform=true` (contract addresses per chain, per CoinGecko coin
+  id) against the `tokenized-stock` category (cap/24h%/`last_updated`) on CoinGecko's own
+  coin id. No contract address is hand-typed into this codebase for it — the map is data,
+  not authored addresses, so non-negotiable #5's "cite a verified source" doesn't apply
+  the way it does to `lib/config/addresses.ts`, but the mechanism is worth understanding
+  before changing it. `lib/lifi/stocks.ts#withStockMarketCaps` now looks up by
+  `${token.chainId}-${token.address.toLowerCase()}` instead of `token.symbol`.
+- **Staleness flag.** CoinGecko's own `last_updated` per row (not our fetch time) drives
+  `capStale`; `MARKET_DATA_STALE_MINUTES = 15`. Shown as a "· stale" badge next to the cap
+  in `StockDesk.tsx`, with the real timestamp in a tooltip.
+- **Unmatched rows are no longer silently dropped.** Two separate bugs fixed here:
+  (1) `StockDesk.tsx`'s default (no-search) filter used to require
+  `t.marketCapUsd !== undefined`, i.e. it hid every row without a CoinGecko match from the
+  default tape view entirely — removed; the existing cap-first sort
+  (`compareStockTape`) still puts capped rows first, uncapped ones just aren't hidden
+  outright anymore. (2) Uncapped rows now render an explicit **"No cap data"** state
+  instead of the old ambiguous "LI.FI last" label.
+- **Admin visibility.** `/admin/stocks` (password-gated via the existing `isAdminSession()`
+  cookie/middleware pattern, same as `/admin`) lists both directions of mismatch: LI.FI
+  rows classified as a stock/ETF with no CoinGecko address match, and CoinGecko
+  `tokenized-stock` coins with no contract address on Ethereum/Base/Arbitrum (usually
+  non-EVM issuance, e.g. Solana-only). Backed by
+  `app/api/admin/stocks-unmatched/route.ts`. Linked from the main `/admin` dashboard.
+- **Per-row source attribution.** Each tape row now shows a small footer — "Price · LI.FI"
+  or "Price · LI.FI · Cap · CoinGecko" — so it's visually explicit these are two different
+  feeds being joined, not one unified one.
+- **Cache layer (P1, done alongside P0 since the address map is one large
+  `/coins/list?include_platform=true` payload).** 10-minute in-memory cache
+  (`lib/lifi/marketCap.ts`), with an in-flight-request guard so concurrent requests don't
+  trigger duplicate CoinGecko calls, and stale-cache fallback if a refresh fetch fails.
+
+Not done from Phase 1: the P1 "flag LI.FI vs. CoinGecko price divergence >X%" cross-check
+(this is also the Phase 3 arb signal — worth building once Phase 1's address map is
+trusted in production) and the P2 "move off CoinGecko's free tier" question (revisit once
+there's revenue). `npm run typecheck` and `npm run build` both pass clean. Not
+transaction-tested and not live-verified against CoinGecko/LI.FI from this sandbox (same
+network-reachability caveat as the original Yearn/Curve integrations, "Current state"
+above) — smoke-test the `/coins/list?include_platform=true` join and the "No cap data" /
+"stale" UI states against the live tape before trusting them for a real launch.
+
+Phase 2 (execution) is largely already built on top of the tape this session touched —
+wallet connect, per-row LI.FI quote with an explicit confirm step, route/fee display, and
+mainnet-gating all exist in `components/StockSwapModal.tsx` already. See the note left in
+`BUILD_SPEC.md` under Phase 2.
+
+## Session update (2026-09-04, continued) — live-join blocker + Phase 3 arb detection
+
+Was asked to smoke-test the Phase 1 CoinGecko/LI.FI join against live data before doing
+anything else. Confirmed by hand (`curl` through the sandbox's egress proxy) that this
+sandbox blocks **both** `api.coingecko.com` and `li.quest` outright (403 on CONNECT,
+`connect_rejected` per `/__agentproxy/status`) — the exact same class of restriction
+already on record in this file for `ydaemon.yearn.fi`/`api.curve.finance`. The address
+join has still never run against live data. Do not re-attempt this smoke test from a
+Claude Code **sandbox** session — it will hit the same block. It needs to run somewhere
+with real egress: `npm run smoke:stocks` (added this session,
+`scripts/smoke-stock-market-data.mjs`, now also a step in `production-smoke.yml`) hits
+the public `/api/lifi/stocks` route and fails if the unmatched or stale ratio looks
+structurally broken rather than like normal coverage gaps (a handful of unmatched rows is
+expected — non-EVM issuance, thin/delisted names; see `/admin/stocks`). **Run
+`npm run smoke:stocks` against production, or open `/admin/stocks`, before trusting the
+Phase 1 mapping table or building further on top of it.**
+
+Added the Phase 1 P1 divergence check that was skipped in the first pass, since it's also
+Phase 3's prerequisite: `StockToken#priceDivergencePct` (`lib/lifi/stocks.ts`) compares
+LI.FI's `priceUsd` against CoinGecko's own spot price (`current_price`, now captured
+alongside `total_volume` in `lib/lifi/marketCap.ts`) for the same matched coin, flagged at
+`PRICE_DIVERGENCE_FLAG_PCT = 1.5`. Surfaced in a new `/admin/stocks` table — a run where
+many rows diverge by a similar amount would mean the join is wrong (e.g. a platform id
+mapped to the wrong chain), not that every token individually mispriced.
+
+Built Phase 3 P0 (cross-chain spread detection) on top of that:
+
+- `lib/lifi/stockArb.ts#computeStockArbRows` groups a token's chain instances by
+  CoinGecko's `cgeckoId` — Phase 1's proven-same-asset identity — **never** by ticker
+  symbol, so this doesn't inherit the exact misattribution risk Phase 1 fixed. It compares
+  LI.FI's own `priceUsd` *across chains* for that asset (this is the cross-chain signal;
+  Phase 1's `priceDivergencePct` above is the cross-*source*, same-chain signal — they are
+  not the same check). `MIN_SPREAD_PCT = 0.5` filters noise; rows sort by spread desc.
+- `MIN_24H_VOLUME_USD = 50_000` is the "minimum-liquidity filter" the spec asks for, using
+  CoinGecko's global 24h volume as a coarse proxy — this is **not** on-chain DEX depth on
+  either leg's specific chain, since no real per-chain liquidity source exists in this app
+  yet. Rows below it are kept visible but marked "Non-executable" with the trade button
+  disabled, rather than dropped outright, matching the Phase 1 "never silently drop a row"
+  fix earlier in this same file.
+- `components/StockArbPanel.tsx` renders the top spreads inside `StockDesk`, fed the full
+  un-deduped multi-chain catalog (not the chain/issuer-filtered, `preferOneChainPerSymbol`
+  view used by the main tape — arb needs to see every chain instance at once). "Buy cheaper
+  leg" opens the existing `StockSwapModal` pre-filled with the lower-priced chain instance —
+  there is no cross-chain atomic execution in this app, so the actionable half of "capture
+  the spread" is buying the underpriced leg, not an automated round-trip.
+
+Not done: Phase 3's two P1 nice-to-haves (historical spread chart, threshold alerts) and
+live verification of any of this — same sandbox network block as above. `npm run
+typecheck`, `npm run lint`, and `npm run build` all pass clean. Before trusting the arb
+panel's numbers: confirm the Phase 1 join first (see above), then sanity-check a handful
+of `computeStockArbRows` outputs by hand against LI.FI's actual per-chain prices.
+
+## Session update (2026-09-05) — Phase 3 rebuilt against a fuller spec
+
+Was handed a materially more detailed Phase 3 spec than the terse bullets in the original
+`BUILD_SPEC.md` (now folded in, replacing that section — read it there, not here, for the
+full acceptance criteria). Reconciled the prior day's first-pass Phase 3 work against it:
+
+- **Liquidity gate is now a real LI.FI quote, not the CoinGecko-volume proxy.**
+  `lib/lifi/stockArb.ts#enrichArbRows` fires one `/v1/quote` per candidate row (bounded to
+  the top `ARB_ENRICH_LIMIT = 12` by gross spread, to cap external calls) for a
+  `$1,000` probe buy of the low (cheap) leg, using `getAddress('0x...dead')` — a well-known
+  burn address — as the required `fromAddress`. It never signs or sends anything; it is a
+  GET-only quote call. The quote's implied execution price vs. that leg's own listed
+  `priceUsd` gives a real price-impact number (`priceImpactPct`); `protocolFeeUsd` gives
+  the fee. `MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY = 1.5` gates `liquidityOk`.
+- **Fee-adjusted net spread**, subtracting both of those from gross. Important limitation
+  that the spec's wording glossed over and this build states explicitly instead of
+  quietly assuming away: **there is no cross-chain execution in this app**, so
+  `netSpreadPct` only nets out the cost of *buying* the cheap leg — there's no sell-side
+  quote on the expensive leg to net against, so it is not a full round-trip P&L. Said
+  plainly in `lib/lifi/stockArb.ts` and in the panel's own copy so it doesn't read as a
+  bigger promise than it is.
+- **"Spread %" is now a real column + sort on the main tape** (`StockDesk.tsx`), not only
+  the separate panel from the first pass — `useStockArbRows()` (new hook,
+  `/api/lifi/stock-arb`, new route) attaches enriched rows onto matching tape rows by
+  `cgeckoId`, and a "Sort: Spread" pill sits next to the existing chain/issuer filters.
+  Kept the standalone `StockArbPanel` too (top-N summary) — the spec's acceptance
+  criteria describes a tape column, the original Phase 3 draft's panel is still a useful
+  "what are the biggest opportunities right now" view, and nothing about keeping both
+  conflicts with the new spec.
+- **Non-executable handling, per the acceptance criteria's own split:** a *verified*
+  net spread ≤ 0 is dropped from the result set entirely (`enrichArbRows` filters it out
+  — matches "excluded... entirely"). Everything else — thin liquidity, or enrichment
+  that wasn't attempted/failed — stays visible, clearly marked ("Non-executable" /
+  "Unverified"), never hidden. That split is deliberate: an *unverified* row's true net
+  spread isn't known, so excluding it outright would be guessing in the other direction.
+- **Staleness now inherited into the spread display**: `StockArbRow.matchStale` is true
+  when either leg's Phase 1 `capStale` flag is set, shown as a "stale match" badge.
+- New `npm run smoke:stock-arb` (`scripts/smoke-stock-arb.mjs`) — checks internal math
+  consistency (recomputes gross spread from each row's own legs, checks net ≤ gross,
+  checks the exclusion rule actually fired) and prints the top rows for a human to
+  eyeball against LI.FI directly. Deliberately **not** added to the scheduled
+  `production-smoke.yml` run (unlike `smoke:stocks`) — it fires real LI.FI quotes and is
+  the least-tested piece in this whole build; run it by hand when validating this
+  feature, not on an unattended 30-minute cron.
+
+**Still blocked, same as every prior note on this topic:** this sandbox has no route to
+`api.coingecko.com` or `li.quest`, so none of Phase 3 — the address grouping, the probe
+quotes, the fee/impact math — has run against live data. The acceptance criteria's own
+"manually verify 2-3 known multi-chain tokens" step has not happened and cannot happen
+from here. Run `npm run smoke:stock-arb` against production, or open the tape and sort by
+spread, before trusting any "executable" label this feature shows. `npm run typecheck`,
+`npm run lint`, and `npm run build` all pass clean.
+
+## Session update (2026-09-05, continued) — Phase 3b: round-trip spread verification
+
+Was handed a Phase 3b spec pointing at the exact gap the last update's own copy already
+half-admitted: Phase 3's "Spread %" only ever verified the *buy* leg. With no cross-chain
+execution in the app, that number wasn't actually capturable — showing "Spread %" for a
+half-verified figure was presenting an unverified claim as a verified one. Full detail is
+now in `BUILD_SPEC.md`'s "Phase 3b" section (the terse version below is not a substitute).
+
+**Did the spec's own step 1 immediately, before anything else:** relabeled the tape column,
+sort pill, and panel copy to say "buy-leg spread" / "not a round trip" (commit `dd04523`),
+so nothing misleading stayed live while the real fix was built.
+
+**Then asked, rather than assumed, the one genuinely open product question:** the spec's
+net-spread formula referenced a sell-leg quote and a conditional "bridge cost if
+applicable" without saying what actually moves — bridge the purchased token, or assume the
+user already holds capital on both chains. The spec itself flagged this as needing
+resolution before implementation, not discovery mid-build, so it went to
+`AskUserQuestion` instead of a guess. Answer: **bridge the actual purchased token.**
+
+**What got built**, per that answer:
+- `lib/lifi/stocks.ts#fetchLifiQuote` gained an optional `toChainId` param (defaults to
+  `chainId`, so every existing same-chain caller — the Phase 2 swap route, the Phase 3
+  buy-leg probe — is unaffected) and `LifiQuote` gained a `toChainId` field.
+- `lib/lifi/stockArb.ts#verifyArbCandidate` now does two sequential quotes per candidate:
+  the existing $1,000 buy-leg probe, then — only if that clears its own liquidity gate —
+  a single **cross-chain** LI.FI quote (`fromChain` = cheap leg, `toChain` = expensive leg,
+  `fromToken` = the token the buy quote would actually produce, `toToken` = USDC on the
+  expensive chain) using the buy quote's real `toAmount` as input. LI.FI's own routing
+  picks the bridge+swap path, so its output already nets out bridge cost and sell-side
+  slippage in one number — no separate "bridge_cost_if_applicable" line item needed; a
+  single combined quote is a more accurate answer to "what would I actually net" than
+  reassembling one from parts LI.FI has already jointly optimized.
+- `netSpreadPct` is now `(bridge-quote proceeds - $1,000) / $1,000` — a genuine round-trip
+  figure. "Spread %" is restored as the label (it's earned now) in both `StockDesk.tsx`
+  and `StockArbPanel.tsx`.
+- **Deliberate departure from Phase 1/Phase 3's "mark, don't hide" stance**: a candidate
+  that fails either leg's quote, either leg's liquidity gate (`buyLegPriceImpactPct` /
+  `bridgeLegPriceImpactPct`, both checked against the existing
+  `MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY`), or nets non-positive is **dropped entirely**, not
+  shown marked "unverified." Phase 3b's own acceptance criteria says so directly: "a
+  verified buy leg with an unverified sell leg is not enough to show a number." The
+  `enrichmentVerified`/`liquidityOk` fields from Phase 3 are gone — `StockArbRow` has no
+  unverified variant anymore; every row `fetchStockArbRows()` returns already cleared the
+  whole pipeline. This is a considered exception to the "never silently drop a row"
+  principle from earlier in this file, not a quiet regression of it — the reasoning is in
+  `lib/lifi/stockArb.ts`'s module doc comment and in `BUILD_SPEC.md`.
+- `ARB_ENRICH_LIMIT` cut from 12 to **8** (each candidate now costs up to two external
+  calls, not one — worst case 16 vs. the old 12) and the cache TTL raised from 5 to 10
+  minutes, since the whole build is now more expensive.
+- **What still doesn't exist: executing the second leg.** `StockSwapModal` only signs
+  same-chain swaps. "Buy cheaper leg" still only executes the buy; completing the verified
+  bridge+sell happens outside the app for now. Said explicitly in the panel copy and in
+  `BUILD_SPEC.md` rather than letting "round-trip verified" quietly imply "one-click round
+  trip" — building that execution flow is real fund-moving surface this sandbox can't
+  validate, and felt like the wrong thing to rush into the same commit as the verification
+  fix.
+- `npm run smoke:stock-arb` rewritten for the new contract: every returned row must have a
+  defined, positive `netSpreadPct` no greater than `grossSpreadPct`, plus the diagnostic
+  impact fields present. Zero rows is explicitly *not* treated as an automatic pass in the
+  script's own output — round-trip verification is a high bar, and zero could mean "no
+  opportunities" or "every candidate is silently erroring," which look identical without
+  a human checking.
+
+**Blocked, again, on the same thing:** this sandbox still has no route to
+`api.coingecko.com` or `li.quest`. The cross-chain bridge-quote code path is brand new and
+has *never* been exercised against live LI.FI — treat it as less proven than Phase 3's
+original buy-only probe, which was already unverified. `npm run typecheck`, `npm run
+lint`, and `npm run build` all pass clean. Run `npm run smoke:stock-arb` against
+production before trusting a single "round-trip verified" number this feature shows.
+
 
