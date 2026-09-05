@@ -11,8 +11,10 @@ import {
   type StockChainId,
 } from '@/lib/config/lifi';
 import { formatTokenAmount } from '@/lib/format';
+import { useStockArbRows } from '@/lib/hooks/useStockArbRows';
 import { useStockCatalog } from '@/lib/hooks/useStockCatalog';
 import { MARKET_DATA_STALE_MINUTES } from '@/lib/lifi/marketCap';
+import type { StockArbRow } from '@/lib/lifi/stockArb';
 import {
   STOCK_ISSUER_LABEL,
   STOCK_TAPE_SIZE,
@@ -80,11 +82,19 @@ export function StockDesk() {
   const { address, isConnected } = useAccount();
   const { data, isLoading, isError } = useStockCatalog();
   const tokens = useMemo(() => data ?? [], [data]);
+  const { data: arbData } = useStockArbRows();
+  const arbRows = useMemo(() => arbData ?? [], [arbData]);
+  const arbByCgeckoId = useMemo(() => {
+    const map = new Map<string, StockArbRow>();
+    for (const row of arbRows) map.set(row.cgeckoId, row);
+    return map;
+  }, [arbRows]);
   const mainnet = NETWORK_MODE === 'mainnet';
 
   const [query, setQuery] = useState('');
   const [issuer, setIssuer] = useState<StockIssuer | 'all'>('all');
   const [chainId, setChainId] = useState<StockChainId | 'all'>('all');
+  const [sortBySpread, setSortBySpread] = useState(false);
   const [active, setActive] = useState<{ token: StockToken; side: 'buy' | 'sell' } | null>(null);
 
   const filtered = useMemo(() => {
@@ -98,8 +108,18 @@ export function StockDesk() {
         STOCK_ISSUER_LABEL[t.issuer].toLowerCase().includes(q)
       );
     });
-    return [...scoped].sort(compareStockTape);
-  }, [tokens, query, issuer, chainId]);
+    if (!sortBySpread) return [...scoped].sort(compareStockTape);
+    return [...scoped].sort((a, b) => {
+      const aRow = a.cgeckoId ? arbByCgeckoId.get(a.cgeckoId) : undefined;
+      const bRow = b.cgeckoId ? arbByCgeckoId.get(b.cgeckoId) : undefined;
+      const aSpread = aRow ? aRow.netSpreadPct ?? aRow.grossSpreadPct : undefined;
+      const bSpread = bRow ? bRow.netSpreadPct ?? bRow.grossSpreadPct : undefined;
+      if (aSpread !== undefined && bSpread !== undefined && aSpread !== bSpread) return bSpread - aSpread;
+      if (aSpread !== undefined && bSpread === undefined) return -1;
+      if (aSpread === undefined && bSpread !== undefined) return 1;
+      return compareStockTape(a, b);
+    });
+  }, [tokens, query, issuer, chainId, sortBySpread, arbByCgeckoId]);
 
   const visible = useMemo(() => filtered.slice(0, PAGE_SIZE), [filtered]);
 
@@ -195,8 +215,12 @@ export function StockDesk() {
         </div>
       )}
 
-      {tokens.length > 0 && (
-        <StockArbPanel tokens={tokens} onTrade={(token, side) => setActive({ token, side })} />
+      {arbRows.length > 0 && (
+        <StockArbPanel
+          rows={arbRows}
+          tokens={tokens}
+          onTrade={(token, side) => setActive({ token, side })}
+        />
       )}
 
       <div className="flex flex-col gap-3">
@@ -227,6 +251,16 @@ export function StockDesk() {
             </Pill>
           ))}
         </div>
+        {arbRows.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <Pill active={!sortBySpread} onClick={() => setSortBySpread(false)}>
+              Sort: Cap
+            </Pill>
+            <Pill active={sortBySpread} onClick={() => setSortBySpread(true)}>
+              Sort: Spread
+            </Pill>
+          </div>
+        )}
       </div>
 
       {isLoading && <div className="text-ink/50 text-sm">Loading LI.FI catalog…</div>}
@@ -307,6 +341,23 @@ export function StockDesk() {
                 ) : (
                   <div className="font-mono text-sm text-ink/25">—</div>
                 )}
+              </div>
+              <div className="text-right shrink-0 min-w-[4.5rem]">
+                {(() => {
+                  const row = t.cgeckoId ? arbByCgeckoId.get(t.cgeckoId) : undefined;
+                  if (!row) return <div className="font-mono text-sm text-ink/25">—</div>;
+                  const displayPct = row.netSpreadPct ?? row.grossSpreadPct;
+                  return (
+                    <>
+                      <div className={`font-mono text-sm ${changeClass(displayPct)}`}>
+                        {formatChangePct(displayPct)}
+                      </div>
+                      <div className="text-[10px] uppercase tracking-wide text-ink/35">
+                        {row.enrichmentVerified ? 'spread · net' : 'spread · gross'}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               <button
                 type="button"

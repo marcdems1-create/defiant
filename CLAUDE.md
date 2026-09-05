@@ -688,4 +688,57 @@ typecheck`, `npm run lint`, and `npm run build` all pass clean. Before trusting 
 panel's numbers: confirm the Phase 1 join first (see above), then sanity-check a handful
 of `computeStockArbRows` outputs by hand against LI.FI's actual per-chain prices.
 
+## Session update (2026-09-05) — Phase 3 rebuilt against a fuller spec
+
+Was handed a materially more detailed Phase 3 spec than the terse bullets in the original
+`BUILD_SPEC.md` (now folded in, replacing that section — read it there, not here, for the
+full acceptance criteria). Reconciled the prior day's first-pass Phase 3 work against it:
+
+- **Liquidity gate is now a real LI.FI quote, not the CoinGecko-volume proxy.**
+  `lib/lifi/stockArb.ts#enrichArbRows` fires one `/v1/quote` per candidate row (bounded to
+  the top `ARB_ENRICH_LIMIT = 12` by gross spread, to cap external calls) for a
+  `$1,000` probe buy of the low (cheap) leg, using `getAddress('0x...dead')` — a well-known
+  burn address — as the required `fromAddress`. It never signs or sends anything; it is a
+  GET-only quote call. The quote's implied execution price vs. that leg's own listed
+  `priceUsd` gives a real price-impact number (`priceImpactPct`); `protocolFeeUsd` gives
+  the fee. `MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY = 1.5` gates `liquidityOk`.
+- **Fee-adjusted net spread**, subtracting both of those from gross. Important limitation
+  that the spec's wording glossed over and this build states explicitly instead of
+  quietly assuming away: **there is no cross-chain execution in this app**, so
+  `netSpreadPct` only nets out the cost of *buying* the cheap leg — there's no sell-side
+  quote on the expensive leg to net against, so it is not a full round-trip P&L. Said
+  plainly in `lib/lifi/stockArb.ts` and in the panel's own copy so it doesn't read as a
+  bigger promise than it is.
+- **"Spread %" is now a real column + sort on the main tape** (`StockDesk.tsx`), not only
+  the separate panel from the first pass — `useStockArbRows()` (new hook,
+  `/api/lifi/stock-arb`, new route) attaches enriched rows onto matching tape rows by
+  `cgeckoId`, and a "Sort: Spread" pill sits next to the existing chain/issuer filters.
+  Kept the standalone `StockArbPanel` too (top-N summary) — the spec's acceptance
+  criteria describes a tape column, the original Phase 3 draft's panel is still a useful
+  "what are the biggest opportunities right now" view, and nothing about keeping both
+  conflicts with the new spec.
+- **Non-executable handling, per the acceptance criteria's own split:** a *verified*
+  net spread ≤ 0 is dropped from the result set entirely (`enrichArbRows` filters it out
+  — matches "excluded... entirely"). Everything else — thin liquidity, or enrichment
+  that wasn't attempted/failed — stays visible, clearly marked ("Non-executable" /
+  "Unverified"), never hidden. That split is deliberate: an *unverified* row's true net
+  spread isn't known, so excluding it outright would be guessing in the other direction.
+- **Staleness now inherited into the spread display**: `StockArbRow.matchStale` is true
+  when either leg's Phase 1 `capStale` flag is set, shown as a "stale match" badge.
+- New `npm run smoke:stock-arb` (`scripts/smoke-stock-arb.mjs`) — checks internal math
+  consistency (recomputes gross spread from each row's own legs, checks net ≤ gross,
+  checks the exclusion rule actually fired) and prints the top rows for a human to
+  eyeball against LI.FI directly. Deliberately **not** added to the scheduled
+  `production-smoke.yml` run (unlike `smoke:stocks`) — it fires real LI.FI quotes and is
+  the least-tested piece in this whole build; run it by hand when validating this
+  feature, not on an unattended 30-minute cron.
+
+**Still blocked, same as every prior note on this topic:** this sandbox has no route to
+`api.coingecko.com` or `li.quest`, so none of Phase 3 — the address grouping, the probe
+quotes, the fee/impact math — has run against live data. The acceptance criteria's own
+"manually verify 2-3 known multi-chain tokens" step has not happened and cannot happen
+from here. Run `npm run smoke:stock-arb` against production, or open the tape and sort by
+spread, before trusting any "executable" label this feature shows. `npm run typecheck`,
+`npm run lint`, and `npm run build` all pass clean.
+
 

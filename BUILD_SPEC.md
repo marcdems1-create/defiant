@@ -87,18 +87,41 @@ gaps. **Run it (or check `/admin/stocks`) before trusting this mapping table.**
 
 **User story:** As a tape viewer, I want to see when the same tokenized stock is priced differently across chains, so I can capture the spread.
 
+**Non-Goals (this phase):**
+- Not a standalone arb bot / auto-execution — surfacing + one-click swap into the flagged leg only, user confirms manually.
+- Not covering single-chain-only assets.
+- Not modeling bridging time/settlement risk in the displayed spread, and not promising a captured round trip — see the "no cross-chain execution" caveat below.
+
 **Must-Have (P0):**
-- [x] For tokens listed on multiple chains, compute live spread and surface it, sorted highest-first. — `lib/lifi/stockArb.ts#computeStockArbRows`, rendered by `components/StockArbPanel.tsx` inside `StockDesk`. Groups chain instances by CoinGecko's `cgeckoId` (Phase 1's matched identity) rather than by ticker — see the module doc comment for why. Compares LI.FI's own `priceUsd` across a token's chain instances (CoinGecko has one global spot price per coin, not a per-chain one, so it isn't the signal here — Phase 1's `priceDivergencePct` is the cross-*source* signal instead; this is cross-*chain*).
-- [x] Minimum-liquidity filter. — `MIN_24H_VOLUME_USD` (CoinGecko 24h volume as a coarse proxy; **not** on-chain DEX depth on either leg's chain — no per-chain liquidity source exists in this app yet). Rows below it are kept visible but marked "Non-executable" with the trade button disabled, per the acceptance criteria's "excluded or clearly marked" — marking was chosen over exclusion to stay consistent with Phase 1's "never silently drop a row" fix.
-- [x] Direct link into the Phase 2 swap flow pre-filled with the higher-spread leg. — "Buy cheaper leg" opens `StockSwapModal` pre-filled with the lower-priced chain instance (the actionable side, since this app has no cross-chain atomic execution to also auto-sell the expensive leg).
+- [x] **Multi-chain grouping via the Phase 1 address-keyed identity, not symbol matching.** — `lib/lifi/stockArb.ts#computeRawArbRows` groups a token's chain instances by CoinGecko's `cgeckoId` (Phase 1's matched identity), never by ticker. A token with no CoinGecko match cannot appear here — there's no verified identity to group it by.
+- [x] **Gross spread computation** — `(highLeg.priceUsd - lowLeg.priceUsd) / lowLeg.priceUsd`, using LI.FI's own per-chain `priceUsd` (CoinGecko has one global price per coin, not a per-chain one, so it isn't the cross-chain signal — Phase 1's `priceDivergencePct` is the cross-*source* signal instead).
+- [x] **Liquidity floor filter, using a real LI.FI quote, not a proxy.** — `enrichArbRows` fires one `/v1/quote` per candidate row (top `ARB_ENRICH_LIMIT` by gross spread, to bound calls) for a `$1,000` probe buy of the low leg, and reads back the implied price impact vs. that leg's own listed price. `MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY = 1.5` gates `liquidityOk`. This replaced an earlier version that used CoinGecko's 24h volume as a coarse global proxy — the volume figure is still surfaced as context but no longer gates anything, since a real per-leg quote is exactly the "LI.FI quote depth" the spec asked for.
+- [x] **Fee-adjusted net spread** — same probe quote's `protocolFeeUsd` plus the price-impact figure above are both subtracted from gross spread to get `netSpreadPct`. **Caveat the spec doesn't have a clean answer for and this build doesn't paper over:** this app has no cross-chain atomic execution — there is no "sell on the other chain" leg to also quote and net out. `netSpreadPct` therefore only accounts for the cost of *acquiring* the cheap leg, not a full round trip. Treat it as "how much of the raw spread survives buying in," not "guaranteed profit if captured." Documented in `lib/lifi/stockArb.ts` and in-product copy.
+- [x] **New "Spread %" column + sort on the main tape.** — `StockDesk.tsx` fetches enriched rows via `useStockArbRows()`, attaches them to matching rows by `cgeckoId`, renders a Spread column (net when verified, gross-and-labeled-unverified otherwise), and adds a "Sort: Spread" pill next to the existing chain/issuer filters.
+- [x] **Swap CTA pre-filled with the lower-priced leg** — both the tape's existing per-row "Buy" button and the arb panel's "Buy cheaper leg" route into the existing `StockSwapModal` (Phase 2), pre-filled to the cheap leg's chain/token. No new execution path.
+- [x] **Non-executable state: marked, not hidden — chosen and applied consistently.** Two distinct cases, per the acceptance criteria's own split: (1) a *verified* net spread at or below zero is excluded from the result set entirely (matches "excluded... entirely" in the acceptance criteria — at that point there's nothing to show). (2) Positive spread but thin liquidity, or enrichment simply failed/wasn't attempted, stays visible and is clearly marked ("Non-executable" or "Unverified") rather than hidden, consistent with Phase 1's "never silently drop a row."
 
 **Nice-to-Have (P1):**
-- [ ] Historical spread chart per token (is this a persistent inefficiency or a one-off).
-- [ ] Alert/notification when a tracked token's spread crosses a user-set threshold.
+- [ ] Historical spread sparkline per token (persistent inefficiency vs. one-off).
+- [ ] User-configurable alert threshold.
+- [ ] Admin view of spread computation inputs, mirroring `/admin/stocks` — not built yet; `npm run smoke:stock-arb` covers the "is the math broken" question in the meantime.
+
+**Future Considerations (P2):**
+- [ ] Auto-execution with user-set limits — explicitly out of scope; not designed against.
+- [ ] Per-chain gas estimation added to the net figure (only the LI.FI-quoted swap fee + price impact are netted out today, not destination-chain gas).
 
 **Acceptance Criteria:**
-- Given a token trades on 2+ chains, when spread exceeds the liquidity-adjusted threshold, then it's surfaced and sortable on the main tape. — done (sorted by spread desc; "sortable column" was built as a ranked panel rather than a sortable table column since the main tape is one-row-per-symbol-per-chain-filter and arb needs the un-collapsed cross-chain view — see `StockArbPanel`).
-- Given a spread is below available liquidity to execute profitably after fees/slippage, when computed, then it is excluded or clearly marked non-executable. — done, marked (see above). Not yet verified against live data (same sandbox network block as Phase 1) or against real per-chain liquidity — the 24h-volume proxy is a known simplification, not a real depth check.
+- Given a token listed on 2+ chains with sufficient liquidity on both legs, when net spread (after fees) is positive and above the liquidity threshold, then it appears on the tape with a sortable spread % and a working swap CTA. — done, with the "both legs" liquidity check narrowed to the low (buy) leg only — there is no sell-side quote to check the high leg against, per the no-cross-chain-execution caveat above.
+- Given a token's gross spread is positive but liquidity is below threshold, when computed, then it does NOT appear in the actionable spread column, OR appears clearly marked non-executable. — **chose: marked, not hidden**, for consistency with Phase 1. Applied the same way in both `StockArbPanel` and the tape's Spread column.
+- Given fee-adjusted net spread is negative or zero, when computed, then the token is excluded from the spread column entirely. — done, but only for *verified* net spread (see above) — an unverified row (enrichment not attempted or the quote failed) is not held to this, since its true net spread isn't known.
+- Given the underlying CoinGecko/LI.FI mapping is stale, when spread is computed from stale data, then the display inherits/reflects that staleness. — done: `StockArbRow.matchStale` is true when either leg's `capStale` is set, shown as a "stale match" badge.
+- `npm run typecheck`, `npm run lint`, `npm run build` all pass clean. — done.
+- Smoke-test against live data before merging, the same discipline as Phase 1. — **not done; blocked**, same sandbox network restriction as Phase 1 (see the Phase 1 "Live verification status" note and `CLAUDE.md`). `npm run smoke:stock-arb` (`scripts/smoke-stock-arb.mjs`) automates the internal-consistency half of this (recomputes each row's math from its own legs, checks net ≤ gross, checks the exclusion rule was actually applied) and prints the top rows for the manual eyeball-2-3-known-tokens step this acceptance criterion asks for — that manual step still has to happen by a human (or session) with real network access before trusting the "executable" labels.
+
+## Open Questions (Phase 3, answered by what got built)
+- **Engineering — does LI.FI's quote endpoint expose liquidity/depth?** Not directly as a "depth" number, but its quoted output amount for a fixed probe size implies a price-impact figure, which is what got used. Never verified live — see the acceptance-criteria note above.
+- **Product — hide or mark illiquid spreads?** Marked, not hidden (see above) — chosen for consistency with Phase 1's data-integrity stance, not re-litigated per row.
+- **Data — starting liquidity threshold:** `MAX_PRICE_IMPACT_PCT_FOR_LIQUIDITY = 1.5` (percent price impact on a $1,000 probe). A real starting number as the spec asked for, but an arbitrary first guess, not a tuned one — revisit once this has run against live data.
 
 ---
 
