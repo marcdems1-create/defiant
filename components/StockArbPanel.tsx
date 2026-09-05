@@ -22,10 +22,12 @@ function formatPct(n: number): string {
 }
 
 /**
- * Cross-chain spread tape (BUILD_SPEC Phase 3). Same underlying stock, priced
- * differently by LI.FI on two chains. Not a recommendation, not an executed arb —
- * the app has no cross-chain atomic execution; the "Buy cheaper leg" action is a
- * same-chain swap into the lower-priced instance via the existing quote flow.
+ * Cross-chain price-gap tape (BUILD_SPEC Phase 3, pending Phase 3b round-trip
+ * verification). Same underlying stock, priced differently by LI.FI on two chains.
+ * Not a recommendation, not a verified arb — only the buy leg is quote-verified today;
+ * there is no sell/bridge quote and no cross-chain execution, so do not call this
+ * "Spread %" or imply a captured profit until Phase 3b lands. The "Buy cheaper leg"
+ * action is a same-chain swap into the lower-priced instance via the existing quote flow.
  *
  * `rows` come pre-computed (grouping + gross spread) and fee/liquidity-enriched
  * server-side (lib/lifi/stockArb.ts) — this component is purely presentational.
@@ -54,16 +56,18 @@ export function StockArbPanel({
   return (
     <div className="rounded-xl border border-border bg-white/[0.02] p-4 flex flex-col gap-3">
       <div>
-        <h3 className="text-sm font-medium">Cross-chain spread</h3>
+        <h3 className="text-sm font-medium">Cross-chain price gap (buy-leg only — not a round trip)</h3>
         <p className="text-xs text-ink/45 mt-1 leading-relaxed">
           Same tokenized stock, priced differently by LI.FI across chains — a reorder of
           live data, not a recommendation. Grouped by CoinGecko&apos;s coin id (Phase 1&apos;s
           matched identity), not by ticker, so this never mixes up two issuers&apos; products.
-          Net % is gross spread minus a real LI.FI quote&apos;s fee and price impact on a
-          $1,000 probe buy of the cheaper leg — not just the raw quote. Rows marked
-          &ldquo;unverified&rdquo; couldn&apos;t get that quote; treat their number as gross
-          only. There is no cross-chain auto-execution here — buying the cheap leg is the
-          actionable step, not a guaranteed round trip.
+          The % below only verifies the <strong>buy</strong> side: gross spread minus a real
+          LI.FI quote&apos;s fee and price impact on a $1,000 probe buy of the cheaper leg.
+          It does <strong>not</strong> verify a sell, a bridge, or any way to realize the gap —
+          this app has no cross-chain execution, so there is currently no quoted, verified
+          round trip. Read this as &ldquo;how cheap is the cheap leg, net of buying it,&rdquo;
+          not as a captured profit number. Rows marked &ldquo;unverified&rdquo; couldn&apos;t
+          get even that buy-side quote.
         </p>
       </div>
       <ul className="flex flex-col divide-y divide-border/60">
@@ -90,7 +94,7 @@ export function StockArbPanel({
               <div className="text-right shrink-0 min-w-[5rem]">
                 <div className="font-mono text-sm text-accent">{formatPct(displayPct)}</div>
                 <div className="text-[10px] uppercase tracking-wide text-ink/35">
-                  {row.enrichmentVerified ? 'net' : 'gross · unverified'}
+                  {row.enrichmentVerified ? 'buy-leg net' : 'buy-leg · unverified'}
                 </div>
               </div>
               {executable ? (

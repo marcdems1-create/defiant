@@ -257,7 +257,7 @@ export function StockDesk() {
               Sort: Cap
             </Pill>
             <Pill active={sortBySpread} onClick={() => setSortBySpread(true)}>
-              Sort: Spread
+              Sort: Buy-leg spread
             </Pill>
           </div>
         )}
@@ -353,7 +353,7 @@ export function StockDesk() {
                         {formatChangePct(displayPct)}
                       </div>
                       <div className="text-[10px] uppercase tracking-wide text-ink/35">
-                        {row.enrichmentVerified ? 'spread · net' : 'spread · gross'}
+                        {row.enrichmentVerified ? 'buy-leg spread' : 'buy-leg · unverified'}
                       </div>
                     </>
                   );
