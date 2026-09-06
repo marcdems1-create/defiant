@@ -16,6 +16,7 @@ import { useStockCatalog } from '@/lib/hooks/useStockCatalog';
 import { MARKET_DATA_STALE_MINUTES } from '@/lib/lifi/marketCap';
 import type { StockArbRow } from '@/lib/lifi/stockArb';
 import {
+  PRICE_DIVERGENCE_WARN_PCT,
   STOCK_ISSUER_LABEL,
   STOCK_TAPE_SIZE,
   compareStockTape,
@@ -172,9 +173,11 @@ export function StockDesk() {
           LI.FI&apos;s last mark; cap and 24h % are CoinGecko, matched to the exact contract
           address on the exact chain, not by ticker (two issuers can share a ticker). A row
           with no CoinGecko match shows &ldquo;No cap data&rdquo; instead of being dropped; a
-          cap older than {MARKET_DATA_STALE_MINUTES} minutes is marked &ldquo;stale&rdquo;. You
-          sign every swap. Openhand never holds the tokens. Availability varies by issuer and
-          jurisdiction.
+          cap older than {MARKET_DATA_STALE_MINUTES} minutes is marked &ldquo;stale&rdquo;, and a
+          listed price that disagrees with CoinGecko&apos;s own spot price by a lot is marked
+          &ldquo;price mismatch&rdquo; instead of trusted at face value — the swap flow always
+          re-quotes live before you sign. Openhand never holds the tokens. Availability varies
+          by issuer and jurisdiction.
         </p>
       </div>
 
@@ -327,6 +330,17 @@ export function StockDesk() {
                 <div className="text-[9px] text-ink/25">
                   Price · LI.FI{t.marketCapUsd !== undefined ? ' · Cap · CoinGecko' : ''}
                 </div>
+                {t.priceDivergencePct !== undefined &&
+                  Math.abs(t.priceDivergencePct) >= PRICE_DIVERGENCE_WARN_PCT && (
+                    <div
+                      className="text-[9px] text-danger/80 cursor-help"
+                      title={`LI.FI's listed price is ${Math.abs(t.priceDivergencePct).toFixed(0)}% ${
+                        t.priceDivergencePct > 0 ? 'above' : 'below'
+                      } CoinGecko's own spot price for this token. Confirm the actual swap quote before trusting this number.`}
+                    >
+                      ⚠ price mismatch
+                    </div>
+                  )}
               </div>
               <div className="text-right shrink-0 min-w-[4.25rem]">
                 {t.changePct24h !== undefined ? (

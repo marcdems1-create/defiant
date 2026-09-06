@@ -832,4 +832,48 @@ feature works should check `/api/lifi/stock-arb`'s raw JSON directly (`{"rows":[
 `{"rows":[]}`), not just eyeball the dashboard, since an empty result and a broken
 endpoint look identical in the UI.
 
+## Session update (2026-09-06) — live `/api/lifi/stocks` output reviewed; two fixes
+
+The repo owner hit production's `/api/lifi/stocks` directly and pasted the raw JSON back
+for review — the first real look at Phase 1's live output since PR #51 merged (see
+2026-09-05 note above; the two smoke scripts still had not been run). Two findings, both
+now fixed on this branch:
+
+1. **`scripts/smoke-stock-market-data.mjs`'s `MAX_UNMATCHED_RATIO = 0.5` was miscalibrated.**
+   Real production data shows the unmatched ratio running well above 50% — expected, not a
+   bug: Ondo Global Markets + xStocks + Backed between them cover close to the full US
+   equity universe on LI.FI's catalog, while CoinGecko's `tokenized-stock` category tracks
+   only a fraction of that (maybe 100-150 names). The script's ratio check was failing on
+   healthy coverage gaps, not real breakage. Fixed by raising the ratio ceiling to 0.97 and
+   adding a second, ratio-independent check (`MIN_ABSOLUTE_MATCHES = 5` on catalogs of
+   `MIN_ROWS_FOR_RATIO_CHECK = 20`+ rows) that actually catches the failure mode a ratio
+   can't: the join finding almost nothing at all (wrong CoinGecko platform-id strings, a
+   changed endpoint shape), independent of how large the catalog is.
+2. **LI.FI's own `priceUSD` is frequently and severely wrong for tokenized stocks, and this
+   was invisible to depositors.** The pasted production JSON showed `priceDivergencePct`
+   values (a field Phase 1 already computed) as high as +835% on at least one row (NVDAx).
+   That field was only ever surfaced in the admin divergence table
+   (`/admin/stocks`), tuned at `PRICE_DIVERGENCE_FLAG_PCT = 1.5%` for spotting a broken
+   *join* (many rows off by a similar amount). It was never shown to a depositor looking at
+   the public tape, who had no way to know a listed price might be wildly off. Fixed with a
+   second, higher, display-only threshold — `PRICE_DIVERGENCE_WARN_PCT = 10` in
+   `lib/lifi/stocks.ts` — and a "⚠ price mismatch" badge in `components/StockDesk.tsx`,
+   same "mark, don't hide" pattern as the existing `capStale` badge. Tooltip states the
+   actual divergence and direction. This is display-only: `StockSwapModal` already
+   re-quotes live at execution time regardless of the cached catalog's `priceUsd`, so this
+   was never a funds-safety gap — it was a discovery/trust gap (a depositor eyeballing the
+   tape had no way to know a number might be badly wrong before opening the swap modal).
+
+Both fixes are narrow and don't touch the underlying join, arb, or quote logic — this was
+about the display/monitoring layer catching up to what the live data already showed.
+`npm run typecheck`, `npm run lint`, and `npm run build` all pass clean. Still not
+verified: whether the new 0.97/absolute-match thresholds and the 10% warn threshold are
+themselves well-tuned in practice — both were picked from a single data pull, not a
+distribution. Run `npm run smoke:stocks` against production again and watch for either
+threshold tripping on genuinely healthy data, or the new badge appearing so often (or so
+rarely) that it stops being a useful signal — adjust the constants in
+`lib/lifi/stocks.ts` / `scripts/smoke-stock-market-data.mjs` if so. `npm run
+smoke:stock-arb` still has not been run against production — that gap from the prior
+entry is unchanged.
+
 
