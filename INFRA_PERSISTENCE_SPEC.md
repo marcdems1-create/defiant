@@ -145,3 +145,47 @@ verification computes a candidate) and any wiring into `production-smoke.yml` or
 `NEXT_PUBLIC_*`), run `migrations/003_agent_persistence.sql` against it by hand, and confirm
 `lib/agentDb.ts` connects — then this spec's step 2 (`data_health_snapshot` wiring) is
 unblocked, including resolving the write-path question above.
+
+## Status (2026-09-07, continued) — provisioning and live verification cannot happen from here
+
+Asked this session to provision the Railway database and check it live. Neither half of that
+is possible from a Claude Code sandbox, for two separate, unrelated reasons — not one thing
+blocking both:
+
+1. **Provisioning:** this sandbox has no Railway CLI, no `RAILWAY_*` credentials, and no
+   Railway MCP tool — confirmed by checking for all three. Every prior ops step in this repo
+   that needed a third-party dashboard (Vercel env vars, Privy app settings, Transak KYB/
+   allowlisting) has required the repo owner to act directly in that dashboard; Railway is no
+   different. **This has to happen in the Railway dashboard (or the Railway CLI on your own
+   machine), not from here.**
+2. **Live verification:** even with a connection string in hand, this sandbox's egress proxy
+   explicitly does not support raw-TCP database connections (`/root/.ccr/README.md`: "Not
+   supported through the proxy (report, do not work around): ... raw-TCP databases"). So even
+   after you provision it, pasting `AGENT_DB_URL` into this conversation would not let this
+   session confirm it's reachable — a `pg` connection attempt from here would just hang or
+   fail against the proxy, not against the database.
+
+**What was built instead, so verification can happen somewhere that actually has network
+access:** `app/api/admin/agent-db-health/route.ts` (password-gated, same
+`isAdminSession()` pattern as `/api/admin/stats`) connects via `lib/agentDb.ts#getAgentPool()`,
+runs `SELECT 1`, checks all three tables from migration 003 exist via `to_regclass`, and
+returns each one's row count. `/admin/agent-db` (linked from the main `/admin` page) renders
+that as a status page — the same "police the live state through a page you can actually load in
+a browser, not through Claude Code" pattern as `/admin/stocks`. This runs on Vercel, which has
+real network access, so it's the actual answer to "check it live" once the database exists.
+
+**To finish this yourself:**
+1. Railway dashboard → your project → New → Database → PostgreSQL (per the Ops answer above:
+   same project as HYPERFLEX, new service — do not attach it to HYPERFLEX's existing Postgres
+   service).
+2. Copy that service's connection string.
+3. Run `migrations/003_agent_persistence.sql` against it by hand (`psql "$CONNECTION_STRING" -f migrations/003_agent_persistence.sql`,
+   or any Postgres client — same manual-apply pattern as `002_site_analytics.sql`).
+4. Vercel → Settings → Environment Variables → add `AGENT_DB_URL` = that connection string,
+   server-only (do not prefix it `NEXT_PUBLIC_*`).
+5. Redeploy.
+6. Open `https://www.openhand.online/admin/agent-db` (log into `/admin` first if needed) — it
+   should show "Connection: OK" and all three tables present with 0 rows.
+
+If step 6 shows anything else, the error message it displays is the actual Postgres/driver
+error, not a guess from this session — read it directly rather than asking here first.

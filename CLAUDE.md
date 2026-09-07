@@ -986,4 +986,42 @@ ops, not code: provision the new Postgres service, set `AGENT_DB_URL` (server-on
 and confirm `lib/agentDb.ts` actually connects — only then does resolving the write-path
 question above become useful.
 
+## Session update (2026-09-07, continued) — asked to provision + verify; neither is possible here
+
+Asked this session to provision the Railway database and check it live. Both are
+genuinely impossible from a Claude Code sandbox, for two separate reasons — said plainly
+rather than attempted and quietly failed:
+
+1. **No Railway access at all.** Checked for a Railway CLI, `RAILWAY_*` env vars, and a
+   Railway MCP tool — none exist in this session. Same class of limitation as every prior
+   Vercel/Privy/Transak dashboard step in this file: those all required the repo owner to
+   act directly in the vendor's dashboard, and Railway is no different here.
+2. **Even with a connection string, this sandbox can't open it.** Its egress proxy
+   (`/root/.ccr/README.md`) explicitly lists "raw-TCP databases" under "Not supported
+   through the proxy (report, do not work around)." So even pasting `AGENT_DB_URL` into
+   this conversation wouldn't let a future sandbox session verify connectivity — a `pg`
+   connection attempt from here fails against the proxy, not against the database. This is
+   a durable constraint, not something to retry with a different approach next time.
+
+**What got built instead**, so "check it live" has an actual answer once the database
+exists — verification needs to happen somewhere with real network access, which for this
+app is Vercel itself, not this sandbox:
+
+- `app/api/admin/agent-db-health/route.ts` — password-gated (same `isAdminSession()`
+  pattern as `/api/admin/stats`), connects via `lib/agentDb.ts#getAgentPool()`, runs
+  `SELECT 1`, checks all three `migrations/003_agent_persistence.sql` tables exist via
+  `to_regclass`, returns each table's row count.
+- `/admin/agent-db` — renders that as a status page (connection OK/latency, migration
+  applied/incomplete, a per-table exists/row-count list), linked from the main `/admin`
+  dashboard next to the existing "Stock data coverage" link. Same "load a real page in a
+  browser to see live state" pattern as `/admin/stocks`.
+
+`INFRA_PERSISTENCE_SPEC.md` now has the full step-by-step (Railway dashboard → new
+Postgres service in the same project as HYPERFLEX, not attached to its existing one → run
+migration 003 by hand → set `AGENT_DB_URL` on Vercel, server-only → redeploy → open
+`/admin/agent-db`) for the repo owner to actually do this. `npm run typecheck`, `npm run
+lint`, and `npm run build` all pass clean; the two new routes appear in the build output
+(`/admin/agent-db`, `/api/admin/agent-db-health`). Neither has been exercised against a
+real database yet — that's exactly the point of building them, not a caveat to fix later.
+
 

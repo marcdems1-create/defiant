@@ -84,6 +84,9 @@ export default function AdminPage() {
           <a href="/admin/stocks" className="text-sm text-ink/50 hover:text-ink">
             Stock data coverage
           </a>
+          <a href="/admin/agent-db" className="text-sm text-ink/50 hover:text-ink">
+            Agent DB
+          </a>
           <button type="button" onClick={logout} className="text-sm text-ink/50 hover:text-ink">
             Sign out
           </button>
