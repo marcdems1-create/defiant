@@ -876,4 +876,59 @@ rarely) that it stops being a useful signal — adjust the constants in
 smoke:stock-arb` still has not been run against production — that gap from the prior
 entry is unchanged.
 
+## Session update (2026-09-07) — agent infrastructure spec checked in; B2 shipped
+
+Checked in `AGENT_INFRASTRUCTURE_SPEC.md` — a two-track plan (Track A: research/monitoring
+agents, Track B: dev-acceleration agents) that was pasted in full, explicitly scoped to
+exclude any autonomous execution/fund-movement agent for now. Read that file, not this
+summary, for the full text and per-item status; it's the same "check the spec into the
+repo instead of leaving it only in a message" pattern as `BUILD_SPEC.md`.
+
+Implemented the one item the spec's own sequencing puts first and calls cheapest
+regardless of anything else — **B2, automated smoke-test reporting**
+(`.github/workflows/production-smoke.yml`):
+
+- Both smoke jobs now open (or comment on) a tracking GitHub issue
+  (`production-smoke-failure` label) on failure, via `actions/github-script` using the
+  workflow's own `GITHUB_TOKEN` — no new secrets. A subsequent passing run closes the
+  issue automatically. Before this, a failure was only a red run in the Actions tab that
+  required someone to go look.
+- **`npm run smoke:stock-arb` is now scheduled too**, which the spec explicitly asked for
+  ("wire these into a scheduled job... that runs automatically") — but on its own
+  `0 */4 * * *` cron, separate from the existing `*/30 * * * *` cron the cheap checks
+  (`smoke:public`, `smoke:stocks`) stay on. This is a deliberate, stated departure from
+  putting it on the same 30-minute cadence: the 2026-09-05 entry above left
+  `smoke:stock-arb` off the schedule specifically because it fires real LI.FI quotes per
+  candidate row (up to `ARB_ENRICH_LIMIT × 2` = 16 quote calls per run) and is the
+  least-tested piece of the whole build — running that every 30 minutes unattended would
+  multiply external-API cost and risk on exactly the code this repo has repeatedly flagged
+  as needing the most scrutiny, and conflicts with the new spec's own Track A guardrail
+  ("scheduled agents polling LI.FI/CoinGecko... need their own budget"). A 4-hour cadence
+  resolves the "someone has to remember to run this by hand" gap without ignoring that
+  caution. `workflow_dispatch` still runs both jobs immediately on demand, as before.
+
+**What from the spec was not built, and why:** A1 (arb/spread watcher with persisted
+history + Slack/email alerts), A2 (new-listing scout with an admin-approval mapping flow),
+and B3 (cross-deploy regression diffing) all need a decision this session can't make
+silently — either a new persistence store (this app's only server-side table today is the
+anonymous `site_events` one; a spread-history or metrics-history table is a different,
+new piece of infrastructure) or an alerting destination (a Slack webhook URL, email
+service) that isn't configured anywhere in this repo. A4 (data health watcher) is only
+*partially* covered by B2 above: B2 turns the smoke script's existing fixed thresholds
+into a tracked alert, which is fixed-threshold alerting, not the trend/spike detection
+A4's own wording asks for ("staleness rates spike") — that needs the same persisted
+history A1/B3 are blocked on. A3 (competitor/landscape watcher) isn't code at all — it's a
+recurring research task, not something this session builds. B4 is explicitly sequenced
+last in the spec itself. See `AGENT_INFRASTRUCTURE_SPEC.md` for the per-item detail and
+status annotations, so a future session doesn't have to re-derive this from the diff.
+
+No app code changed this session — only the GitHub Actions workflow and the new spec
+doc. `npm run typecheck` and `npm run lint` pass clean (nothing to rebuild). The new
+workflow YAML was parsed with `js-yaml`/PyYAML to confirm it's well-formed, but — same
+caveat as everything else that depends on GitHub Actions in this repo — it has not
+actually been exercised by a real workflow run yet (issue creation, the two cron
+schedules firing correctly, the close-on-recovery step). Watch the Actions tab after this
+merges, or trigger it manually via `workflow_dispatch`, before assuming the alerting
+actually fires the way this description says it should.
+
 
