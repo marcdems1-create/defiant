@@ -931,4 +931,59 @@ schedules firing correctly, the close-on-recovery step). Watch the Actions tab a
 merges, or trigger it manually via `workflow_dispatch`, before assuming the alerting
 actually fires the way this description says it should.
 
+## Session update (2026-09-07, continued) — persistence-layer spec checked in; schema drafted
+
+Checked in `INFRA_PERSISTENCE_SPEC.md` — a Postgres persistence-layer plan (unblocks A1's
+spread history and B3's regression diffing from `AGENT_INFRASTRUCTURE_SPEC.md`) that
+explicitly listed three open questions before implementation could start.
+
+Answered the engineering one from the repo itself, no need to ask: this repo has no ORM
+or migration tool (nothing in `package.json`) — `migrations/002_site_analytics.sql`'s
+hand-numbered raw-SQL, applied-by-hand pattern is the only precedent, so the new tables
+follow that, not a framework.
+
+The other two — Railway project topology, and retention window — were genuinely the
+owner's call (irreversible-feeling infra decisions this session can't make silently, and
+this sandbox has no Railway access to act on either answer anyway), so they went through
+`AskUserQuestion` rather than a guess. Answered: **same Railway project as HYPERFLEX, but
+a new, separate Postgres service/instance** (avoids the exact shared-instance failure mode
+the spec cites, without the overhead of a whole new project), and **90-day retention**
+(the spec's own suggested default).
+
+With both answered, prepared the schema and connection code — but **stopped short of
+wiring it to anything live**, since the database itself doesn't exist yet and this
+sandbox can't provision it (no Railway credentials, same as every prior Vercel/Privy/
+Transak ops step in this file):
+
+- `migrations/003_agent_persistence.sql` — `spread_history`, `data_health_snapshot`,
+  `alert_config`, matching `002`'s style exactly. Commented with the 90-day retention
+  decision and the two `DELETE` statements to run on a schedule once this is live
+  (commented out — not scheduled anywhere yet).
+- `lib/agentDb.ts` — a lazy `pg.Pool` singleton keyed off a **new, separate**
+  `AGENT_DB_URL` env var, mirroring `lib/db.ts`'s `DATABASE_URL`/`getPool()`/
+  `analyticsEnabled()` shape exactly. Deliberately not sharing `DATABASE_URL` with
+  `site_events` — that table is a privacy-scoped anonymous-analytics store (non-negotiable
+  #9); this is unrelated agent-infrastructure monitoring data, and they shouldn't share a
+  pool or instance even though (per the Railway answer) they can share a Railway project.
+
+**Deliberately not built:** any actual write path (a `data_health_snapshot` row from the
+smoke workflow, a `spread_history` row from Phase 3b's compute path) or wiring into
+`production-smoke.yml` / `lib/lifi/stockArb.ts`. Beyond the database not existing yet,
+there's a real open design question logged in `INFRA_PERSISTENCE_SPEC.md`'s new "Status"
+section: should the standalone `scripts/smoke-stock-market-data.mjs` (a GitHub
+Actions script with no `pg` dependency today) get a raw `AGENT_DB_URL` secret directly, or
+should it POST to a new small authenticated app endpoint that holds the DB credentials
+server-side — matching how every other secret in this repo (`TRANSAK_API_SECRET`,
+`ADMIN_PASSWORD`) stays server-side only, never handed to a CI script? Left open rather
+than guessed, since it's exactly the kind of thing better decided once there's a real
+database to test either approach against.
+
+`npm run typecheck`, `npm run lint`, and `npm run build` all pass clean. `lib/agentDb.ts`
+has zero importers right now (by design — nothing wires to it yet) and `AGENT_DB_URL` is
+unset everywhere, so this change is a complete no-op for the running app. Next step is
+ops, not code: provision the new Postgres service, set `AGENT_DB_URL` (server-only, never
+`NEXT_PUBLIC_*`) on Vercel, run `migrations/003_agent_persistence.sql` by hand against it,
+and confirm `lib/agentDb.ts` actually connects — only then does resolving the write-path
+question above become useful.
+
 
