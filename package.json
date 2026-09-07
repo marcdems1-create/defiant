@@ -13,7 +13,9 @@
     "start": "npm run start -w @defiant/web",
     "lint": "npm run lint -w @defiant/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "smoke:public": "npm run smoke:public -w @defiant/web"
+    "smoke:public": "npm run smoke:public -w @defiant/web",
+    "smoke:stocks": "npm run smoke:stocks -w @defiant/web",
+    "smoke:stock-arb": "npm run smoke:stock-arb -w @defiant/web"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

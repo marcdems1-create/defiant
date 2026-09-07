@@ -80,13 +80,14 @@ export default function AdminPage() {
             visitors are an approximate daily hash — not a profile.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={logout}
-          className="text-sm text-ink/50 hover:text-ink shrink-0"
-        >
-          Sign out
-        </button>
+        <div className="flex items-center gap-4 shrink-0">
+          <a href="/admin/stocks" className="text-sm text-ink/50 hover:text-ink">
+            Stock data coverage
+          </a>
+          <button type="button" onClick={logout} className="text-sm text-ink/50 hover:text-ink">
+            Sign out
+          </button>
+        </div>
       </header>
 
       {error && <p className="text-sm text-danger">{error}</p>}

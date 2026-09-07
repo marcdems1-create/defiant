@@ -9,7 +9,7 @@ import {
   usdcOnStockChain,
   type StockChainId,
 } from '@/lib/config/lifi';
-import { fetchTokenizedStockMarketCaps } from '@/lib/lifi/marketCap';
+import { fetchStockMarketStatsByAddress } from '@/lib/lifi/marketCap';
 
 export type StockIssuer = 'xstocks' | 'ondo' | 'backed';
 
@@ -30,14 +30,37 @@ export interface StockToken {
   /** LI.FI last price. Omitted from the catalog when unparseable — never guessed. */
   priceUsd: number;
   /**
-   * CoinGecko tokenized-stock market cap in USD, when a symbol match parses.
+   * CoinGecko tokenized-stock market cap in USD, matched by {chain, contract address}
+   * against CoinGecko's own platform data — not by symbol (see lib/lifi/marketCap.ts).
    * Token cap, not the listed company's equity cap. Omitted rather than guessed.
    */
   marketCapUsd?: number;
   /** CoinGecko 24h price change in percent. Omitted rather than guessed. */
   changePct24h?: number;
+  /** CoinGecko's own `last_updated` for the cap/24h row above. Omitted when unmatched. */
+  capUpdatedAt?: string;
+  /** True when capUpdatedAt is older than MARKET_DATA_STALE_MINUTES. */
+  capStale?: boolean;
+  /**
+   * CoinGecko's coin id backing marketCapUsd, when matched. This is the identity used to
+   * group the *same* underlying asset's chain instances for cross-chain spread detection
+   * (lib/lifi/stockArb.ts) — grouping by this instead of by symbol is what keeps that
+   * feature from inheriting the ticker-collision risk Phase 1 fixed.
+   */
+  cgeckoId?: string;
+  /** CoinGecko 24h trading volume in USD for the matched coin. A coarse liquidity proxy. */
+  cgVolume24hUsd?: number;
+  /**
+   * (priceUsd - CoinGecko spot price) / CoinGecko spot price, in percent. Signed: positive
+   * means LI.FI quotes higher. Omitted when unmatched or CoinGecko has no parseable price.
+   * Phase 1 P1 data-quality check; also Phase 3's per-source half of the arb signal.
+   */
+  priceDivergencePct?: number;
   logoURI?: string;
 }
+
+/** Flag a LI.FI/CoinGecko price divergence above this magnitude (BUILD_SPEC Phase 1 P1). */
+export const PRICE_DIVERGENCE_FLAG_PCT = 1.5;
 
 /** Dashboard tape length — top names by parseable market cap, not a featured pick. */
 export const STOCK_TAPE_SIZE = 50;
@@ -45,7 +68,10 @@ export const STOCK_TAPE_SIZE = 50;
 const CHAIN_PREFERENCE: StockChainId[] = [8453, 42161, 1];
 
 export interface LifiQuote {
+  /** The chain the wallet signs and sends the transaction on. */
   chainId: StockChainId;
+  /** The chain the swap/bridge settles on. Equals `chainId` for a same-chain quote. */
+  toChainId: StockChainId;
   to: `0x${string}`;
   data: `0x${string}`;
   value: bigint;
@@ -163,21 +189,41 @@ export async function fetchStockCatalog(): Promise<StockToken[]> {
   return out;
 }
 
-/** Attach CoinGecko caps onto an already-classified LI.FI catalog. Skip unparseable caps. */
+/**
+ * Attach CoinGecko caps onto an already-classified LI.FI catalog, matched by
+ * {chain, contract address} rather than symbol (see lib/lifi/marketCap.ts — symbol
+ * matching silently misattributes cap/price when issuers collide on a ticker).
+ * A token with no address match is left as-is; the UI shows an explicit "no cap
+ * data" state for it rather than dropping the row.
+ */
 export async function withStockMarketCaps(tokens: StockToken[]): Promise<StockToken[]> {
   if (tokens.length === 0) return tokens;
-  const markets = await fetchTokenizedStockMarketCaps();
+  const stats = await fetchStockMarketStatsByAddress();
   const out = tokens.map((token) => {
-    const stats = markets.get(token.symbol.toLowerCase());
-    if (!stats) return token;
+    const match = stats.get(`${token.chainId}-${token.address.toLowerCase()}`);
+    if (!match) return token;
+    const priceDivergencePct =
+      match.cgPriceUsd !== undefined
+        ? ((token.priceUsd - match.cgPriceUsd) / match.cgPriceUsd) * 100
+        : undefined;
     return {
       ...token,
-      marketCapUsd: stats.marketCapUsd,
-      ...(stats.changePct24h !== undefined ? { changePct24h: stats.changePct24h } : {}),
+      marketCapUsd: match.marketCapUsd,
+      ...(match.changePct24h !== undefined ? { changePct24h: match.changePct24h } : {}),
+      capUpdatedAt: match.lastUpdatedAt,
+      capStale: match.stale,
+      cgeckoId: match.cgeckoId,
+      ...(match.volume24hUsd !== undefined ? { cgVolume24hUsd: match.volume24hUsd } : {}),
+      ...(priceDivergencePct !== undefined ? { priceDivergencePct } : {}),
     };
   });
   out.sort(compareStockTape);
   return out;
+}
+
+/** LI.FI catalog rows classified as a tokenized stock/ETF with no CoinGecko cap match. For the admin view. */
+export function unmatchedStockRows(tokens: StockToken[]): StockToken[] {
+  return tokens.filter((t) => t.marketCapUsd === undefined);
 }
 
 /** When every chain is in view, keep one row per ticker (Base, then Arbitrum, then Ethereum). */
@@ -229,14 +275,17 @@ function parseAmount(raw: unknown): bigint | null {
 
 export async function fetchLifiQuote(params: {
   chainId: StockChainId;
+  /** Destination chain. Omit for a same-chain swap — this is the common case (Phase 2). */
+  toChainId?: StockChainId;
   fromToken: `0x${string}`;
   toToken: `0x${string}`;
   fromAmount: bigint;
   fromAddress: `0x${string}`;
 }): Promise<LifiQuote | null> {
+  const toChainId = params.toChainId ?? params.chainId;
   const qs = new URLSearchParams({
     fromChain: String(params.chainId),
-    toChain: String(params.chainId),
+    toChain: String(toChainId),
     fromToken: params.fromToken,
     toToken: params.toToken,
     fromAmount: params.fromAmount.toString(),
@@ -250,10 +299,14 @@ export async function fetchLifiQuote(params: {
   });
   if (!res.ok) return null;
   const json = (await res.json()) as Record<string, unknown>;
-  return parseLifiQuote(json, params.chainId);
+  return parseLifiQuote(json, params.chainId, toChainId);
 }
 
-function parseLifiQuote(json: Record<string, unknown>, chainId: StockChainId): LifiQuote | null {
+function parseLifiQuote(
+  json: Record<string, unknown>,
+  chainId: StockChainId,
+  toChainId: StockChainId,
+): LifiQuote | null {
   const tx = json.transactionRequest;
   const estimate = json.estimate;
   const action = json.action;
@@ -301,6 +354,7 @@ function parseLifiQuote(json: Record<string, unknown>, chainId: StockChainId): L
 
   return {
     chainId,
+    toChainId,
     to,
     data,
     value,

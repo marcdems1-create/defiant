@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "smoke:public": "node scripts/smoke-public-site.mjs"
+    "smoke:public": "node scripts/smoke-public-site.mjs",
+    "smoke:stocks": "node scripts/smoke-stock-market-data.mjs",
+    "smoke:stock-arb": "node scripts/smoke-stock-arb.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^2.21.4",

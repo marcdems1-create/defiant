@@ -11,7 +11,10 @@ import {
   type StockChainId,
 } from '@/lib/config/lifi';
 import { formatTokenAmount } from '@/lib/format';
+import { useStockArbRows } from '@/lib/hooks/useStockArbRows';
 import { useStockCatalog } from '@/lib/hooks/useStockCatalog';
+import { MARKET_DATA_STALE_MINUTES } from '@/lib/lifi/marketCap';
+import type { StockArbRow } from '@/lib/lifi/stockArb';
 import {
   STOCK_ISSUER_LABEL,
   STOCK_TAPE_SIZE,
@@ -21,6 +24,7 @@ import {
   type StockToken,
 } from '@/lib/lifi/stocks';
 import { NETWORK_MODE } from '@/lib/wagmi';
+import { StockArbPanel } from './StockArbPanel';
 import { StockSwapModal } from './StockSwapModal';
 
 const PAGE_SIZE = STOCK_TAPE_SIZE;
@@ -78,26 +82,42 @@ export function StockDesk() {
   const { address, isConnected } = useAccount();
   const { data, isLoading, isError } = useStockCatalog();
   const tokens = useMemo(() => data ?? [], [data]);
+  const { data: arbData } = useStockArbRows();
+  const arbRows = useMemo(() => arbData ?? [], [arbData]);
+  const arbByCgeckoId = useMemo(() => {
+    const map = new Map<string, StockArbRow>();
+    for (const row of arbRows) map.set(row.cgeckoId, row);
+    return map;
+  }, [arbRows]);
   const mainnet = NETWORK_MODE === 'mainnet';
 
   const [query, setQuery] = useState('');
   const [issuer, setIssuer] = useState<StockIssuer | 'all'>('all');
   const [chainId, setChainId] = useState<StockChainId | 'all'>('all');
+  const [sortBySpread, setSortBySpread] = useState(false);
   const [active, setActive] = useState<{ token: StockToken; side: 'buy' | 'sell' } | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const scoped = preferOneChainPerSymbol(tokens, chainId).filter((t) => {
       if (issuer !== 'all' && t.issuer !== issuer) return false;
-      if (!q) return t.marketCapUsd !== undefined;
+      if (!q) return true;
       return (
         t.symbol.toLowerCase().includes(q) ||
         t.name.toLowerCase().includes(q) ||
         STOCK_ISSUER_LABEL[t.issuer].toLowerCase().includes(q)
       );
     });
-    return [...scoped].sort(compareStockTape);
-  }, [tokens, query, issuer, chainId]);
+    if (!sortBySpread) return [...scoped].sort(compareStockTape);
+    return [...scoped].sort((a, b) => {
+      const aSpread = a.cgeckoId ? arbByCgeckoId.get(a.cgeckoId)?.netSpreadPct : undefined;
+      const bSpread = b.cgeckoId ? arbByCgeckoId.get(b.cgeckoId)?.netSpreadPct : undefined;
+      if (aSpread !== undefined && bSpread !== undefined && aSpread !== bSpread) return bSpread - aSpread;
+      if (aSpread !== undefined && bSpread === undefined) return -1;
+      if (aSpread === undefined && bSpread !== undefined) return 1;
+      return compareStockTape(a, b);
+    });
+  }, [tokens, query, issuer, chainId, sortBySpread, arbByCgeckoId]);
 
   const visible = useMemo(() => filtered.slice(0, PAGE_SIZE), [filtered]);
 
@@ -148,10 +168,13 @@ export function StockDesk() {
           Browse tokenized stocks and ETFs routed by LI.FI (xStocks, Ondo, Backed). This tape
           is not Transak, not a broker, and not the listed share. Transak is only used for
           USDC buy and cash out. The tape lists the top {STOCK_TAPE_SIZE} by CoinGecko token
-          market cap — not the listed company&apos;s equity cap, not a recommendation. Prices
-          are LI.FI last marks; 24h % is CoinGecko. A row is skipped when price or cap cannot
-          be parsed. You sign every swap. Openhand never holds the tokens. Availability
-          varies by issuer and jurisdiction.
+          market cap — not the listed company&apos;s equity cap, not a recommendation. Price is
+          LI.FI&apos;s last mark; cap and 24h % are CoinGecko, matched to the exact contract
+          address on the exact chain, not by ticker (two issuers can share a ticker). A row
+          with no CoinGecko match shows &ldquo;No cap data&rdquo; instead of being dropped; a
+          cap older than {MARKET_DATA_STALE_MINUTES} minutes is marked &ldquo;stale&rdquo;. You
+          sign every swap. Openhand never holds the tokens. Availability varies by issuer and
+          jurisdiction.
         </p>
       </div>
 
@@ -190,6 +213,14 @@ export function StockDesk() {
         </div>
       )}
 
+      {arbRows.length > 0 && (
+        <StockArbPanel
+          rows={arbRows}
+          tokens={tokens}
+          onTrade={(token, side) => setActive({ token, side })}
+        />
+      )}
+
       <div className="flex flex-col gap-3">
         <input
           type="search"
@@ -218,6 +249,16 @@ export function StockDesk() {
             </Pill>
           ))}
         </div>
+        {arbRows.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <Pill active={!sortBySpread} onClick={() => setSortBySpread(false)}>
+              Sort: Cap
+            </Pill>
+            <Pill active={sortBySpread} onClick={() => setSortBySpread(true)}>
+              Sort: Spread
+            </Pill>
+          </div>
+        )}
       </div>
 
       {isLoading && <div className="text-ink/50 text-sm">Loading LI.FI catalog…</div>}
@@ -233,7 +274,7 @@ export function StockDesk() {
         <div className="text-ink/50 text-sm">
           {query.trim()
             ? 'No rows match that search. Try another ticker.'
-            : 'CoinGecko did not return parseable token market caps right now, so nothing is ranked. Search a ticker — we will not guess a cap.'}
+            : 'No rows match this filter.'}
         </div>
       )}
 
@@ -261,12 +302,30 @@ export function StockDesk() {
                   {t.name} · {STOCK_ISSUER_LABEL[t.issuer]} · {stockChainLabel(t.chainId)}
                 </div>
               </div>
-              <div className="text-right shrink-0 min-w-[5.5rem]">
+              <div className="text-right shrink-0 min-w-[6rem]">
                 <div className="font-mono text-sm">{formatUsd(t.priceUsd)}</div>
-                <div className="text-[10px] uppercase tracking-wide text-ink/35">
-                  {t.marketCapUsd !== undefined
-                    ? `Cap ${formatMarketCap(t.marketCapUsd)}`
-                    : 'LI.FI last'}
+                {t.marketCapUsd !== undefined ? (
+                  <div className="text-[10px] uppercase tracking-wide text-ink/35">
+                    Cap {formatMarketCap(t.marketCapUsd)}
+                    {t.capStale && (
+                      <span
+                        className="text-warn/80"
+                        title={
+                          t.capUpdatedAt
+                            ? `CoinGecko cap last updated ${new Date(t.capUpdatedAt).toLocaleString()}`
+                            : undefined
+                        }
+                      >
+                        {' '}
+                        · stale
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-[10px] uppercase tracking-wide text-warn/70">No cap data</div>
+                )}
+                <div className="text-[9px] text-ink/25">
+                  Price · LI.FI{t.marketCapUsd !== undefined ? ' · Cap · CoinGecko' : ''}
                 </div>
               </div>
               <div className="text-right shrink-0 min-w-[4.25rem]">
@@ -280,6 +339,22 @@ export function StockDesk() {
                 ) : (
                   <div className="font-mono text-sm text-ink/25">—</div>
                 )}
+              </div>
+              <div className="text-right shrink-0 min-w-[4.5rem]">
+                {(() => {
+                  const row = t.cgeckoId ? arbByCgeckoId.get(t.cgeckoId) : undefined;
+                  if (!row) return <div className="font-mono text-sm text-ink/25">—</div>;
+                  return (
+                    <>
+                      <div className={`font-mono text-sm ${changeClass(row.netSpreadPct)}`}>
+                        {formatChangePct(row.netSpreadPct)}
+                      </div>
+                      <div className="text-[10px] uppercase tracking-wide text-ink/35">
+                        spread · round-trip
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               <button
                 type="button"
