@@ -4,7 +4,7 @@
  * The code path is a flat bps cut taken as a separate wallet-signed transfer
  * to a treasury address, never skimmed inside supply()/deposit()/submit().
  * Do not set NEXT_PUBLIC_TREASURY_ADDRESS. Monetize on Transak's partner fee
- * (Buy USDC) and optional 0x swapFeeBps (convert-then-deposit only). See
+ * (Buy USDC) and optional 0x swapFeeBps (bridge/harvest-sell only). See
  * README "Fees" and CLAUDE.md non-negotiable #6 (2026-08-17).
  */
 export const DEPOSIT_FEE_BPS = 25; // 0.25%

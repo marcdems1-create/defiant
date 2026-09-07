@@ -1,19 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount, useReadContract, useSendTransaction, useWriteContract } from 'wagmi';
+import { useAccount, useSendTransaction, useWriteContract } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
 import { createPublicClient, http } from 'viem';
 import type { Opportunity } from '@/lib/protocols/types';
 import { hasTokenEmissions } from '@/lib/protocols/types';
 import { erc20Abi } from '@/lib/abi/erc20';
-import { cvxCrvRewardsAbi } from '@/lib/abi/convex';
 import { moonwellComptrollerAbi } from '@/lib/abi/moonwell';
-import { CONVEX, MOONWELL, AAVE_V3 } from '@/lib/config/addresses';
+import { MOONWELL, AAVE_V3 } from '@/lib/config/addresses';
 import { chains, getWagmiConfig } from '@/lib/wagmi';
 import { fetchSwapQuote } from '@/lib/swap/zeroex';
 import { estimateCappedGas, formatTxError } from '@/lib/tx/gas';
-import { formatTokenAmount } from '@/lib/format';
 
 type Step = 'idle' | 'claiming' | 'selling' | 'done' | 'error';
 
@@ -21,14 +19,6 @@ function rewardTokensFor(opportunity: Opportunity): { address: `0x${string}`; sy
   if (opportunity.protocol === 'moonwell') {
     const cfg = (MOONWELL as Record<number, { well?: `0x${string}` }>)[opportunity.chainId];
     return cfg?.well ? [{ address: cfg.well, symbol: 'WELL' }] : [];
-  }
-  if (opportunity.protocol === 'convex-cvxcrv') {
-    const cfg = (CONVEX as Record<number, { crv: `0x${string}`; cvx: `0x${string}` }>)[opportunity.chainId];
-    if (!cfg) return [];
-    return [
-      { address: cfg.crv, symbol: 'CRV' },
-      { address: cfg.cvx, symbol: 'CVX' },
-    ];
   }
   return [];
 }
@@ -57,15 +47,6 @@ export function HarvestRewards({
   const moonwellCfg = (MOONWELL as Record<number, { comptroller?: `0x${string}` }>)[opportunity.chainId];
   const canHarvest = hasTokenEmissions(opportunity.protocol);
   const zeroexConfigured = Boolean(process.env.NEXT_PUBLIC_ZEROEX_API_KEY);
-
-  const earned = useReadContract({
-    address: opportunity.positionToken,
-    abi: cvxCrvRewardsAbi,
-    functionName: 'earned',
-    args: address ? [address] : undefined,
-    chainId: opportunity.chainId,
-    query: { enabled: opportunity.protocol === 'convex-cvxcrv' && Boolean(address) },
-  });
 
   if (!canHarvest || !address) return null;
 
@@ -149,24 +130,14 @@ export function HarvestRewards({
     try {
       const before = await readBalances();
       setStep('claiming');
-      if (opportunity.protocol === 'moonwell') {
-        if (!moonwellCfg?.comptroller) throw new Error('Moonwell comptroller not configured');
-        const hash = await writeTx({
-          address: moonwellCfg.comptroller,
-          abi: moonwellComptrollerAbi,
-          functionName: 'claimReward',
-          chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
-      } else {
-        const hash = await writeTx({
-          address: opportunity.positionToken!,
-          abi: cvxCrvRewardsAbi,
-          functionName: 'getReward',
-          chainId: opportunity.chainId,
-        });
-        await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
-      }
+      if (!moonwellCfg?.comptroller) throw new Error('Moonwell comptroller not configured');
+      const hash = await writeTx({
+        address: moonwellCfg.comptroller,
+        abi: moonwellComptrollerAbi,
+        functionName: 'claimReward',
+        chainId: opportunity.chainId,
+      });
+      await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
 
       const after = await readBalances();
       const deltas = tokens.flatMap((t, i) => {
@@ -184,7 +155,6 @@ export function HarvestRewards({
     }
   }
 
-  const earnedValue = typeof earned.data === 'bigint' ? earned.data : 0n;
   const busy = step === 'claiming' || step === 'selling';
   const keepPct = 100 - sellPct;
 
@@ -192,16 +162,9 @@ export function HarvestRewards({
     <div className={compact ? 'text-left' : 'border border-border rounded-lg px-3 py-3 mb-3'}>
       {!compact && <div className="text-sm font-medium mb-1">Token emissions</div>}
       <p className={`${compact ? 'text-[11px]' : 'text-xs'} text-ink/55 leading-relaxed mb-2`}>
-        {opportunity.protocol === 'moonwell'
-          ? 'WELL rewards (if any) sit unclaimed until you harvest. They are not in the APY on this card.'
-          : 'CRV/CVX rewards accrue while staked. Harvest claims them to this wallet.'}{' '}
-        Openhand cannot sell in the background — you sign the claim, then any sell.
+        WELL rewards (if any) sit unclaimed until you harvest. They are not in the APY on this
+        card. Openhand cannot sell in the background — you sign the claim, then any sell.
       </p>
-      {opportunity.protocol === 'convex-cvxcrv' && earnedValue > 0n && (
-        <div className="text-xs font-mono text-ink/70 mb-2">
-          ~{formatTokenAmount(earnedValue, 18)} CRV claimable (plus any extra rewards)
-        </div>
-      )}
       <label className="flex flex-col gap-1 mb-2">
         <span className="text-[11px] text-ink/50">
           Sell {sellPct}% to USDC · keep {keepPct}%

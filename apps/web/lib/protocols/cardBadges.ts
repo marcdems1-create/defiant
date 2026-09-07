@@ -35,12 +35,7 @@ const RISK_BADGE: Record<RiskLevel, CardBadge> = {
 };
 
 function cardRiskLevel(opportunity: Opportunity): RiskLevel {
-  if (
-    opportunity.protocol === 'convex-cvxcrv' ||
-    opportunity.protocol === 'frax-sfrxusd' ||
-    opportunity.protocol === 'maple' ||
-    opportunity.protocol === 'panoptic'
-  ) {
+  if (opportunity.protocol === 'maple') {
     return 'higher';
   }
   if (
@@ -68,7 +63,6 @@ export function getCardBadges(opportunity: Opportunity): CardBadges {
     opportunity.protocol === 'aave-v3' ||
     opportunity.protocol === 'compound-v3' ||
     opportunity.protocol === 'lido' ||
-    opportunity.protocol === 'curve' ||
     opportunity.protocol === 'sky' ||
     (opportunity.protocol === 'morpho' &&
       !opportunity.protocolLabel.toLowerCase().includes('high yield'));

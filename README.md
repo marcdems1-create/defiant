@@ -3,9 +3,10 @@
 Public site: [openhand.online](https://openhand.online). GitHub repo: `defiant`.
 
 A non-custodial DeFi yield interface. Connect your own wallet, compare live on-chain yield
-across Aave v3, Lido, Yearn v3, and Curve, and deposit or withdraw with transactions you sign
-yourself. Openhand never takes custody of user funds — there is no pooled contract, no admin
-key, no path for the app itself to move anyone's money.
+across nine protocols — Aave v3, Compound III, Morpho, Yearn v3, Fluid, Sky, Moonwell, Maple,
+and Lido — and deposit or withdraw with transactions you sign yourself. Openhand never takes
+custody of user funds — there is no pooled contract, no admin key, no path for the app itself
+to move anyone's money.
 
 > **Naming note:** this is deliberately *not* marketed as a "savings app" anywhere in the
 > product. DeFi yield carries smart-contract, market, and liquidity risk and is not deposit-
@@ -246,40 +247,23 @@ Do **not** describe Openhand as a bank, savings product, broker, or money transm
 | Protocol | Chains | Asset | Deposit | Withdraw |
 |---|---|---|---|---|
 | Aave v3 | Ethereum, Base, Arbitrum | USDC | `Pool.supply()` | `Pool.withdraw()` — instant |
-| Lido | Ethereum only (no L2 deployment) | ETH → stETH | `stETH.submit()` | Request queue, **1-5 days** to finalize, then `claimWithdrawal()` |
+| Compound III | Base, Arbitrum | USDC | `Comet.supply()` | `Comet.withdraw()` — instant |
+| Morpho | Base, Arbitrum (curated MetaMorpho vaults) | USDC | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
 | Yearn v3 | Ethereum, Base, Arbitrum | USDC vaults | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
-| Curve | Ethereum only (no testnet deployment) | USDC → LP (2 pools, see below) | `Pool.add_liquidity()` | `Pool.remove_liquidity_one_coin()` — instant, subject to pool liquidity |
+| Fluid | Base, Arbitrum | USDC | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to liquidity |
+| Moonwell | Base only | USDC | `mToken.mint()` | `mToken.redeemUnderlying()` / `redeem()` — instant |
 | Sky (sUSDS) | Base, Arbitrum (Spark PSM3; no testnet) | USDC ↔ sUSDS | `PSM.swapExactIn` | Same swap back to USDC — instant, subject to PSM liquidity |
 | Maple (syrupUSDC) | Ethereum only | USDC | `SyrupRouter.deposit` (Maple lender auth required once) | `Pool.requestRedeem` — FIFO queue; USDC is pushed when processed |
-| Panoptic (Unicorn USDC) | Ethereum only | USDC | ERC-4626 `deposit()` | ERC-4626 `redeem()` — instant, subject to vault liquidity |
+| Lido | Ethereum only (no L2 deployment) | ETH → stETH | `stETH.submit()` | Request queue, **1-5 days** to finalize, then `claimWithdrawal()` |
 
-Curve is two pools, not one — `lib/config/addresses.ts`'s `CURVE[chainId]` is an array, and
-`lib/protocols/curve.ts` turns each configured entry into its own opportunity:
-
-| Pool | Coins | Why it's here |
-|---|---|---|
-| crvUSD/USDC (factory plain pool) | USDC, crvUSD | Biggest TVL gainer among Curve's crvUSD pools (Curve's own "Best Yields & Key Metrics" weekly post, 2026-08-13) |
-| 3pool | DAI, USDC, USDT | Curve's flagship — "one of the most liquid and widely referenced pools in all of DeFi" |
-
-Both were picked specifically for liquidity, and both had to actually contain USDC to
-qualify — single-sided `add_liquidity` only works with a pool's own coins, so a highly liquid
-pool that doesn't hold USDC at all (crvUSD/USDT, for instance) isn't something this app can
-deposit into without a swap step it doesn't build. 3pool is architecturally different from
-every other Curve pool here: it predates Curve's factory-pool pattern, so its LP token (3Crv)
-is a **separate contract** from the swap pool, its `add_liquidity`/`calc_token_amount` take a
-3-element amounts array instead of 2, and `lib/abi/curvePool.ts` exports distinct
-`curvePoolAbi2Coin`/`curvePoolAbi3Coin` ABIs for exactly this reason — `CurvePoolConfig.
-numCoins` in `lib/config/addresses.ts` is what picks the right one at runtime.
-
-Contract addresses live in `lib/config/addresses.ts`, pulled from
+Yearn v3, Morpho, and Fluid share the plain ERC-4626 `deposit(assets, receiver)` /
+`redeem(shares, owner, owner)` interface; the other six are one-offs. Contract addresses live
+in `lib/config/addresses.ts`, pulled from
 [bgd-labs/aave-address-book](https://github.com/bgd-labs/aave-address-book) (Aave's own
-canonical registry) and [lidofinance/docs](https://github.com/lidofinance/docs) on
-2026-08-13. Both Curve pool addresses were verified the same day, but indirectly — this
-sandbox's network policy blocks Curve's own docs/API domains, so it's cross-referenced
-against multiple independent third-party sources instead (see the `CURVE` comment in
-`lib/config/addresses.ts` for exactly which ones and why that's an acceptable substitute).
-**Re-verify against those sources before any mainnet deploy** — don't assume addresses stay
-correct indefinitely.
+canonical registry), [lidofinance/docs](https://github.com/lidofinance/docs), and each
+protocol's own docs — see the comment above each export for the exact source and
+verification date. **Re-verify against those sources before any mainnet deploy** — don't
+assume addresses stay correct indefinitely.
 
 Sky sUSDS on L2 uses Spark's PSM3 (official addresses in `lib/config/addresses.ts`,
 [Spark PSM docs](https://docs.spark.fi/dev/savings/spark-psm)). Token addresses are read
@@ -289,13 +273,13 @@ Maple syrupUSDC addresses and the `requestRedeem` flow come from
 First-time Maple wallets must complete lender authorization on syrup.fi; Openhand cannot
 sign Maple's allowlist.
 
-Panoptic Unicorn USDC is a **catalog card**, not a featured strategy. Address from
-[Panoptic deployment docs](https://panoptic.xyz/docs/contracts/deployment-addresses)
-(2026-08-18). It is a third-party automated options/volatility vault: you sign an
-ERC-4626 deposit; Panoptic's curator runs the trades. Copy does not call it
-market-neutral or a recommendation. If `asset()` is not native USDC, or DeFiLlama has
-no parseable Unicorn APY, the card is skipped rather than guessed. PLP WETH is not
-listed (USDC-in only).
+**Cut from the catalog (2026-09-04):** Convex (cvxCRV) — a one-way CRV→cvxCRV conversion
+whose withdraw returns cvxCRV, not the CRV deposited; Curve (crvUSD/USDC, 3pool) — LP/slippage
+mechanics are a different product from lending, and its API field shape was never verified
+against the live endpoint; Frax (sfrxUSD) — the deposit asset (frxUSD) isn't reachable from
+the CAD→USDC onramp; Panoptic (Unicorn USDC) — an options/volatility strategy without a risk
+badge a buyer's compliance team would accept. See `CLAUDE.md`'s 2026-09-04 session update for
+the full reasoning.
 
 ## Move USDC (Circle CCTP)
 
@@ -322,9 +306,9 @@ and there is **no Openhand fee** on this path.
   depend on Circle CORS. No API key. Missing attestation → wait / retry, never a
   guessed message.
 
-**Token emissions (Moonwell WELL, Convex CRV/CVX):** claim is wallet-signed. After a claim,
-you choose what percent of *just-claimed* tokens to sell to USDC via 0x (default 100% sell,
-0% = hold). There is no backend seller or keeper — that would be custody.
+**Token emissions (Moonwell WELL):** claim is wallet-signed. After a claim, you choose what
+percent of *just-claimed* tokens to sell to USDC via 0x (default 100% sell, 0% = hold). There
+is no backend seller or keeper — that would be custody.
 
 **Not built (on purpose):** Uniswap V3 / Aerodrome concentrated LP, GMX, Pendle, and
 one-click looping of stablecoin lending markets. Those are different products (impermanent
@@ -347,12 +331,13 @@ on anything other than a valid, non-zero configured address — never add a hard
    partner fee in the Transak dashboard (start ~0.5–1% of the *buy*, not of later deposits).
    Openhand never receives the USDC. Repeat Aave/Yearn deposits stay fee-free. Confirm the
    split and payout with Transak — do not add a second treasury transfer for this.
-2. **Bridge / convert trades — fee to a cold wallet.** Opt-in 0x `swapFeeBps` on
-   convert-then-deposit (CRV / Frax / Convex) is already wired in `lib/swap/zeroex.ts`.
-   Set `NEXT_PUBLIC_SWAP_FEE_RECIPIENT` to a **cold wallet** you do not use as an
-   operating key. Do not put a swap in front of plain USDC → Aave. If a cross-chain
-   bridge ships later: same pattern — user signs, fee is collected atomically to that
-   cold wallet, Openhand never holds the bridged assets. Do not build a custodial
+2. **Harvest sell-to-USDC — fee to a cold wallet.** Opt-in 0x `swapFeeBps` on selling
+   just-claimed WELL after a harvest (`components/HarvestRewards.tsx`) is already wired in
+   `lib/swap/zeroex.ts`. Set `NEXT_PUBLIC_SWAP_FEE_RECIPIENT` to a **cold wallet** you do not
+   use as an operating key. Do not put a swap in front of plain USDC → Aave. Same pattern if
+   a fee is ever added to the cross-chain USDC move or a future bridge: user signs, fee is
+   collected atomically to that cold wallet, Openhand never holds the bridged assets. Do not
+   build a custodial
    bridge or send proceeds to a hot treasury (`NEXT_PUBLIC_TREASURY_ADDRESS` stays unset).
 3. **CAD subscription later** (Stripe) for extras that are not yield: tax-lot export, alerts,
    history. No crypto through Openhand. Never a performance fee on yield.
@@ -508,22 +493,11 @@ npm run dev
   rate). A real "savings"-adjacent product needs this before it's honest to a non-technical
   user — see the North Star framing from a sibling project's CLAUDE.md: never let a number
   imply safety it hasn't earned.
-- **No slippage/price-impact handling for Aave, Lido, or Yearn** — deposits and withdrawals
-  are 1:1 at the protocol's own exchange rate, so this isn't applicable to those three as
-  built. **Curve is the exception**: `add_liquidity`/`remove_liquidity_one_coin` behave like a
-  swap, so `DepositWithdrawModal` previews the expected output via `calc_token_amount`/
-  `calc_withdraw_one_coin` and submits a 1%-tolerance min-out rather than 0 — the first place
-  in this app that does real slippage protection. Same thing would be needed if a DEX-based
-  instant-Lido-exit path is ever added.
-- **Curve's shown APY is base trading-fee yield only, not gauge-inclusive.** Earning this
-  pool's separate CRV emissions requires staking the LP token in its gauge, which this app
-  doesn't do — so the CRV-reward APR Curve's API also reports is deliberately left out rather
-  than shown as if a plain depositor here would earn it. See `lib/protocols/curve.ts`.
-- **Curve's API response shape is unverified against the live endpoint** — same constraint as
-  Yearn's above: this sandbox's network policy blocks reaching `api.curve.finance` while
-  building, so `lib/protocols/curve.ts` parses defensively (skips the pool rather than
-  guessing a wrong APY) but the field names should be smoke-tested against the real endpoint
-  the first time this runs.
+- **No slippage/price-impact handling anywhere in the catalog.** Every kept protocol's
+  deposit/withdraw is 1:1 at the protocol's own exchange rate (or, for Sky's PSM swap, a
+  small fixed-bps buffer around a previewed quote) — none of them behave like a DEX trade, so
+  a real min-out isn't needed the way it would be for an LP-pool position. Would need adding
+  if a DEX-based instant-Lido-exit path, or an LP-pool opportunity, is ever added back.
 - **Fee amount is a hardcoded constant, not configurable per-session or A/B tested** —
   `DEPOSIT_FEE_BPS`/`WITHDRAW_FEE_BPS` in `lib/config/fees.ts`. Changing the fee is a one-line
   edit and a redeploy, nothing more sophisticated exists yet.
@@ -557,9 +531,6 @@ npm run dev
   Transfer attestation from Ethereum or L2s is often 15–19 minutes. If the mint
   signature is rejected after a successful burn, the burn stays in this browser's
   pending list for a manual mint — there is no server-side resume.
-- **Panoptic Unicorn is hidden if DeFiLlama has no parseable Unicorn APY**, or if
-  `asset()` is not native USDC. Do not substitute another pool's number. The vault
-  itself has not been deposit-tested from this app.
 - **Circle Fast Transfer is not built.** It would take a fee from the bridged amount.
   Standard Transfer is fee-free at Circle's layer and slower.
 
@@ -581,7 +552,7 @@ npm run dev
 | `app/api/analytics/event/route.ts` | First-party event ingest (no wallet/IP stored) |
 | `app/admin/page.tsx` | Password-gated analytics dashboard (not in public nav) |
 | `migrations/002_site_analytics.sql` | Anonymous site event schema. Applied by hand. |
-| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Lido stETH + WithdrawalQueue, Curve pool in 2-coin/3-coin variants, Spark PSM, Maple router/pool, Moonwell comptroller, CCTP V2 TokenMessenger/MessageTransmitter) |
+| `lib/abi/*` | Minimal hand-written ABIs (ERC-20, ERC-4626, Aave Pool + UiPoolDataProvider, Compound Comet, Lido stETH + WithdrawalQueue, Spark PSM, Maple router/pool, Moonwell comptroller + mToken, CCTP V2 TokenMessenger/MessageTransmitter) |
 | `lib/config/cctp.ts` | CCTP V2 domains, messengers, native USDC per chain |
 | `lib/cctp/attestation.ts` | bytes32 mint recipient + Iris parse (skip if attestation missing) |
 | `app/api/cctp/attestation/route.ts` | Same-origin Iris pass-through. No wallet, no store. |

@@ -14,16 +14,12 @@ export const PROTOCOL_TINT: Record<ProtocolId, string> = {
   'aave-v3': 'from-blue-500/20 via-blue-500/5 to-transparent',
   lido: 'from-purple-500/20 via-purple-500/5 to-transparent',
   'yearn-v3': 'from-emerald-500/20 via-emerald-500/5 to-transparent',
-  curve: 'from-amber-500/20 via-amber-500/5 to-transparent',
-  'frax-sfrxusd': 'from-teal-500/20 via-teal-500/5 to-transparent',
-  'convex-cvxcrv': 'from-pink-500/20 via-pink-500/5 to-transparent',
   'compound-v3': 'from-sky-500/20 via-sky-500/5 to-transparent',
   morpho: 'from-cyan-500/20 via-cyan-500/5 to-transparent',
   fluid: 'from-indigo-500/20 via-indigo-500/5 to-transparent',
   moonwell: 'from-lime-500/20 via-lime-500/5 to-transparent',
   sky: 'from-yellow-500/20 via-yellow-500/5 to-transparent',
   maple: 'from-orange-500/20 via-orange-500/5 to-transparent',
-  panoptic: 'from-violet-500/20 via-violet-500/5 to-transparent',
 };
 
 const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
@@ -72,53 +68,6 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
     docsUrl: 'https://docs.yearn.fi/',
     docsLabel: 'Yearn documentation',
     withdrawalNote: 'Redeem vault shares anytime via ERC-4626, subject to underlying liquidity.',
-  },
-  curve: {
-    howYieldWorks:
-      'You add USDC to a Curve stable pool alongside other stablecoins. Traders swap between coins and pay fees; those fees are distributed to liquidity providers. Your LP token represents your share of the pool.',
-    risks: [
-      'Smart contract risk in Curve pool contracts.',
-      'Impermanent loss / depeg risk — if a pool coin loses its peg, LP value can drop sharply.',
-      'Liquidity risk — large withdrawals can face slippage when exiting to a single coin.',
-      'The displayed APY is base trading-fee yield only — separate CRV gauge rewards require extra staking steps.',
-    ],
-    coolDetail:
-      'Curve\'s "StableSwap" math lets stablecoin pools handle huge volume with minimal slippage — the reason it became DeFi\'s default stablecoin trading layer.',
-    docsUrl: 'https://docs.curve.fi/',
-    docsLabel: 'Curve documentation',
-    withdrawalNote:
-      'Exit to USDC anytime via remove_liquidity_one_coin, subject to pool liquidity and price impact.',
-  },
-  'frax-sfrxusd': {
-    howYieldWorks:
-      'You deposit frxUSD into the sfrxUSD vault — an ERC-4626 wrapper that stakes your stablecoin in Frax\'s revenue-generating strategies (RWA and AMO mechanics). Vault shares appreciate as protocol revenue is distributed.',
-    risks: [
-      'Smart contract risk in Frax vault and underlying strategy contracts.',
-      'Strategy / RWA risk — real-world asset and AMO strategies carry credit and market exposure.',
-      'Stablecoin risk — frxUSD depends on Frax\'s peg and backing mechanisms.',
-      'Newer product line — shorter track record than established lending markets.',
-    ],
-    coolDetail:
-      'sfrxUSD is Frax\'s answer to "yield-bearing stablecoins" — your frxUSD earns a share of protocol revenue without you picking strategies manually.',
-    docsUrl: 'https://docs.frax.finance/',
-    docsLabel: 'Frax documentation',
-    withdrawalNote: 'Redeem vault shares anytime via ERC-4626 redeem.',
-  },
-  'convex-cvxcrv': {
-    howYieldWorks:
-      'You convert CRV into cvxCRV and stake it in Convex\'s rewards pool. Convex aggregates Curve voting power and passes boosted CRV, CVX, and crvUSD rewards back to stakers — higher yield than staking CRV alone.',
-    risks: [
-      'Smart contract risk across Convex depositor and rewards contracts.',
-      'One-way conversion — cvxCRV cannot be converted back to CRV through Convex.',
-      'Token price risk — CRV and CVX prices are volatile; yield is paid in these tokens.',
-      'Complex layered protocol — more moving parts than a simple lending deposit.',
-    ],
-    coolDetail:
-      'Convex cracked the Curve boost game: instead of locking CRV for years yourself, you convert once and ride Convex\'s pooled voting power for outsized rewards.',
-    docsUrl: 'https://docs.convexfinance.com/',
-    docsLabel: 'Convex documentation',
-    withdrawalNote:
-      'Unstake returns cvxCRV (not CRV). To exit fully, trade cvxCRV on a DEX or hold.',
   },
   'compound-v3': {
     howYieldWorks:
@@ -211,22 +160,6 @@ const BASE_DETAILS: Record<ProtocolId, OpportunityDetailContent> = {
     withdrawalNote:
       'Call requestRedeem to enter the queue. USDC is sent to your wallet when processed — no extra claim transaction. Typical wait is hours to a couple of days; up to 30 days is documented.',
   },
-  panoptic: {
-    howYieldWorks:
-      'You deposit USDC into Panoptic\'s Unicorn vault. A third-party curator supplies that USDC to lending markets and runs an automated options/volatility strategy. Openhand does not pick strikes, hedge, or operate the vault. Yield is not a money-market rate.',
-    risks: [
-      'Options and volatility risk — trades can lose USDC. This is not a cash park and is not "market-neutral" just because the strategy tries to hedge.',
-      'Smart contract risk in the vault, Panoptic markets, lending venues, and Uniswap infrastructure underneath.',
-      'Liquidity risk — ERC-4626 redeem depends on vault liquidity being available.',
-      'Newer / emerging protocol — shorter track record than Aave or Lido.',
-      'If DeFiLlama has no parseable Unicorn APY, this card is hidden rather than showing a guessed number.',
-    ],
-    coolDetail:
-      'Unicorn is a Panoptic community vault from their own docs. Listing it in the catalog is not a recommendation and not a "start here."',
-    docsUrl: 'https://panoptic.xyz/docs/getting-started/vaults',
-    docsLabel: 'Panoptic vault docs',
-    withdrawalNote: 'Redeem vault shares anytime via ERC-4626, subject to vault liquidity.',
-  },
 };
 
 function morphoOverrides(opportunity: Opportunity): Partial<OpportunityDetailContent> {
@@ -246,27 +179,10 @@ function morphoOverrides(opportunity: Opportunity): Partial<OpportunityDetailCon
   };
 }
 
-function curveOverrides(opportunity: Opportunity): Partial<OpportunityDetailContent> {
-  const is3Pool = opportunity.curve?.numCoins === 3;
-  if (!is3Pool) return {};
-
-  return {
-    howYieldWorks:
-      'You add USDC to Curve\'s legendary 3pool (USDC, USDT, DAI). Traders route stablecoin swaps through the pool and pay fees; LPs earn a share. This is one of DeFi\'s deepest stable pools.',
-    coolDetail:
-      '3pool is DeFi history — launched before Curve\'s factory pattern, it still anchors stablecoin liquidity on Ethereum with billions in cumulative volume.',
-  };
-}
-
 /** Educational copy for an opportunity — filter/sort context only, never suitability advice. */
 export function getOpportunityDetails(opportunity: Opportunity): OpportunityDetailContent {
   const base = BASE_DETAILS[opportunity.protocol];
-  const overrides =
-    opportunity.protocol === 'morpho'
-      ? morphoOverrides(opportunity)
-      : opportunity.protocol === 'curve'
-        ? curveOverrides(opportunity)
-        : {};
+  const overrides = opportunity.protocol === 'morpho' ? morphoOverrides(opportunity) : {};
 
   return { ...base, ...overrides };
 }

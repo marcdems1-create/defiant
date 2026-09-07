@@ -915,4 +915,27 @@ main's two new smoke scripts (`smoke:stocks`, `smoke:stock-arb`) into `apps/web/
 the existing `smoke:public` one. Verified `npm run typecheck`, `npm run lint`, and
 `npm run build` all still pass after the merge — see below.
 
+## Session update (2026-09-07) — cut Convex/Curve/Frax/Panoptic from the catalog
+
+Executed the cut decided during the Phase 0 review (recorded 2026-09-04 above) — that update
+only recorded the decision, this one removes the code. Removed everywhere: `ProtocolId` union,
+`ERC4626_PROTOCOLS`/`CONVERT_TO_ASSETS_PROTOCOLS`, `hasTokenEmissions`, the `Opportunity.curve`
+and now-orphaned `Opportunity.convertibleFrom` fields, `aggregate.ts`'s fetch calls,
+`cardBadges.ts`/`apyHistory.ts`/`opportunityDetails.ts`'s per-protocol branches, the `CURVE`/
+`CONVEX`/`FRAX`/`PANOPTIC` exports in `lib/config/addresses.ts`, the standalone
+`lib/protocols/{convex,curve,frax,panoptic}.ts` and `lib/abi/{convex,curvePool}.ts` files, and
+every Curve/Convex/Panoptic branch inside `DepositWithdrawModal.tsx` (its Curve preview/
+slippage/min-out block, ~100 lines, is gone entirely) and `HarvestRewards.tsx` (now
+Moonwell-only — its Convex CRV/CVX claim path and reward lookup are gone). While already
+rewriting `DepositWithdrawModal.tsx`'s withdraw branches, also collapsed the duplicate
+`ERC4626_PROTOCOLS && protocol !== 'yearn-v3'` / `protocol === 'yearn-v3'` branches the Phase 0
+survey flagged as redundant into one — same behavior, less code, and it was already being
+touched by this same edit so this isn't a separate drive-by fix. `README.md`'s "Protocols
+integrated" table was stale in the other direction too — it had never been updated when
+Compound III/Morpho/Fluid/Moonwell were added in earlier sessions, so fixing it now made it
+list all 9 kept protocols correctly instead of just adding the cut back in reverse. `npm run
+typecheck`, `npm run lint`, and `npm run build` all pass clean (still 22 routes, nothing
+regressed). This was prerequisite groundwork for Phase 2, not Phase 2 itself — Phase 2 (the
+ERC4626Adapter extraction for Yearn v3/Morpho/Fluid into `packages/core`) starts next.
+
 

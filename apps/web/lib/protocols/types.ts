@@ -4,16 +4,12 @@ export type ProtocolId =
   | 'aave-v3'
   | 'lido'
   | 'yearn-v3'
-  | 'curve'
-  | 'frax-sfrxusd'
-  | 'convex-cvxcrv'
   | 'compound-v3'
   | 'morpho'
   | 'fluid'
   | 'moonwell'
   | 'sky'
-  | 'maple'
-  | 'panoptic';
+  | 'maple';
 
 export interface Opportunity {
   id: string;
@@ -34,24 +30,12 @@ export interface Opportunity {
   positionToken?: `0x${string}`;
   positionDecimals?: number;
   positionSymbol?: string;
-  curve?: { numCoins: 2 | 3; coinIndex: number };
   liquidity: 'instant' | 'delayed';
   riskTier: 'established' | 'emerging';
-  convertibleFrom?: {
-    address: `0x${string}`;
-    symbol: string;
-    decimals: number;
-  };
 }
 
 /** Protocols that use plain ERC-4626 deposit(assets)/withdraw(assets). */
-export const ERC4626_PROTOCOLS: ProtocolId[] = [
-  'yearn-v3',
-  'frax-sfrxusd',
-  'morpho',
-  'fluid',
-  'panoptic',
-];
+export const ERC4626_PROTOCOLS: ProtocolId[] = ['yearn-v3', 'morpho', 'fluid'];
 
 /** Share tokens whose underlying value is convertToAssets (vault-style). */
 export const CONVERT_TO_ASSETS_PROTOCOLS: ProtocolId[] = [
@@ -61,5 +45,5 @@ export const CONVERT_TO_ASSETS_PROTOCOLS: ProtocolId[] = [
 
 /** Extra reward tokens that can be claimed, then optionally sold to USDC. */
 export function hasTokenEmissions(protocol: ProtocolId): boolean {
-  return protocol === 'moonwell' || protocol === 'convex-cvxcrv';
+  return protocol === 'moonwell';
 }

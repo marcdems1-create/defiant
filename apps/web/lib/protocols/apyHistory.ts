@@ -56,22 +56,6 @@ function lookupFor(opportunity: Opportunity): LlamaLookup | null {
         matchesSymbol: usdcSymbol,
         preferBase: true,
       };
-    case 'frax-sfrxusd':
-      return {
-        projects: ['frax'],
-        chain: 'Ethereum',
-        matchesSymbol: (s) => s.includes('FRXUSD') || s.includes('SFRAX'),
-        preferBase: false,
-      };
-    case 'convex-cvxcrv':
-      return {
-        projects: ['convex-finance'],
-        chain: 'Ethereum',
-        matchesSymbol: (s) => s.includes('CVXCRV'),
-        preferBase: false,
-      };
-    case 'curve':
-      return { projects: ['curve-dex'], chain: 'Ethereum', matchesSymbol: usdcSymbol, preferBase: true };
     case 'morpho': {
       const vaults = (MORPHO as Record<number, readonly { id: string; defiLlamaSymbol: string }[]>)[
         opportunity.chainId
@@ -97,13 +81,6 @@ function lookupFor(opportunity: Opportunity): LlamaLookup | null {
         projects: ['maple', 'syrup'],
         chain: 'Ethereum',
         matchesSymbol: (s) => s.includes('SYRUPUSDC') || s.includes('SYRUP'),
-        preferBase: false,
-      };
-    case 'panoptic':
-      return {
-        projects: ['panoptic', 'panoptic-v2'],
-        chain: 'Ethereum',
-        matchesSymbol: (s) => s.includes('UNICORN'),
         preferBase: false,
       };
     default:
