@@ -503,11 +503,14 @@ npm run dev
 - **USDC only** for Aave and Yearn — no other assets wired up yet. Extending to more assets
   means adding entries to `lib/config/addresses.ts` and generalizing the reserve/vault filter
   in `lib/protocols/aave.ts` / `yearn.ts` beyond a single hardcoded USDC address.
-- **No protocol risk scoring or TVL/liquidity display.** APY is shown with zero context on
-  underlying risk (smart contract audit status, vault strategy composition, Aave utilization
-  rate). A real "savings"-adjacent product needs this before it's honest to a non-technical
-  user — see the North Star framing from a sibling project's CLAUDE.md: never let a number
-  imply safety it hasn't earned.
+- **Qualitative risk badges exist (`lib/protocols/cardBadges.ts`), but no numeric risk data.**
+  Every opportunity card shows a risk tier (🟢/🟡/🔴), a "battle-tested"/"growing"/"newer" tag,
+  a fee-tier hint, and an instant-vs-delayed-exit tag — this superseded the coarser
+  `risk: 'lower' | 'higher'` field from this project's earlier history (see `CLAUDE.md`). What's
+  still missing: actual numbers — smart contract audit status, vault strategy composition, live
+  Aave utilization rate, TVL. The badges are a judgment call this app makes for the user, not
+  raw data the user can verify themselves. A real "savings"-adjacent product should eventually
+  show both — never let a badge imply safety it hasn't earned either.
 - **No slippage/price-impact handling for Aave, Lido, or Yearn** — deposits and withdrawals
   are 1:1 at the protocol's own exchange rate, so this isn't applicable to those three as
   built. **Curve is the exception**: `add_liquidity`/`remove_liquidity_one_coin` behave like a

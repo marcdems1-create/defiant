@@ -1088,4 +1088,59 @@ produces a `data_health_snapshot` row, and whether a live stock-arb cache refres
 `/admin/agent-db`'s row counts after the next scheduled smoke run and the next arb cache
 refresh (10-minute TTL) to confirm both.
 
+## Session update (2026-09-08, continued) — end-of-year launch plan; Compound/Fluid/Moonwell/Morpho audit
+
+The owner set a hard deadline: launched by **December 31, 2026**, full current catalog (not a
+narrowed MVP), solo + AI sessions (no other engineers), counsel can be retained now, global
+launch (no single-jurisdiction focus). A full phased plan was written and approved — see the
+plan artifact from this session for the complete six-phase breakdown (freeze → tiered testnet
+verification → parallel compliance review → security review of the transaction-building code →
+finally live-verify the stock tape/arb/agent-infra → capped soft launch → full launch). The
+short version, worth repeating here since it's the thing every session in this file has been
+circling: **nothing in this app has ever been transaction-tested against a live chain**, there
+is **no test framework** (`package.json` has no Jest/Vitest/Playwright, only
+`typecheck`/`lint`/`build` plus three `smoke:*` scripts against production), and **no security
+or compliance review has happened**, despite `README.md`'s own "Why non-custodial" section
+naming a compliance review as a pre-launch requirement since this project's first session. The
+plan exists to close those gaps on an actual calendar instead of adding more feature surface —
+**Phase 0 freezes new feature work**, including this repo's own `AGENT_INFRASTRUCTURE_SPEC.md`
+Track A items, until the core loop is proven.
+
+Phase 0's first concrete action: audit the four protocol adapters that turned up with **zero
+entry anywhere in this file's history** — `lib/protocols/compound.ts`, `fluid.ts`,
+`moonwell.ts`, `morpho.ts`. Findings, better than initially feared:
+
+- **All four addresses are properly sourced and dated** in `lib/config/addresses.ts`, same
+  discipline as everything else in that file: Compound III Comet from
+  compound-finance/comet's own deployment roots, Morpho's MetaMorpho vaults from
+  api.morpho.org's own GraphQL listing, Moonwell's mUSDC/comptroller/WELL from docs.moonwell.fi
+  (re-verified once already, 2026-08-18). **Fluid's fUSDC is the one weaker citation** — sourced
+  from "yield.xyz Fluid docs," a third-party staking-aggregator's documentation, not Fluid/
+  Instadapp's own official docs directly. Re-verify Fluid's address against Fluid's/Instadapp's
+  own docs or GitHub before this protocol goes live with real money — this is a Phase 1 Tier 3
+  item now, not a blind spot.
+- **All four have real, wired transaction-building logic**, not catalog-only stubs: Compound
+  and Moonwell get custom ABI branches in `DepositWithdrawModal.tsx` (their cToken-style
+  contracts aren't ERC-4626), Fluid and Morpho fall through to the existing generic ERC-4626
+  deposit/redeem path (same as Yearn/Frax/Curve's scrvUSD) — exactly the pattern this repo
+  already uses elsewhere, applied consistently.
+- **The actual gap was narrative, not technical**: these were added competently (dated
+  2026-08-13, one re-verify on 2026-08-18) but never got a "Session update" entry in this file,
+  so nothing about their existence was discoverable from `CLAUDE.md`'s own history — exactly
+  the failure mode this file exists to prevent. Recorded here now to close that gap.
+- **Bonus finding, same audit pass**: `lib/protocols/cardBadges.ts` — a real, four-axis
+  qualitative risk-badging system (risk tier, battle-tested/growing/newer, fee tier,
+  instant/delayed exit) — also has no `CLAUDE.md` entry and supersedes the coarse
+  `risk: 'lower' | 'higher'` field from the 2026-08-12 entry above (that field no longer
+  exists; `Opportunity.riskTier: 'established' | 'emerging'` replaced it, consumed by
+  `cardBadges.ts`, not shown raw). `README.md`'s "Known simplifications" section had gone
+  stale claiming "no protocol risk scoring" — corrected in this session to describe what
+  actually exists (qualitative badges) versus what's still genuinely missing (raw numbers:
+  audit status, utilization rate, TVL).
+
+Net effect on the launch plan: these four protocols move into Phase 1's Tier 3 verification
+window as originally planned, with one added, specific item (re-verify Fluid's address against
+a primary source) rather than a full re-audit — the code and citation discipline here were
+already sound, they just weren't visible in this file.
+
 

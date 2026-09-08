@@ -9,6 +9,14 @@ Checked into the repo (2026-09-07) so future sessions have the full spec in-tree
 only in a pasted message, following the same pattern as `BUILD_SPEC.md`. Status annotations
 below track what's actually shipped vs. still open — read those, not just the original text.
 
+**⏸ Paused 2026-09-08 — Phase 0 of the end-of-year launch plan (see `CLAUDE.md`).** With a hard
+December 31 launch deadline and solo capacity, every remaining Track A item (A1–A4: spread
+watcher, new-listing scout, landscape watcher, data-health watcher) is on hold. None of them
+are on the critical path to a launchable product — B2 (already shipped) covers the minimum
+"don't ship silent regressions" bar for now. Resume these post-launch, not before. Track B's
+already-shipped items (B2) stay as-is; B1/B3/B4 are likewise not launch-blocking and stay
+paused alongside A1–A4.
+
 ---
 
 ## Why these two, and not execution agents
