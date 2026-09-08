@@ -1143,4 +1143,16 @@ window as originally planned, with one added, specific item (re-verify Fluid's a
 a primary source) rather than a full re-audit — the code and citation discipline here were
 already sound, they just weren't visible in this file.
 
+Also checked in `TESTNET_VERIFICATION.md` — the Tier 1 (Aave/Lido/Yearn) runbook the launch
+plan calls for, with prerequisites, a per-protocol deposit→verify→withdraw→verify checklist,
+specific known risk areas to watch per protocol (Lido's async request/claim flow, Yearn's
+yDaemon field-shape assumption, Yearn's testnet vault availability being genuinely unconfirmed
+since it has no hardcoded address at all — queried live from yDaemon), and a result log table
+to actually fill in. This is a document to execute by hand with a real wallet and browser, not
+something this sandbox can run — confirmed again this session that outbound access even to a
+public testnet RPC endpoint is blocked here (`ethereum-sepolia-rpc.publicnode.com` got the same
+`connect_rejected` 403 as CoinGecko/LI.FI/Railway), so read-only pre-flight checks aren't
+possible from here either. The result log in that file is empty — filling it in with a real run
+is Phase 1's actual next step, not anything further from this session.
+
 
