@@ -811,4 +811,217 @@ original buy-only probe, which was already unverified. `npm run typecheck`, `npm
 lint`, and `npm run build` all pass clean. Run `npm run smoke:stock-arb` against
 production before trusting a single "round-trip verified" number this feature shows.
 
+## Session update (2026-09-05, continued) — merged to main without live verification
+
+PR #51 (this branch — Phase 1 + Phase 3 + Phase 3b, both session updates above) was
+merged to `main` by the repo owner, who confirmed via the Vercel preview first. **Neither
+`npm run smoke:stocks` nor `npm run smoke:stock-arb` was run before merging** — the PR's
+own test-plan checkboxes for both are unchecked. This is a real, open gap, not a
+formality: every number this feature shows (the CoinGecko/LI.FI address join, the
+buy-leg probe, the brand-new cross-chain bridge-quote path) is still exactly as unverified
+against live data as every prior note in this file says. It is now live in production
+instead of sitting in a PR, which makes running those two commands against
+`openhand.online` more urgent, not less. If a future session is asked to touch the stock
+tape again, check whether that's happened yet before assuming any of this is trustworthy.
+
+Also: while diagnosing why the preview "looked like the same site," it's worth recording
+that both `/admin/stocks` and the tape's own "Cross-chain spread" panel/column render
+**nothing at all** when `fetchStockArbRows()` returns zero rows — which round-trip
+verification is deliberately strict enough to do often. A future session confirming this
+feature works should check `/api/lifi/stock-arb`'s raw JSON directly (`{"rows":[...]}` vs
+`{"rows":[]}`), not just eyeball the dashboard, since an empty result and a broken
+endpoint look identical in the UI.
+
+## Session update (2026-09-06) — live `/api/lifi/stocks` output reviewed; two fixes
+
+The repo owner hit production's `/api/lifi/stocks` directly and pasted the raw JSON back
+for review — the first real look at Phase 1's live output since PR #51 merged (see
+2026-09-05 note above; the two smoke scripts still had not been run). Two findings, both
+now fixed on this branch:
+
+1. **`scripts/smoke-stock-market-data.mjs`'s `MAX_UNMATCHED_RATIO = 0.5` was miscalibrated.**
+   Real production data shows the unmatched ratio running well above 50% — expected, not a
+   bug: Ondo Global Markets + xStocks + Backed between them cover close to the full US
+   equity universe on LI.FI's catalog, while CoinGecko's `tokenized-stock` category tracks
+   only a fraction of that (maybe 100-150 names). The script's ratio check was failing on
+   healthy coverage gaps, not real breakage. Fixed by raising the ratio ceiling to 0.97 and
+   adding a second, ratio-independent check (`MIN_ABSOLUTE_MATCHES = 5` on catalogs of
+   `MIN_ROWS_FOR_RATIO_CHECK = 20`+ rows) that actually catches the failure mode a ratio
+   can't: the join finding almost nothing at all (wrong CoinGecko platform-id strings, a
+   changed endpoint shape), independent of how large the catalog is.
+2. **LI.FI's own `priceUSD` is frequently and severely wrong for tokenized stocks, and this
+   was invisible to depositors.** The pasted production JSON showed `priceDivergencePct`
+   values (a field Phase 1 already computed) as high as +835% on at least one row (NVDAx).
+   That field was only ever surfaced in the admin divergence table
+   (`/admin/stocks`), tuned at `PRICE_DIVERGENCE_FLAG_PCT = 1.5%` for spotting a broken
+   *join* (many rows off by a similar amount). It was never shown to a depositor looking at
+   the public tape, who had no way to know a listed price might be wildly off. Fixed with a
+   second, higher, display-only threshold — `PRICE_DIVERGENCE_WARN_PCT = 10` in
+   `lib/lifi/stocks.ts` — and a "⚠ price mismatch" badge in `components/StockDesk.tsx`,
+   same "mark, don't hide" pattern as the existing `capStale` badge. Tooltip states the
+   actual divergence and direction. This is display-only: `StockSwapModal` already
+   re-quotes live at execution time regardless of the cached catalog's `priceUsd`, so this
+   was never a funds-safety gap — it was a discovery/trust gap (a depositor eyeballing the
+   tape had no way to know a number might be badly wrong before opening the swap modal).
+
+Both fixes are narrow and don't touch the underlying join, arb, or quote logic — this was
+about the display/monitoring layer catching up to what the live data already showed.
+`npm run typecheck`, `npm run lint`, and `npm run build` all pass clean. Still not
+verified: whether the new 0.97/absolute-match thresholds and the 10% warn threshold are
+themselves well-tuned in practice — both were picked from a single data pull, not a
+distribution. Run `npm run smoke:stocks` against production again and watch for either
+threshold tripping on genuinely healthy data, or the new badge appearing so often (or so
+rarely) that it stops being a useful signal — adjust the constants in
+`lib/lifi/stocks.ts` / `scripts/smoke-stock-market-data.mjs` if so. `npm run
+smoke:stock-arb` still has not been run against production — that gap from the prior
+entry is unchanged.
+
+## Session update (2026-09-07) — agent infrastructure spec checked in; B2 shipped
+
+Checked in `AGENT_INFRASTRUCTURE_SPEC.md` — a two-track plan (Track A: research/monitoring
+agents, Track B: dev-acceleration agents) that was pasted in full, explicitly scoped to
+exclude any autonomous execution/fund-movement agent for now. Read that file, not this
+summary, for the full text and per-item status; it's the same "check the spec into the
+repo instead of leaving it only in a message" pattern as `BUILD_SPEC.md`.
+
+Implemented the one item the spec's own sequencing puts first and calls cheapest
+regardless of anything else — **B2, automated smoke-test reporting**
+(`.github/workflows/production-smoke.yml`):
+
+- Both smoke jobs now open (or comment on) a tracking GitHub issue
+  (`production-smoke-failure` label) on failure, via `actions/github-script` using the
+  workflow's own `GITHUB_TOKEN` — no new secrets. A subsequent passing run closes the
+  issue automatically. Before this, a failure was only a red run in the Actions tab that
+  required someone to go look.
+- **`npm run smoke:stock-arb` is now scheduled too**, which the spec explicitly asked for
+  ("wire these into a scheduled job... that runs automatically") — but on its own
+  `0 */4 * * *` cron, separate from the existing `*/30 * * * *` cron the cheap checks
+  (`smoke:public`, `smoke:stocks`) stay on. This is a deliberate, stated departure from
+  putting it on the same 30-minute cadence: the 2026-09-05 entry above left
+  `smoke:stock-arb` off the schedule specifically because it fires real LI.FI quotes per
+  candidate row (up to `ARB_ENRICH_LIMIT × 2` = 16 quote calls per run) and is the
+  least-tested piece of the whole build — running that every 30 minutes unattended would
+  multiply external-API cost and risk on exactly the code this repo has repeatedly flagged
+  as needing the most scrutiny, and conflicts with the new spec's own Track A guardrail
+  ("scheduled agents polling LI.FI/CoinGecko... need their own budget"). A 4-hour cadence
+  resolves the "someone has to remember to run this by hand" gap without ignoring that
+  caution. `workflow_dispatch` still runs both jobs immediately on demand, as before.
+
+**What from the spec was not built, and why:** A1 (arb/spread watcher with persisted
+history + Slack/email alerts), A2 (new-listing scout with an admin-approval mapping flow),
+and B3 (cross-deploy regression diffing) all need a decision this session can't make
+silently — either a new persistence store (this app's only server-side table today is the
+anonymous `site_events` one; a spread-history or metrics-history table is a different,
+new piece of infrastructure) or an alerting destination (a Slack webhook URL, email
+service) that isn't configured anywhere in this repo. A4 (data health watcher) is only
+*partially* covered by B2 above: B2 turns the smoke script's existing fixed thresholds
+into a tracked alert, which is fixed-threshold alerting, not the trend/spike detection
+A4's own wording asks for ("staleness rates spike") — that needs the same persisted
+history A1/B3 are blocked on. A3 (competitor/landscape watcher) isn't code at all — it's a
+recurring research task, not something this session builds. B4 is explicitly sequenced
+last in the spec itself. See `AGENT_INFRASTRUCTURE_SPEC.md` for the per-item detail and
+status annotations, so a future session doesn't have to re-derive this from the diff.
+
+No app code changed this session — only the GitHub Actions workflow and the new spec
+doc. `npm run typecheck` and `npm run lint` pass clean (nothing to rebuild). The new
+workflow YAML was parsed with `js-yaml`/PyYAML to confirm it's well-formed, but — same
+caveat as everything else that depends on GitHub Actions in this repo — it has not
+actually been exercised by a real workflow run yet (issue creation, the two cron
+schedules firing correctly, the close-on-recovery step). Watch the Actions tab after this
+merges, or trigger it manually via `workflow_dispatch`, before assuming the alerting
+actually fires the way this description says it should.
+
+## Session update (2026-09-07, continued) — persistence-layer spec checked in; schema drafted
+
+Checked in `INFRA_PERSISTENCE_SPEC.md` — a Postgres persistence-layer plan (unblocks A1's
+spread history and B3's regression diffing from `AGENT_INFRASTRUCTURE_SPEC.md`) that
+explicitly listed three open questions before implementation could start.
+
+Answered the engineering one from the repo itself, no need to ask: this repo has no ORM
+or migration tool (nothing in `package.json`) — `migrations/002_site_analytics.sql`'s
+hand-numbered raw-SQL, applied-by-hand pattern is the only precedent, so the new tables
+follow that, not a framework.
+
+The other two — Railway project topology, and retention window — were genuinely the
+owner's call (irreversible-feeling infra decisions this session can't make silently, and
+this sandbox has no Railway access to act on either answer anyway), so they went through
+`AskUserQuestion` rather than a guess. Answered: **same Railway project as HYPERFLEX, but
+a new, separate Postgres service/instance** (avoids the exact shared-instance failure mode
+the spec cites, without the overhead of a whole new project), and **90-day retention**
+(the spec's own suggested default).
+
+With both answered, prepared the schema and connection code — but **stopped short of
+wiring it to anything live**, since the database itself doesn't exist yet and this
+sandbox can't provision it (no Railway credentials, same as every prior Vercel/Privy/
+Transak ops step in this file):
+
+- `migrations/003_agent_persistence.sql` — `spread_history`, `data_health_snapshot`,
+  `alert_config`, matching `002`'s style exactly. Commented with the 90-day retention
+  decision and the two `DELETE` statements to run on a schedule once this is live
+  (commented out — not scheduled anywhere yet).
+- `lib/agentDb.ts` — a lazy `pg.Pool` singleton keyed off a **new, separate**
+  `AGENT_DB_URL` env var, mirroring `lib/db.ts`'s `DATABASE_URL`/`getPool()`/
+  `analyticsEnabled()` shape exactly. Deliberately not sharing `DATABASE_URL` with
+  `site_events` — that table is a privacy-scoped anonymous-analytics store (non-negotiable
+  #9); this is unrelated agent-infrastructure monitoring data, and they shouldn't share a
+  pool or instance even though (per the Railway answer) they can share a Railway project.
+
+**Deliberately not built:** any actual write path (a `data_health_snapshot` row from the
+smoke workflow, a `spread_history` row from Phase 3b's compute path) or wiring into
+`production-smoke.yml` / `lib/lifi/stockArb.ts`. Beyond the database not existing yet,
+there's a real open design question logged in `INFRA_PERSISTENCE_SPEC.md`'s new "Status"
+section: should the standalone `scripts/smoke-stock-market-data.mjs` (a GitHub
+Actions script with no `pg` dependency today) get a raw `AGENT_DB_URL` secret directly, or
+should it POST to a new small authenticated app endpoint that holds the DB credentials
+server-side — matching how every other secret in this repo (`TRANSAK_API_SECRET`,
+`ADMIN_PASSWORD`) stays server-side only, never handed to a CI script? Left open rather
+than guessed, since it's exactly the kind of thing better decided once there's a real
+database to test either approach against.
+
+`npm run typecheck`, `npm run lint`, and `npm run build` all pass clean. `lib/agentDb.ts`
+has zero importers right now (by design — nothing wires to it yet) and `AGENT_DB_URL` is
+unset everywhere, so this change is a complete no-op for the running app. Next step is
+ops, not code: provision the new Postgres service, set `AGENT_DB_URL` (server-only, never
+`NEXT_PUBLIC_*`) on Vercel, run `migrations/003_agent_persistence.sql` by hand against it,
+and confirm `lib/agentDb.ts` actually connects — only then does resolving the write-path
+question above become useful.
+
+## Session update (2026-09-07, continued) — asked to provision + verify; neither is possible here
+
+Asked this session to provision the Railway database and check it live. Both are
+genuinely impossible from a Claude Code sandbox, for two separate reasons — said plainly
+rather than attempted and quietly failed:
+
+1. **No Railway access at all.** Checked for a Railway CLI, `RAILWAY_*` env vars, and a
+   Railway MCP tool — none exist in this session. Same class of limitation as every prior
+   Vercel/Privy/Transak dashboard step in this file: those all required the repo owner to
+   act directly in the vendor's dashboard, and Railway is no different here.
+2. **Even with a connection string, this sandbox can't open it.** Its egress proxy
+   (`/root/.ccr/README.md`) explicitly lists "raw-TCP databases" under "Not supported
+   through the proxy (report, do not work around)." So even pasting `AGENT_DB_URL` into
+   this conversation wouldn't let a future sandbox session verify connectivity — a `pg`
+   connection attempt from here fails against the proxy, not against the database. This is
+   a durable constraint, not something to retry with a different approach next time.
+
+**What got built instead**, so "check it live" has an actual answer once the database
+exists — verification needs to happen somewhere with real network access, which for this
+app is Vercel itself, not this sandbox:
+
+- `app/api/admin/agent-db-health/route.ts` — password-gated (same `isAdminSession()`
+  pattern as `/api/admin/stats`), connects via `lib/agentDb.ts#getAgentPool()`, runs
+  `SELECT 1`, checks all three `migrations/003_agent_persistence.sql` tables exist via
+  `to_regclass`, returns each table's row count.
+- `/admin/agent-db` — renders that as a status page (connection OK/latency, migration
+  applied/incomplete, a per-table exists/row-count list), linked from the main `/admin`
+  dashboard next to the existing "Stock data coverage" link. Same "load a real page in a
+  browser to see live state" pattern as `/admin/stocks`.
+
+`INFRA_PERSISTENCE_SPEC.md` now has the full step-by-step (Railway dashboard → new
+Postgres service in the same project as HYPERFLEX, not attached to its existing one → run
+migration 003 by hand → set `AGENT_DB_URL` on Vercel, server-only → redeploy → open
+`/admin/agent-db`) for the repo owner to actually do this. `npm run typecheck`, `npm run
+lint`, and `npm run build` all pass clean; the two new routes appear in the build output
+(`/admin/agent-db`, `/api/admin/agent-db-health`). Neither has been exercised against a
+real database yet — that's exactly the point of building them, not a caveat to fix later.
+
 
