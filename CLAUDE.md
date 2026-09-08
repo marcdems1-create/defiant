@@ -1024,4 +1024,68 @@ lint`, and `npm run build` all pass clean; the two new routes appear in the buil
 (`/admin/agent-db`, `/api/admin/agent-db-health`). Neither has been exercised against a
 real database yet — that's exactly the point of building them, not a caveat to fix later.
 
+## Session update (2026-09-08) — PR #52 merged; database provisioned; write paths wired
+
+The repo owner worked through provisioning live in this session (Railway's UI is not what
+this file's prior notes assumed — several wrong turns: a "New Environment" dialog is not
+"add a database," clicking the existing `Postgres` card opens HYPERFLEX's actual live
+database with all its real tables rather than creating a new one, `DATABASE_PRIVATE_URL`
+is Railway's internal-only network address and unreachable from Vercel or a local machine,
+and the newer Railway Postgres template doesn't expose a public URL until "Public
+Networking" is enabled on the service). Ended up with a **fully separate Railway project**
+(more isolated than the "same project, new service" answer from the prior session update —
+both were valid per that Ops question, this is just which one actually happened) with an
+empty Postgres, public networking enabled. This session could not run the migration
+directly (confirmed again: a `pg` connection attempt from this sandbox to the real
+public connection string timed out, exactly as `/root/.ccr/README.md` predicts for
+raw-TCP databases) — the repo owner ran `migrations/003_agent_persistence.sql` from their
+own machine via `psql` (after a detour through Railway's Console tab, which turned out to
+be a bash shell inside the Postgres container, not a SQL prompt) once the file was pulled
+via `git show origin/<branch>:<path>` instead of a branch switch, since their local `main`
+had unrelated uncommitted changes that made `git checkout`/`git pull` unsafe. All three
+tables now exist on the real database. `AGENT_DB_URL` is set on Vercel.
+
+**PR #52** (the six commits from the two 2026-09-07 entries above) was opened and, once
+`npm run typecheck`/`lint`/`build` (the "checks" CI job) and the Netlify preview checks
+were green, merged into `main` — the repo owner explicitly asked for both the PR and the
+merge in this session, rather than merging by hand as with PR #51. This branch was then
+reset to the new `main` per this environment's own convention for continuing work on an
+already-merged branch.
+
+With a real database now reachable from Vercel, the last open design question from the
+2026-09-07 entries — how the CI smoke script should get a `data_health_snapshot` row
+written without holding raw DB credentials — got resolved and built, not just decided:
+
+- **`lib/lifi/stockArb.ts`** now fire-and-forgets a `spread_history` insert of every
+  verified row after each fresh (non-cached) arb computation. Never awaited by a caller,
+  never throws on failure (only logs) — a DB hiccup must not be able to break the live tape
+  or arb panel. Deliberately narrower than the schema invites: only fully verified rows are
+  persisted for now (`liquidity_ok` always `true`), not the raw candidates that got dropped
+  during verification — logging those as "seen, not executable" is a documented future
+  step, not an oversight.
+- **New `app/api/agent/health-snapshot/route.ts`** — a write-only POST endpoint gated by a
+  shared bearer token (new `AGENT_INGEST_TOKEN` env var), not a raw database credential —
+  matching how `TRANSAK_API_SECRET`/`ADMIN_PASSWORD` stay server-side only and are never
+  handed to a CI script. `scripts/smoke-stock-market-data.mjs` now POSTs its computed
+  numbers there after every run (skipped, not failed, when `AGENT_INGEST_TOKEN` is unset; a
+  write failure only warns, never affects the smoke check's own exit code).
+  `production-smoke.yml`'s `smoke:stocks` step passes `secrets.AGENT_INGEST_TOKEN` through.
+- `.env.example` documents both `AGENT_DB_URL` and `AGENT_INGEST_TOKEN`.
+
+All four response branches of the new endpoint (no token configured, wrong bearer, correct
+bearer with no `AGENT_DB_URL`, correct bearer with a fake unreachable `AGENT_DB_URL`) were
+exercised locally against a throwaway `next start` — the first time in this whole build
+that a new code path got a real, direct verification rather than "typecheck/build pass,
+live behavior unverified," precisely because this piece doesn't depend on CoinGecko/LI.FI
+egress the sandbox can't reach. `npm run typecheck`, `npm run lint`, and `npm run build`
+all pass clean.
+
+**Still open:** `AGENT_INGEST_TOKEN` needs to actually be added as a GitHub Actions secret
+(repo Settings → Secrets and variables → Actions) before the smoke workflow's POST does
+anything — right now it'll just skip (logged, not fatal). Whether a live `smoke:stocks` run
+produces a `data_health_snapshot` row, and whether a live stock-arb cache refresh produces
+`spread_history` rows, has not been confirmed against the real database — check
+`/admin/agent-db`'s row counts after the next scheduled smoke run and the next arb cache
+refresh (10-minute TTL) to confirm both.
+
 

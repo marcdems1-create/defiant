@@ -31,6 +31,8 @@ jobs:
           node-version: 20
       - run: npm run smoke:public
       - run: npm run smoke:stocks
+        env:
+          AGENT_INGEST_TOKEN: ${{ secrets.AGENT_INGEST_TOKEN }}
       - name: Open or update failure issue
         if: failure()
         uses: actions/github-script@v7

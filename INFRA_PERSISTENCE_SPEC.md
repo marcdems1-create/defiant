@@ -187,5 +187,55 @@ real network access, so it's the actual answer to "check it live" once the datab
 6. Open `https://www.openhand.online/admin/agent-db` (log into `/admin` first if needed) — it
    should show "Connection: OK" and all three tables present with 0 rows.
 
+## Status (2026-09-08) — database provisioned; write paths wired
+
+The repo owner provisioned the database and ran the migration (a fully separate Railway
+**project** rather than a same-project new service — the actual final topology decision,
+slightly more isolated than the "same project" answer above; both were valid options per
+the Ops question, so this isn't a deviation worth re-litigating, just the record of which
+one actually happened). `migrations/003_agent_persistence.sql` ran clean against it
+(`CREATE TABLE` × 3, `CREATE INDEX` × 3). `AGENT_DB_URL` is now set on Vercel.
+
+That resolved the last open design question from the prior Status section — how
+`scripts/smoke-stock-market-data.mjs` (a CI script with no `pg` dependency) should get a
+`data_health_snapshot` row written without handing it raw database credentials. Decided:
+**a small authenticated ingest endpoint**, not a raw `AGENT_DB_URL` GitHub Actions secret —
+matching this repo's existing posture that secrets stay server-side only
+(`TRANSAK_API_SECRET`, `ADMIN_PASSWORD`) and are never handed to a CI script.
+
+What got built:
+
+- **`spread_history` writes** — `lib/lifi/stockArb.ts#buildArbRows` now fire-and-forgets an
+  insert of every verified `StockArbRow` after each fresh (non-cached) computation. Gated on
+  `agentPersistenceEnabled()`; a write failure is caught and logged, never thrown — this must
+  never be able to break the live tape or arb panel. Deliberately narrower than the table's
+  own schema comment invites: only fully round-trip-verified rows are persisted right now
+  (`liquidity_ok` is always `true`, `net_spread_pct` always non-null in every row this writes)
+  — raw candidates that got dropped during verification are not yet logged as "seen, not
+  executable." That richer version is a documented future enhancement, not an oversight.
+- **`data_health_snapshot` writes** — new `app/api/agent/health-snapshot/route.ts`, a
+  write-only POST endpoint authenticated by a shared bearer token (new `AGENT_INGEST_TOKEN`
+  env var, checked against `Authorization: Bearer <token>`). `scripts/smoke-stock-market-data.mjs`
+  now POSTs its computed numbers there after every run — skipped (not failed) when
+  `AGENT_INGEST_TOKEN` isn't set, and a write failure only logs a warning, never affects the
+  smoke check's own pass/fail exit code. `production-smoke.yml`'s `smoke:stocks` step now
+  passes `secrets.AGENT_INGEST_TOKEN` through as an env var.
+- `.env.example` documents both new env vars (`AGENT_DB_URL`, `AGENT_INGEST_TOKEN`).
+
+All four response branches of the new endpoint were exercised locally against a throwaway
+`next start` (no token configured → 503; wrong bearer → 401; correct bearer with no
+`AGENT_DB_URL` → 503; correct bearer with a fake unreachable `AGENT_DB_URL` → 500 with the
+real Postgres connection error) — this is the most any piece of this build has been verified
+before reaching production, precisely because it was finally possible to run a local server
+and hit it directly rather than needing live CoinGecko/LI.FI egress. `npm run typecheck`,
+`npm run lint`, and `npm run build` all pass clean.
+
+**Still not verified against the real production database or a real GitHub Actions run:**
+whether `AGENT_INGEST_TOKEN` actually gets set as a GitHub Actions secret (ops step, not
+code — add it under repo Settings → Secrets and variables → Actions), whether a live
+`smoke:stocks` run actually produces a `data_health_snapshot` row, and whether a live tape
+load actually produces `spread_history` rows. Check `/admin/agent-db`'s row counts after the
+next scheduled smoke run and the next stock-arb cache refresh to confirm both.
+
 If step 6 shows anything else, the error message it displays is the actual Postgres/driver
 error, not a guess from this session — read it directly rather than asking here first.

@@ -21,6 +21,13 @@
  * "ethereum", "base", "arbitrum-one" — not matching what the live endpoint returns), which
  * shows up as *zero or near-zero* matches on a catalog with many classified rows, not as a
  * merely-high unmatched ratio. See `/admin/stocks` for exactly which rows are unmatched.
+ *
+ * Added 2026-09-08 (INFRA_PERSISTENCE_SPEC.md): after computing its usual numbers, this
+ * script also POSTs them to /api/agent/health-snapshot for a `data_health_snapshot` row —
+ * this script's own read against the public API is the source of truth, the endpoint just
+ * persists it. Requires AGENT_INGEST_TOKEN; skipped (not failed) when that's unset, so this
+ * stays a strict superset of the script's prior behavior — nothing about the smoke check's
+ * own pass/fail depends on the write succeeding.
  */
 
 const DEFAULT_WWW_URL = 'https://www.openhand.online/';
@@ -116,6 +123,14 @@ async function main() {
   console.log(`Unmatched: ${unmatched} (${(unmatchedRatio * 100).toFixed(1)}%)`);
   console.log(`Stale among matched: ${stale.length} (${(staleRatio * 100).toFixed(1)}%)`);
 
+  await postHealthSnapshot(wwwUrl, {
+    catalogRows: tokens.length,
+    matchedRows: matched.length,
+    unmatchedRows: unmatched,
+    staleRows: stale.length,
+    smokePassed: failures.length === 0,
+  });
+
   if (failures.length > 0) {
     for (const failure of failures) {
       console.error(`FAIL: ${failure}`);
@@ -124,6 +139,33 @@ async function main() {
   }
 
   console.log('Smoke check passed.');
+}
+
+async function postHealthSnapshot(wwwUrl, metrics) {
+  const token = process.env.AGENT_INGEST_TOKEN;
+  if (!token) {
+    console.log('AGENT_INGEST_TOKEN not set — skipping data_health_snapshot write.');
+    return;
+  }
+  const endpoint = new URL('/api/agent/health-snapshot', wwwUrl.origin).toString();
+  try {
+    const res = await fetchWithTimeout(
+      endpoint,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(metrics),
+      },
+      REQUEST_TIMEOUT_MS,
+    );
+    if (!res.ok) {
+      console.warn(`WARN: data_health_snapshot write returned ${res.status} — smoke result unaffected.`);
+      return;
+    }
+    console.log('data_health_snapshot row written.');
+  } catch (error) {
+    console.warn(`WARN: data_health_snapshot write failed (${error.message}) — smoke result unaffected.`);
+  }
 }
 
 async function fetchWithRetries(url, options) {

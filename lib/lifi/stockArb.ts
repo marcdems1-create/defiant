@@ -1,4 +1,5 @@
 import { getAddress } from 'viem';
+import { agentPersistenceEnabled, getAgentPool } from '@/lib/agentDb';
 import { usdcOnStockChain, type StockChainId } from '@/lib/config/lifi';
 import { fetchLifiQuote, fetchStockCatalog, withStockMarketCaps, type StockToken } from '@/lib/lifi/stocks';
 
@@ -35,6 +36,16 @@ import { fetchLifiQuote, fetchStockCatalog, withStockMarketCaps, type StockToken
  * expensive chain and selling there is not yet a button in this app — see the "Buy
  * cheaper leg" copy in StockArbPanel.tsx. The number here is a verified quote, not a
  * verified user flow end-to-end.
+ *
+ * Persistence (INFRA_PERSISTENCE_SPEC.md, 2026-09-08): every fresh computation (not cache
+ * hits — see `buildArbRows`) fires a best-effort, non-blocking write of each verified row
+ * into `spread_history`, gated on `AGENT_DB_URL` being configured at all. Deliberately a
+ * narrower scope than the table's own schema comment invites: only rows that made it all
+ * the way through `enrichArbRows` are persisted (so `liquidity_ok` is always `true` and
+ * `net_spread_pct` is always non-null here) — raw candidates that got dropped (failed a
+ * liquidity gate, or a non-positive net spread) are NOT logged as "seen, not executable"
+ * rows yet. A write failure is caught and logged, never thrown — this must never be able to
+ * break the live tape or arb panel just because the persistence layer had a bad moment.
  */
 
 /** Below this gross spread, treat it as noise — not worth the cost of two probe quotes. */
@@ -244,13 +255,52 @@ export async function enrichArbRows(candidates: StockArbCandidate[]): Promise<St
   return rows;
 }
 
+/**
+ * Fire-and-forget write of a fresh computation's verified rows into `spread_history`. Never
+ * awaited by a caller and never throws — see the module doc comment for why. A no-op when
+ * `AGENT_DB_URL` isn't configured (the common case until INFRA_PERSISTENCE_SPEC.md's
+ * database is provisioned everywhere this app runs).
+ */
+function persistSpreadHistory(rows: StockArbRow[]): void {
+  if (!agentPersistenceEnabled() || rows.length === 0) return;
+  const pool = getAgentPool();
+  if (!pool) return;
+  Promise.all(
+    rows.map((row) =>
+      pool.query(
+        `INSERT INTO spread_history
+           (cgecko_id, symbol, low_chain_id, high_chain_id, low_price_usd, high_price_usd,
+            gross_spread_pct, net_spread_pct, liquidity_ok, match_stale, bridge_tool)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          row.cgeckoId,
+          row.symbol,
+          row.lowLeg.chainId,
+          row.highLeg.chainId,
+          row.lowLeg.priceUsd,
+          row.highLeg.priceUsd,
+          row.grossSpreadPct,
+          row.netSpreadPct,
+          true,
+          row.matchStale,
+          row.bridgeTool ?? null,
+        ],
+      ),
+    ),
+  ).catch((error) => {
+    console.error('spread_history insert failed:', error instanceof Error ? error.message : error);
+  });
+}
+
 const ARB_CACHE_TTL_MS = 10 * 60 * 1000;
 let arbCache: { rows: StockArbRow[]; fetchedAt: number } | null = null;
 let arbInflight: Promise<StockArbRow[]> | null = null;
 
 async function buildArbRows(): Promise<StockArbRow[]> {
   const catalog = await withStockMarketCaps(await fetchStockCatalog());
-  return enrichArbRows(computeRawArbRows(catalog));
+  const rows = await enrichArbRows(computeRawArbRows(catalog));
+  persistSpreadHistory(rows);
+  return rows;
 }
 
 /**
