@@ -1,4 +1,4 @@
-# Transaction Verification Runbook — Tiers 1 & 2
+# Transaction Verification Runbook — Tiers 1, 2 & 3
 
 **Repo:** `marcdems1-create/defiant`
 **Purpose:** Phase 1 of the end-of-year launch plan (see `CLAUDE.md` 2026-09-08). This is the
@@ -12,13 +12,15 @@ RPC endpoints either.
 **Do not skip a step because "it's probably fine."** The entire point of this exercise is that
 nothing in this app has earned that assumption yet.
 
-Two tiers, two different methodologies, because they face a genuinely different constraint:
-Tier 1's three protocols all have real Sepolia/testnet deployments, so they get tested the
-straightforward way. **Tier 2's five protocols do not — confirmed this session, every one of
-them is mainnet-only** (Curve and Convex say so in their own code comments; Frax, Sky's Spark
-PSM, and Maple's addresses simply have no testnet entry in `lib/config/addresses.ts` at all).
-See the Tier 2 section below for why that changes the approach rather than just being "the same
-thing, but scarier."
+Three tiers, two methodologies, because of a finding worth stating plainly up front: **only
+Tier 1's three original protocols (Aave, Lido, Yearn) have a real testnet deployment.**
+Confirmed by reading `lib/config/addresses.ts` directly — **all eleven protocols added since
+then, across both Tier 2 and Tier 3, are mainnet-only.** Every one of Curve, Convex, Frax, Sky,
+Maple, Compound, Fluid, Moonwell, Morpho, and Panoptic has zero Sepolia/Base Sepolia/Arbitrum
+Sepolia address on file. That's not a coincidence of which ones happened to get picked for this
+document — it's the actual shape of this app: the original three get the straightforward
+testnet treatment below; everything else needs the mainnet-fork methodology in the Tier 2
+section, which Tier 3 also follows.
 
 ---
 
@@ -221,6 +223,63 @@ contract address, all of which are far cheaper to find here than on a live trans
 
 ---
 
+## Tier 3 — Mainnet-Fork (Compound / Fluid / Moonwell / Morpho / Panoptic)
+
+Same methodology as Tier 2 — fork mainnet locally with `anvil` first, one small real-money
+mainnet confirmation after. These five have one thing Tier 2 didn't: they were the subject of
+this session's protocol-adapter audit (see `CLAUDE.md` 2026-09-08), so their address-citation
+status is already known going in — use that instead of re-deriving it.
+
+#### Compound V3 (`lib/protocols/compound.ts`, Base + Arbitrum) — custom ABI, not ERC-4626
+
+- **On the fork:** deposit is `Comet.supply(asset, amount)`, withdraw is
+  `Comet.withdraw(asset, amount)` (`DepositWithdrawModal.tsx`) — neither is the generic
+  ERC-4626 path, so don't assume Yearn/Frax's test shape carries over. Confirm both succeed and
+  the position balance (read via `getUtilization`/`getSupplyRate`-derived APY display) updates.
+- **Mainnet confirmation:** small amount, both Base and Arbitrum — two separate Comet
+  deployments per the audit's citation (compound-finance/comet's own deployment roots).
+
+#### Moonwell (`lib/protocols/moonwell.ts`, Base only) — custom ABI, and a dust-avoidance branch worth testing on purpose
+
+- **On the fork:** deposit is `mUSDC.mint(amount)`. Withdraw is the interesting one:
+  `DepositWithdrawModal.tsx` picks `redeem(shares)` for a full exit (burns every mUSDC share so
+  cToken-style rounding can't leave dust behind) versus `redeemUnderlying(amount)` for a partial
+  one. **Test both paths explicitly** — a partial withdrawal followed by a full withdrawal of
+  the remainder, not just one or the other — since this branch exists specifically to avoid a
+  failure mode (dust) that only shows up if you don't exercise both sides of it.
+- **Mainnet confirmation:** small amount, both partial and full withdrawal.
+
+#### Fluid (`lib/protocols/fluid.ts`, Base + Arbitrum) — generic ERC-4626, but re-verify the address first
+
+- **Before anything else:** per the 2026-09-08 audit, Fluid's `fUSDC` address is sourced from
+  "yield.xyz Fluid docs" — a third-party aggregator, not Fluid/Instadapp's own official docs.
+  **Re-verify this address against Fluid's own docs or GitHub before forking against it.** If it
+  turns out wrong, everything downstream (the fork test, a mainnet test) is testing the wrong
+  contract and would give false confidence.
+- **On the fork, once re-verified:** standard `approve` + `deposit` + `redeem`, same as
+  Yearn/Frax.
+- **Mainnet confirmation:** small amount, both chains, only after the address re-verification
+  above is actually done — don't skip straight to this step.
+
+#### Morpho (`lib/protocols/morpho.ts`, Base + Arbitrum, multiple vaults) — generic ERC-4626, multiple vaults per chain
+
+- **On the fork:** `lib/config/addresses.ts`'s `MORPHO` lists 2-3 vaults per chain (Gauntlet USDC
+  Prime, Steakhouse USDC, Steakhouse/Sirloin High Yield). Test at least the "established"-tier
+  one and one "emerging"/high-yield one per chain, not just whichever loads first — they're
+  independent MetaMorpho vault contracts, not variations on one config.
+- **Mainnet confirmation:** small amount, one established + one high-yield vault.
+
+#### Panoptic Unicorn (`lib/protocols/panoptic.ts`, Ethereum only) — generic ERC-4626, already flagged higher-risk
+
+- **On the fork:** standard `approve` + `deposit` + `redeem`. The existing higher-risk badge
+  and non-negotiable-adjacent copy ("not market-neutral, not a featured strategy" per the
+  2026-08-18 entry) should stay exactly as-is regardless of how this test goes — a clean test
+  result is not a reason to soften that framing.
+- **Mainnet confirmation:** small amount. This is explicitly the newest/least-established name
+  in the whole catalog; treat a clean fork result as the floor of confidence, not the ceiling.
+
+---
+
 ## Result Log
 
 Fill in one row per protocol per run — testnet, mainnet-fork, and final mainnet confirmations
@@ -242,3 +301,12 @@ mainnet confirmation, with Maple's syrup.fi lender authorization actually grante
 bypassed) before its mainnet confirmation counts. Passing Tier 1's gate is what unblocks
 starting Tier 2 per the launch plan — don't start Tier 2 work with Tier 1 still unresolved, and
 don't call Tier 2 "done" on fork results alone.
+
+**Tier 3:** all five protocols have a clean fork-tested cycle and mainnet confirmation, with
+Fluid's address re-verified against a primary source (not yield.xyz) before its results count,
+and Moonwell's full-vs-partial withdrawal branch specifically exercised, not just one path.
+
+Once all three tiers pass, Phase 1 of the launch plan is done — that's the gate into Phase 2
+(compliance) continuing to completion and Phase 3 (security review of the transaction-building
+code), per `CLAUDE.md` 2026-09-08's plan summary. Sequence matters: don't treat any tier's
+"looks fine in the UI" as equivalent to a logged, real transaction in this table.

@@ -1192,4 +1192,34 @@ second document. No code changed this session — this is entirely runbook/docum
 consistent with Phase 0/1's "verify before building more" instruction from the prior session's
 launch plan.
 
+## Session update (2026-09-09, continued) — Tier 3 runbook; the real shape of this app's testnet coverage
+
+Extended `TESTNET_VERIFICATION.md` again with Tier 3 (Compound/Fluid/Moonwell/Morpho/Panoptic)
+and, while checking their address blocks the same way Tier 2's were checked, found the fact
+that actually explains the whole document: **only Tier 1's three original protocols (Aave,
+Lido, Yearn) have ever had a testnet deployment in this app.** All eleven protocols added since
+— every one of Tier 2 and Tier 3 — are mainnet-only, confirmed by reading
+`lib/config/addresses.ts` directly (no Sepolia/Base Sepolia/Arbitrum Sepolia key anywhere for
+any of them). The file's intro now says this plainly instead of implying Curve was a special
+case, since it wasn't — it was just the first one anyone had checked closely.
+
+Tier 3 gets the same fork-first methodology as Tier 2, with two protocol-specific things worth
+tracking separately:
+
+- **Moonwell has a dust-avoidance branch that only gets exercised if you test both sides of
+  it**: `DepositWithdrawModal.tsx` picks `redeem(shares)` for a full exit vs.
+  `redeemUnderlying(amount)` for a partial one. The runbook now calls for testing a partial
+  withdrawal followed by a full withdrawal of the remainder specifically, not just whichever
+  path happens to get exercised first.
+- **Fluid's runbook entry leads with "re-verify the address before forking against it"** — the
+  2026-09-08 audit already flagged its citation (yield.xyz, a third-party aggregator) as weaker
+  than the other three's primary-source citations; this is where that flagged item actually
+  gets acted on rather than just noted.
+
+`TESTNET_VERIFICATION.md`'s closing section now states the obvious consequence: once all three
+tiers pass, Phase 1 of the launch plan is done, which is what unblocks Phase 2 (compliance)
+running to completion and Phase 3 (the transaction-building security review). No code changed
+this session — still entirely runbook work, per Phase 0/1's own instruction to verify before
+building more.
+
 
