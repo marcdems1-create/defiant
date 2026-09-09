@@ -1155,4 +1155,41 @@ public testnet RPC endpoint is blocked here (`ethereum-sepolia-rpc.publicnode.co
 possible from here either. The result log in that file is empty — filling it in with a real run
 is Phase 1's actual next step, not anything further from this session.
 
+## Session update (2026-09-09) — Tier 2 verification runbook; none of it has a testnet
+
+Extended `TESTNET_VERIFICATION.md` (renamed to cover both tiers) with Tier 2
+(Curve/Convex/Frax/Sky/Maple). Confirmed by reading the actual code and config, not assumed:
+**all five have zero testnet deployment** — Curve and Convex say so directly in their own code
+comments, and `FRAX`/`SPARK_PSM`/`MAPLE` in `lib/config/addresses.ts` simply have no
+Sepolia/Base Sepolia/Arbitrum Sepolia key at all. The original launch plan's Phase 1 said
+"Curve has no testnet... budget time and a rollback plan for that one" as if it were the one
+exception in Tier 2 — it's actually the whole tier's situation, not a special case of it.
+
+Recommended methodology, added to the runbook: **fork mainnet locally with Foundry's `anvil`**
+(`anvil --fork-url <mainnet RPC>`) before ever touching real money. This gets every real
+deployed contract (the actual Curve pools, the actual CRV Depositor, Spark's actual PSM,
+Maple's actual pool) with real live state, but lets you mint yourself unlimited fake
+ETH/USDC (`anvil_setBalance`, or impersonate a funded whale via `anvil_impersonateAccount`)
+and retry freely at zero cost and zero risk. A clean fork run is necessary but **not
+sufficient** — the runbook still calls for one final small real-money mainnet confirmation
+per protocol afterward, since a fork can't validate the real RPC provider, real gas market, or
+a real wallet's live signing flow end-to-end.
+
+Two protocol-specific things worth flagging beyond "no testnet":
+
+- **Maple has an external, non-technical dependency that isn't under this project's control at
+  all**: `fetchMapleLenderStatus()`/`DepositWithdrawModal.tsx` block deposit until a wallet is
+  lender-authorized on **syrup.fi** itself — Openhand cannot grant this. Runbook calls for
+  starting that authorization now, in parallel with everything else, since its timeline is
+  Maple's, not ours.
+- **Curve's two configured pools use different ABI variants** (`numCoins` 2 vs 3) and need
+  independently verified runs — a clean crvUSD/USDC test says nothing about whether 3pool's
+  separate `curvePoolAbi3Coin` branch actually works.
+
+`TESTNET_VERIFICATION.md`'s result log now has an "Environment" column
+(testnet/fork/mainnet) so all three kinds of runs land in the same table rather than needing a
+second document. No code changed this session — this is entirely runbook/documentation work,
+consistent with Phase 0/1's "verify before building more" instruction from the prior session's
+launch plan.
+
 
