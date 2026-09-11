@@ -1,5 +1,20 @@
+import { createHash, timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAgentPool } from '@/lib/agentDb';
+
+/**
+ * Constant-time comparison against the configured bearer token, same pattern as
+ * `lib/admin/auth.ts#verifyAdminPassword` — hash both sides to a fixed-length digest first
+ * (so `timingSafeEqual`, which requires equal-length buffers, never throws on a
+ * different-length guess) and compare digests, not the raw strings.
+ */
+function isAuthorized(req: NextRequest, token: string): boolean {
+  const provided = req.headers.get('authorization') ?? '';
+  const expected = `Bearer ${token}`;
+  const a = createHash('sha256').update(provided).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (!token) {
     return NextResponse.json({ error: 'ingest not configured' }, { status: 503 });
   }
-  if (req.headers.get('authorization') !== `Bearer ${token}`) {
+  if (!isAuthorized(req, token)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 

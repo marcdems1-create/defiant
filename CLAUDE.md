@@ -1222,4 +1222,27 @@ running to completion and Phase 3 (the transaction-building security review). No
 this session — still entirely runbook work, per Phase 0/1's own instruction to verify before
 building more.
 
+## Session update (2026-09-11) — security review of this branch's diff; one fix
+
+Ran the `security-review` skill against everything on this branch since `main` (the six
+commits from 2026-09-08/09 — agent-db write paths, the three runbooks, the audit). Two-stage
+process (identify, then a separate skeptical pass to filter false positives): one candidate
+finding survived stage one, and it was a real, concrete inconsistency worth fixing even
+though the filtering pass correctly scored its literal exploitability low (3/10) —
+`app/api/agent/health-snapshot/route.ts`'s bearer-token check used plain `!==` string
+comparison instead of this repo's own established constant-time pattern
+(`lib/admin/auth.ts#verifyAdminPassword`, which SHA-256-hashes both sides then uses
+`crypto.timingSafeEqual`). The filtering pass's reasoning was sound — a JS string-comparison
+timing signal is nanoseconds against milliseconds of real network/serverless jitter, not
+practically extractable remotely — but "not exploitable today" isn't the same as "consistent
+with how this codebase actually handles every other secret comparison," so it's fixed anyway:
+`isAuthorized()` now hashes both the provided header and the expected `Bearer <token>` string
+with SHA-256 and compares digests via `timingSafeEqual`, matching `lib/admin/auth.ts` exactly.
+Re-verified all three response branches (wrong bearer, missing header, correct bearer) against
+a local `next start` — still 401/401/503-as-expected. Nothing else in the diff produced a
+finding above the review's confidence threshold: the new SQL is fully parameterized, the
+`spread_history` write is correctly fire-and-forget/isolated, and the GitHub Actions secret
+is only ever threaded into a step-scoped env var. `npm run typecheck`, `npm run lint`, and
+`npm run build` all pass clean.
+
 
