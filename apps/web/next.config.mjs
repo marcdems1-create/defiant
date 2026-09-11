@@ -1,7 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@privy-io/react-auth', '@privy-io/wagmi'],
+  // @defiant/core ships its TypeScript source directly (package.json "main"
+  // points at src/index.ts, not a compiled dist/) — transpilePackages tells
+  // Next to run its own transform over that workspace package instead of
+  // treating it like ordinary pre-built node_modules content.
+  transpilePackages: ['@privy-io/react-auth', '@privy-io/wagmi', '@defiant/core'],
   async redirects() {
     return [
       { source: '/opportunities', destination: '/', permanent: false },

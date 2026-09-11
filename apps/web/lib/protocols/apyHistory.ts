@@ -1,4 +1,4 @@
-import { MORPHO } from '@/lib/config/addresses';
+import { MORPHO } from '@defiant/core';
 import type { Opportunity } from './types';
 import { findDefiLlamaPool, fetchDefiLlamaApyHistory, type ApyHistoryPoint } from './defillama';
 
@@ -57,9 +57,7 @@ function lookupFor(opportunity: Opportunity): LlamaLookup | null {
         preferBase: true,
       };
     case 'morpho': {
-      const vaults = (MORPHO as Record<number, readonly { id: string; defiLlamaSymbol: string }[]>)[
-        opportunity.chainId
-      ];
+      const vaults = MORPHO[opportunity.chainId];
       const vault = vaults?.find((v) => opportunity.id.includes(v.id));
       if (!vault) return null;
       return {

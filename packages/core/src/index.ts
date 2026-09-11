@@ -1,13 +1,12 @@
-/**
- * Phase 1 scaffold — empty on purpose. See CLAUDE.md ("Repo layout note") for the
- * plan: Phase 2 extracts the real YieldAdapter implementations out of
- * apps/web/components/DepositWithdrawModal.tsx (deposit/withdraw building),
- * apps/web/lib/protocols/*.ts (rate reads), and apps/web/lib/hooks/usePositions.ts
- * (position reads) into per-protocol adapters here.
- *
- * Hard constraint carried over from apps/web: adapters build unsigned
- * TxRequest objects. They never hold a signer, never call sendTransaction,
- * never call writeContract. Signing stays the caller's job (a connected
- * wallet in apps/web, or whatever holds packages/api's HTTP layer in Phase 5).
- */
-export const CORE_PACKAGE_VERSION = '0.1.0';
+export type { Address, ExitProfile, Position, RateQuote, TxRequest, YieldAdapter } from './types';
+export { erc4626Abi } from './abi/erc4626';
+export {
+  ERC4626Adapter,
+  buildErc4626Deposit,
+  buildErc4626Withdraw,
+  type Erc4626AdapterConfig,
+} from './erc4626/ERC4626Adapter';
+export { YearnAdapter, discoverYearnAdapters } from './adapters/yearn';
+export { MorphoAdapter, createMorphoAdapters } from './adapters/morpho';
+export { FluidAdapter, createFluidAdapter } from './adapters/fluid';
+export { CHAIN_ID, USDC, MORPHO, FLUID, type MorphoVaultConfig } from './addresses';

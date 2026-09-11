@@ -14,6 +14,7 @@
     "smoke:stock-arb": "node scripts/smoke-stock-arb.mjs"
   },
   "dependencies": {
+    "@defiant/core": "*",
     "@privy-io/react-auth": "^2.21.4",
     "@privy-io/wagmi": "^1.0.2",
     "@rainbow-me/rainbowkit": "^2.2.1",

@@ -1,41 +1,32 @@
+import { createFluidAdapter } from '@defiant/core';
 import type { Opportunity } from './types';
-import { FLUID, AAVE_V3 } from '@/lib/config/addresses';
 import type { SupportedChainId } from '@/lib/wagmi';
-import { findDefiLlamaApyAnyProject } from './defillama';
 
-function chainLabel(chainId: number): 'Base' | 'Arbitrum' | null {
-  if (chainId === 8453) return 'Base';
-  if (chainId === 42161) return 'Arbitrum';
-  return null;
-}
+/**
+ * Bridges @defiant/core's FluidAdapter to this app's Opportunity catalog
+ * shape. Phase 2 adapter extraction: the address config and DeFiLlama
+ * rate-fetch logic now live in packages/core/src/adapters/fluid.ts.
+ */
+export async function fetchFluidOpportunities(chainId: SupportedChainId): Promise<Opportunity[]> {
+  const adapter = createFluidAdapter(chainId);
+  if (!adapter) return [];
 
-export async function fetchFluidOpportunities(
-  chainId: SupportedChainId,
-): Promise<Opportunity[]> {
-  const cfg = (FLUID as Record<number, { fUSDC: `0x${string}` }>)[chainId];
-  const usdc = AAVE_V3[chainId]?.usdc;
-  const llamaChain = chainLabel(chainId);
-  if (!cfg || !usdc || !llamaChain) return [];
-
-  const apy = await findDefiLlamaApyAnyProject(
-    ['fluid-lending', 'fluid', 'instadapp'],
-    llamaChain,
-    (s) => s === 'USDC' || s.includes('USDC'),
-  );
-  if (apy === null) return [];
+  const rate = await adapter.getRate();
+  if (rate === null) return [];
 
   return [
     {
-      id: `fluid-usdc-${chainId}`,
+      id: adapter.id,
       protocol: 'fluid',
       protocolLabel: 'Fluid USDC',
       chainId,
-      asset: { address: usdc, symbol: 'USDC', decimals: 6 },
-      apy,
+      asset: { address: adapter.asset, symbol: 'USDC', decimals: 6 },
+      apy: rate.apy,
+      apyCompounded: rate.apyCompounded,
       description:
         'Deposit USDC into Fluid (Instadapp) fUSDC — unified liquidity layer earning lending yield. ERC-4626 redeem anytime subject to liquidity.',
-      depositTarget: cfg.fUSDC,
-      positionToken: cfg.fUSDC,
+      depositTarget: adapter.vault,
+      positionToken: adapter.vault,
       liquidity: 'instant',
       riskTier: 'emerging',
     },

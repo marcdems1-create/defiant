@@ -1165,4 +1165,83 @@ conflict was this file (both sides appended new sections); resolved by keeping b
 None of this touches the yield catalog or `DepositWithdrawModal.tsx` — no interaction with
 the Convex/Curve/Frax/Panoptic cut. Re-verify before continuing into Phase 2.
 
+## Session update (2026-09-11, continued) — Phase 2: ERC-4626 batch extracted to packages/core
+
+Extracted Yearn v3, Morpho, and Fluid — the ERC-4626 batch — into `packages/core`, the
+first real adapter logic Phase 1's scaffold. Added `viem` as a real dependency of
+`packages/core` (owner-approved before starting: same version apps/web already pins,
+already in the workspace's install, no new transitive surface).
+
+**What moved, and what didn't:**
+- `packages/core/src/types.ts` — the `YieldAdapter`/`TxRequest`/`RateQuote`/`Position`/
+  `ExitProfile` types, matching the original repo-split brief's interface shape. `getRate()`
+  returns `RateQuote | null`, not a bare `RateQuote` — non-negotiable #3 (never fabricate an
+  APY) needs the "couldn't read a confident rate" case representable at the type level, not
+  just handled ad hoc. `ExitProfile` is instant/queued only — no one-way variant, since
+  Convex (the only one-way exit in the original 13) was already cut.
+- `packages/core/src/erc4626/ERC4626Adapter.ts` — the shared base class. `getPosition()`
+  does the on-chain `balanceOf` → `convertToAssets` read; `buildDeposit`/`buildWithdraw`/
+  `exitProfile()` never touch the injected `client` at all, so a caller building a tx for an
+  opportunity it already knows the vault address for doesn't need one. Also exports
+  `buildErc4626Deposit`/`buildErc4626Withdraw` as **plain functions** (no instance
+  required) for exactly that case — see below.
+- `packages/core/src/adapters/{yearn,morpho,fluid}.ts` — `YearnAdapter`/`MorphoAdapter`/
+  `FluidAdapter`, each just overriding `getRate()` (the actual per-protocol difference:
+  yDaemon fetch, Morpho GraphQL + DeFiLlama fallback, DeFiLlama-only). Yearn's vault set is
+  discovered dynamically (`discoverYearnAdapters`) since yDaemon's vault list *is* the
+  discovery mechanism — each returned adapter already carries the APY found at discovery
+  time rather than re-fetching the whole list per `getRate()` call. Morpho/Fluid are static
+  config (`createMorphoAdapters`/`createFluidAdapter`), so no discovery step needed.
+- `packages/core/src/addresses.ts` — USDC (per chain), Morpho's vault list, and Fluid's
+  `fUSDC` addresses **moved** (same values, same original citations, not re-derived) out of
+  `apps/web/lib/config/addresses.ts` — removed there once nothing in `apps/web` referenced
+  them anymore (confirmed by grep before deleting, `apyHistory.ts`'s Morpho lookup switched
+  to import `MORPHO` from `@defiant/core` instead). USDC didn't have its own standalone
+  export before — it was only ever the `usdc` field embedded in `AAVE_V3`'s per-chain
+  config — so this is a new top-level export with the same address values, not an edit.
+- `packages/core/src/defillama.ts` — a **copy**, not a move, of the parts of
+  `apps/web/lib/protocols/defillama.ts` that Morpho/Fluid need. That file's other consumers
+  (Compound, Moonwell, Sky, Maple — not migrated yet) still need the `apps/web` copy, so it
+  couldn't be deleted. This is real, temporary duplication, not an oversight — delete the
+  `apps/web` copy once every DeFiLlama-dependent protocol has its own adapter here.
+- **`apps/web/lib/protocols/{yearn,morpho,fluid}.ts` are now thin bridges**, not the real
+  logic — they call the package's adapters and map `RateQuote` + adapter fields onto this
+  app's `Opportunity` catalog shape (display copy, `riskTier` — product decisions the
+  adapter itself correctly doesn't own). `aggregate.ts` needed zero changes: the bridges
+  kept the same exported function names/signatures.
+- **`DepositWithdrawModal.tsx`'s ERC-4626 deposit/withdraw branches now call
+  `buildErc4626Deposit`/`buildErc4626Withdraw` from `@defiant/core`** instead of hand-rolling
+  the `erc4626Abi` call inline — the actual "adapters build unsigned transactions" boundary
+  this whole repo split is for. `writeContractAsync`/wagmi signing still happens exactly
+  where it always did, in this component; the adapter never sees a signer.
+- **`lib/hooks/usePositions.ts` was deliberately left untouched.** It reads all nine
+  protocols' balances through one batched `useReadContracts` call — a real multicall-style
+  performance property. Switching Yearn/Morpho/Fluid to each adapter's own `getPosition()`
+  would trade that for N separate RPC reads, and nothing about this batch's actual goal
+  (adapters build unsigned tx, don't sign) required it. `getPosition()` still exists on
+  every adapter here — for Phase 3's fork tests and for `packages/api` (Phase 5) — apps/web
+  just doesn't call it yet.
+
+**Wiring, not just code:** `next.config.mjs` gained `@defiant/core` in `transpilePackages`
+(the package ships TS source directly — `package.json`'s `main`/`types` point at
+`src/index.ts`, not a compiled `dist/` — so Next needs to transpile it like first-party
+code, same reason `@privy-io/*` are already in that list). `apps/web/package.json` gained
+`@defiant/core: "*"` as a real dependency. Root `tsconfig.base.json` switched from
+`NodeNext`/`NodeNext` to `module: "esnext"` / `moduleResolution: "bundler"` — NodeNext's
+mandatory `.js` extensions on relative imports fought against source being consumed via a
+bundler, and `bundler` is what actually matches how `apps/web` consumes this package today.
+**Consequence worth remembering**: if `packages/api` (Phase 5) ever runs as a plain `node`
+process without its own bundler step, Node's ESM loader will require those extensions at
+runtime that `bundler` resolution doesn't force at the source level — that's a problem for
+whoever builds Phase 5, flagged in `packages/core/README.md`'s "Build" section, not solved
+preemptively here.
+
+`npm run typecheck`, `npm run lint`, and `npm run build` all pass clean across every
+workspace; still 23 routes, `@defiant/core` transpiles into the build with no errors.
+**Not verified**: none of this has run against a live RPC, yDaemon, Morpho's GraphQL API, or
+DeFiLlama from this sandbox (same network-reachability caveat as every protocol integration
+in this file) — the adapters' output has the same shape as the code they replaced, but
+smoke-test a real Yearn/Morpho/Fluid deposit on testnet before trusting this over the
+inline version it replaced.
+
 

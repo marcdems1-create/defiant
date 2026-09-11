@@ -7,7 +7,7 @@ import { waitForTransactionReceipt } from 'wagmi/actions';
 import type { Opportunity } from '@/lib/protocols/types';
 import { erc20Abi } from '@/lib/abi/erc20';
 import { aavePoolAbi } from '@/lib/abi/aavePool';
-import { erc4626Abi } from '@/lib/abi/erc4626';
+import { buildErc4626Deposit, buildErc4626Withdraw } from '@defiant/core';
 import { stEthAbi, lidoWithdrawalQueueAbi } from '@/lib/abi/lido';
 import { compoundCometAbi } from '@/lib/abi/compoundComet';
 import { moonwellMTokenAbi } from '@/lib/abi/moonwell';
@@ -509,13 +509,11 @@ export function DepositWithdrawModal({
         });
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else {
-        const hash = await writeTx({
-          address: opportunity.depositTarget,
-          abi: erc4626Abi,
-          functionName: 'deposit',
-          args: [netAmount, address],
-          chainId: opportunity.chainId,
-        });
+        // Yearn v3, Morpho, Fluid — the ERC-4626 batch. Tx built by
+        // @defiant/core (packages/core/src/erc4626/ERC4626Adapter.ts), not
+        // hand-rolled here — see the Phase 2 adapter extraction.
+        const tx = buildErc4626Deposit(opportunity.depositTarget, opportunity.chainId, address, netAmount);
+        const hash = await writeTx(tx as unknown as Parameters<typeof writeTx>[0]);
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       }
       setStep('done');
@@ -621,13 +619,8 @@ export function DepositWithdrawModal({
         return;
       } else if (ERC4626_PROTOCOLS.includes(opportunity.protocol)) {
         setStep('acting');
-        const hash = await writeTx({
-          address: opportunity.depositTarget,
-          abi: erc4626Abi,
-          functionName: 'redeem',
-          args: [amountBig, address, address],
-          chainId: opportunity.chainId,
-        });
+        const tx = buildErc4626Withdraw(opportunity.depositTarget, opportunity.chainId, address, amountBig);
+        const hash = await writeTx(tx as unknown as Parameters<typeof writeTx>[0]);
         await waitForTransactionReceipt(getWagmiConfig(), { hash, chainId: opportunity.chainId });
       } else if (opportunity.protocol === 'lido') {
         const cfg = (LIDO as Record<number, (typeof LIDO)[keyof typeof LIDO]>)[opportunity.chainId];

@@ -265,6 +265,22 @@ protocol's own docs — see the comment above each export for the exact source a
 verification date. **Re-verify against those sources before any mainnet deploy** — don't
 assume addresses stay correct indefinitely.
 
+**Repo-split in progress (Phase 2, 2026-09-11):** Yearn v3, Morpho, and Fluid's addresses,
+rate-fetch logic, and deposit/withdraw transaction building have moved into
+`packages/core` (`YearnAdapter`/`MorphoAdapter`/`FluidAdapter`, all extending a shared
+`ERC4626Adapter` base) — a standalone package this app now imports rather than owning that
+logic itself. `apps/web/lib/protocols/{yearn,morpho,fluid}.ts` are now thin bridges mapping
+the package's `RateQuote`/adapter fields onto this app's `Opportunity` catalog shape.
+`components/DepositWithdrawModal.tsx` calls `buildErc4626Deposit`/`buildErc4626Withdraw`
+from `@defiant/core` for those three protocols instead of hand-rolling the ABI call. The
+other six protocols (Aave v3, Compound III, Moonwell, Sky, Maple, Lido) are not extracted
+yet — same inline pattern as before, one batch at a time. Position reads for all nine still
+go through `lib/hooks/usePositions.ts`'s single batched `useReadContracts` call rather than
+each adapter's own `getPosition()` — deliberately not switched in this batch, to keep that
+multicall-style batching rather than trade it for N separate reads; the adapters' own
+`getPosition()` exists for Phase 3's fork tests and future consumers (`packages/api`)
+regardless. See `packages/core/README.md` and `CLAUDE.md`'s 2026-09-11 session update.
+
 Sky sUSDS on L2 uses Spark's PSM3 (official addresses in `lib/config/addresses.ts`,
 [Spark PSM docs](https://docs.spark.fi/dev/savings/spark-psm)). Token addresses are read
 from the PSM at runtime. Copy calls this the Sky protocol rate — not a "savings" product.
