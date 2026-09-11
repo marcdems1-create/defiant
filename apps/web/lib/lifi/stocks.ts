@@ -62,6 +62,19 @@ export interface StockToken {
 /** Flag a LI.FI/CoinGecko price divergence above this magnitude (BUILD_SPEC Phase 1 P1). */
 export const PRICE_DIVERGENCE_FLAG_PCT = 1.5;
 
+/**
+ * Separate, higher bar for the public tape's own "price mismatch" badge. 1.5% (above) is
+ * tuned for the admin join-health table and the arb signal, where even a small, consistent
+ * divergence across many rows is a useful tell that the address map itself is wrong. Live
+ * production data (checked 2026-09-06) showed many individually-legitimate rows sitting a
+ * few percent apart from CoinGecko on ordinary staleness/spread — flagging all of those to
+ * a depositor would be noise, not signal. This threshold is for "LI.FI's own last-mark
+ * price looks unreliable enough that a depositor should not trust it at a glance" — it does
+ * not change what StockSwapModal actually quotes or lets someone sign; that always re-quotes
+ * live at execution time regardless of this display-only warning.
+ */
+export const PRICE_DIVERGENCE_WARN_PCT = 10;
+
 /** Dashboard tape length — top names by parseable market cap, not a featured pick. */
 export const STOCK_TAPE_SIZE = 50;
 

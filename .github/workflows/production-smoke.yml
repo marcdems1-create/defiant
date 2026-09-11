@@ -1,12 +1,28 @@
 name: Production Smoke
 
+# Two cadences: the cheap, read-mostly checks run every 30 minutes; the arb
+# check fires real LI.FI quotes per candidate row (see CLAUDE.md "Phase 3b")
+# and stays on a much lower cadence so an unattended cron doesn't multiply
+# external-API cost on the least-tested piece of this build. A manual
+# workflow_dispatch run always runs both jobs.
+#
+# On failure, each job opens (or comments on) a tracking issue instead of
+# relying on someone noticing a red run in the Actions tab; a subsequent
+# passing run closes it. See AGENT_INFRASTRUCTURE_SPEC.md Track B2.
+
 on:
   workflow_dispatch:
   schedule:
     - cron: '*/30 * * * *'
+    - cron: '0 */4 * * *'
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
   smoke:
+    if: github.event_name != 'schedule' || github.event.schedule == '*/30 * * * *'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,3 +31,144 @@ jobs:
           node-version: 20
       - run: npm run smoke:public
       - run: npm run smoke:stocks
+      - name: Open or update failure issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Production smoke failing: public site / stock market data';
+            const label = 'production-smoke-failure';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+            });
+            const existing = issues.find((i) => i.title === title);
+            const body =
+              `\`npm run smoke:public\` and/or \`npm run smoke:stocks\` failed against production.\n\n` +
+              `Run: ${runUrl}\nTime: ${new Date().toISOString()}\n\n` +
+              'This issue stays open and gets a comment on each further failure. ' +
+              'A passing scheduled run closes it automatically.';
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: [label],
+              });
+            }
+      - name: Close failure issue if recovered
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Production smoke failing: public site / stock market data';
+            const label = 'production-smoke-failure';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+            });
+            const existing = issues.find((i) => i.title === title);
+            if (existing) {
+              const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Recovered — this run passed.\n\nRun: ${runUrl}`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: 'closed',
+              });
+            }
+
+  smoke-arb:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 */4 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm run smoke:stock-arb
+      - name: Open or update failure issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Production smoke failing: cross-chain stock arb';
+            const label = 'production-smoke-failure';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+            });
+            const existing = issues.find((i) => i.title === title);
+            const body =
+              '`npm run smoke:stock-arb` failed against production (internal-consistency check on ' +
+              'lib/lifi/stockArb.ts round-trip verification — see CLAUDE.md "Phase 3b").\n\n' +
+              `Run: ${runUrl}\nTime: ${new Date().toISOString()}\n\n` +
+              'This issue stays open and gets a comment on each further failure. ' +
+              'A passing scheduled run closes it automatically. Note: this check also fails on zero ' +
+              'rows only when the script judges that suspicious, not on every empty result — see the ' +
+              'script output in the run log before assuming a real regression.';
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: [label],
+              });
+            }
+      - name: Close failure issue if recovered
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Production smoke failing: cross-chain stock arb';
+            const label = 'production-smoke-failure';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: label,
+            });
+            const existing = issues.find((i) => i.title === title);
+            if (existing) {
+              const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Recovered — this run passed.\n\nRun: ${runUrl}`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: 'closed',
+              });
+            }
